@@ -62,3 +62,15 @@ export async function deleteScore(id: string): Promise<void> {
   const db = await getDB();
   await db.delete("scores", id);
 }
+
+export async function clearScores(): Promise<void> {
+  const db = await getDB();
+  await db.clear("scores");
+}
+
+/** Espacio aproximado ocupado por la biblioteca, en bytes. */
+export async function scoresSize(): Promise<{ count: number; bytes: number }> {
+  const all = await listScores();
+  const bytes = all.reduce((sum, s) => sum + s.file.size + s.thumbnail.length, 0);
+  return { count: all.length, bytes };
+}

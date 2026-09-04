@@ -85,6 +85,8 @@ function ScoreCard({ record, onOpen, onDelete }: { record: ScoreRecord; onOpen: 
     <div className="card p-0 overflow-hidden group cursor-pointer" onClick={onOpen}>
       <div className="relative bg-surface-2 aspect-[3/4]">
         {record.thumbnail ? (
+          // La miniatura es un data URL generado en el dispositivo: next/image no puede optimizarla.
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={record.thumbnail} alt={record.name} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl text-ink-3">📄</div>
