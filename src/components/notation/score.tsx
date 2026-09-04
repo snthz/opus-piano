@@ -45,6 +45,8 @@ export interface ScoreProps {
   /** Índice (entre todas las notas del pentagrama superior) que se resalta */
   highlight?: number;
   highlightColor?: string;
+  /** Colores por índice de nota (p. ej. resultados de un ejercicio) */
+  noteStyles?: Record<number, string>;
   /** Barra final al terminar */
   endBar?: "single" | "double" | "end" | "repeat" | "none";
   /** Texto accesible que describe el ejemplo */
@@ -76,6 +78,7 @@ export function Score({
   tuplets,
   highlight,
   highlightColor,
+  noteStyles,
   endBar = "none",
   title,
   className = "",
@@ -91,7 +94,7 @@ export function Score({
   const grand = !!bassMeasures;
   const computedHeight = height ?? (render ? 160 : grand ? STAVE_HEIGHT * 2 + 40 : STAVE_HEIGHT + 30);
   const measuresKey = JSON.stringify([measures, bassMeasures]);
-  const labelsKey = JSON.stringify([labels, bassLabels, ties, slurs, tuplets]);
+  const labelsKey = JSON.stringify([labels, bassLabels, ties, slurs, tuplets, noteStyles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +130,7 @@ export function Score({
               tuplets,
               highlight,
               highlightColor: highlightColor ?? getAccentColor(el),
+              noteStyles,
               endBar,
               onNotes,
             });
@@ -184,6 +188,7 @@ interface DrawOptions {
   tuplets?: [number, number][];
   highlight?: number;
   highlightColor: string;
+  noteStyles?: Record<number, string>;
   endBar: NonNullable<ScoreProps["endBar"]>;
   onNotes?: (notes: StemmableNote[]) => void;
 }
@@ -288,6 +293,12 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
     x += w;
   }
 
+  if (o.noteStyles) {
+    for (const [idx, color] of Object.entries(o.noteStyles)) {
+      const n = allTreble[Number(idx)];
+      if (n) n.setStyle({ fillStyle: color, strokeStyle: color });
+    }
+  }
   if (o.highlight !== undefined && allTreble[o.highlight]) {
     const n = allTreble[o.highlight];
     n.setStyle({ fillStyle: o.highlightColor, strokeStyle: o.highlightColor });

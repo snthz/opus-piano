@@ -1,0 +1,76 @@
+import type { KeyInfo } from "./keys";
+import { applyKey } from "./keys";
+import type { Pitch } from "./pitch";
+import { LETTERS, diatonicIndex, toEasyScore, toMidi } from "./pitch";
+import type { TimeSignature } from "./meter";
+import { generateRhythm, type RhythmLevel, type RhythmNote } from "./rhythm";
+import { pick } from "@/lib/random";
+
+export interface MelodyNote extends RhythmNote {
+  pitch: Pitch;
+}
+
+export interface Melody {
+  measures: MelodyNote[][];
+  /** Compases en EasyScore */
+  easy: string[];
+  events: { midis: number[]; beats: number }[];
+}
+
+const RANGES: Record<"treble" | "bass", [number, number]> = {
+  // índices diatónicos: C4 = 4*7+0 = 28
+  treble: [diatonicIndex({ letter: "C", accidental: 0, octave: 4 }), diatonicIndex({ letter: "A", accidental: 0, octave: 5 })],
+  bass: [diatonicIndex({ letter: "E", accidental: 0, octave: 2 }), diatonicIndex({ letter: "C", accidental: 0, octave: 4 })],
+};
+
+function pitchAt(index: number, key: KeyInfo): Pitch {
+  const octave = Math.floor(index / 7);
+  const letter = LETTERS[((index % 7) + 7) % 7];
+  return applyKey(key, letter, octave);
+}
+
+/**
+ * Melodía diatónica: movimiento mayormente por grados conjuntos, algún salto,
+ * empieza en la tónica (o 3.ª/5.ª) y termina en la tónica con valor largo.
+ */
+export function generateMelody(
+  key: KeyInfo,
+  clef: "treble" | "bass",
+  ts: TimeSignature,
+  measures: number,
+  level: RhythmLevel,
+): Melody {
+  const [lo, hi] = RANGES[clef];
+  const rhythm = generateRhythm(ts, level, measures, { noRests: level < 3 });
+  // Último compás: una nota larga en la tónica.
+  const totalBeats = rhythm[0].reduce((s, n) => s + n.beats, 0);
+  rhythm[rhythm.length - 1] = [{ beats: totalBeats, rest: false, vex: totalBeats >= 4 ? "w" : totalBeats >= 3 ? "h." : totalBeats >= 2 ? "h" : totalBeats >= 1.5 ? "q." : "q" }];
+
+  // Tónicas dentro del rango.
+  const tonicIdx = LETTERS.indexOf(key.tonic);
+  const tonics: number[] = [];
+  for (let i = lo; i <= hi; i++) if (((i % 7) + 7) % 7 === tonicIdx) tonics.push(i);
+  const midTonic = tonics[Math.floor(tonics.length / 2)] ?? lo;
+  let current = pick([midTonic, midTonic + 2, midTonic + 4].filter((i) => i >= lo && i <= hi));
+
+  const out: MelodyNote[][] = rhythm.map((m, mi) =>
+    m.map((n, ni) => {
+      const isLast = mi === rhythm.length - 1 && ni === m.length - 1;
+      if (isLast) {
+        // Tónica más cercana a la nota actual.
+        current = tonics.reduce((best, t) => (Math.abs(t - current) < Math.abs(best - current) ? t : best), tonics[0]);
+      } else if (!(mi === 0 && ni === 0)) {
+        const r = Math.random();
+        let step = r < 0.65 ? (Math.random() < 0.5 ? 1 : -1) : r < 0.9 ? (Math.random() < 0.5 ? 2 : -2) : Math.random() < 0.5 ? 4 : -4;
+        if (current + step > hi) step = -Math.abs(step);
+        if (current + step < lo) step = Math.abs(step);
+        current += step;
+      }
+      return { ...n, pitch: pitchAt(current, key) };
+    }),
+  );
+
+  const easy = out.map((m) => m.map((n) => `${toEasyScore(n.pitch)}/${n.vex}${n.rest ? "/r" : ""}`).join(", "));
+  const events = out.flat().map((n) => ({ midis: n.rest ? [] : [toMidi(n.pitch)], beats: n.beats }));
+  return { measures: out, easy, events };
+}
