@@ -1,26 +1,123 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Fuentes musicales SMuFL (originales de Steinberg, licencia OFL). */
+@font-face {
+  font-family: "Bravura";
+  src: url("/fonts/bravura/Bravura.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "Bravura Text";
+  src: url("/fonts/bravura/BravuraText.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "Academico";
+  src: url("/fonts/bravura/Academico.woff2") format("woff2");
+  font-display: swap;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --paper: #fbf7ef;
+  --paper-2: #f3ecdd;
+  --paper-3: #e8dfc9;
+  --ink: #1c1917;
+  --ink-2: #57534e;
+  --ink-3: #8a8278;
+  --accent: #c26a08;
+  --accent-2: #f2a83b;
+  --accent-soft: #fdebc9;
+  --ok: #2f7d4f;
+  --bad: #b3261e;
+  --line: #d9d0bd;
+  --shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 8px 24px -12px rgb(28 25 23 / 0.25);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #141210;
+    --paper-2: #1e1b18;
+    --paper-3: #2a2521;
+    --ink: #efe8da;
+    --ink-2: #b8ae9e;
+    --ink-3: #7d7366;
+    --accent: #f2a83b;
+    --accent-2: #c26a08;
+    --accent-soft: #3a2a10;
+    --ok: #5cbf83;
+    --bad: #f28b82;
+    --line: #35302a;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --color-line: var(--line);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-music: "Bravura", serif;
+  --font-music-text: "Bravura Text", serif;
+  --font-serif: "Academico", Georgia, serif;
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+}
+
+/* Glifos musicales sueltos (fuera de VexFlow). */
+.smufl {
+  font-family: "Bravura", serif;
+  font-feature-settings: "liga" 0;
+  line-height: 1;
+}
+.smufl-text {
+  font-family: "Bravura Text", serif;
+  line-height: 1;
+}
+
+/* Contenedor de partituras VexFlow: escala el SVG al ancho disponible. */
+.score-box svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.prose-music p {
+  line-height: 1.7;
+}
+
+@utility card {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow);
+}
+
+@utility safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+@keyframes pulse-key {
+  0% { transform: scaleY(1); }
+  50% { transform: scaleY(0.97); }
+  100% { transform: scaleY(1); }
 }
