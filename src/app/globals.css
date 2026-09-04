@@ -28,6 +28,7 @@
   --ink-2: #5c5c66;
   --ink-3: #9a9aa5;
   --line: #e5e5ea;
+  --staff: #8e8e99;
   --accent: #6b5fd6;
   --accent-soft: #e9e5fa;
   --ok: #2f9d68;
@@ -54,6 +55,7 @@
     --ink-2: #b3b3bd;
     --ink-3: #7c7c88;
     --line: #2e2e36;
+    --staff: #6e6e7b;
     --accent: #9d93f0;
     --accent-soft: #2d2850;
     --ok: #5fc48f;
@@ -128,14 +130,24 @@ body {
   height: auto;
   display: block;
 }
-/* VexFlow pinta en negro; lo pasamos al color de tinta del tema. */
+/* VexFlow pone fill/stroke negros en el <svg> raíz y todo lo hereda desde ahí:
+   hay que apuntar al propio svg, no solo a sus descendientes, o en modo oscuro
+   las notas y las claves quedan negras sobre fondo negro. */
+.score-box svg[fill="black"],
+.score-box svg[fill="#000000"],
 .score-box svg [fill="black"],
 .score-box svg [fill="#000000"] {
   fill: var(--ink);
 }
+.score-box svg[stroke="black"],
+.score-box svg[stroke="#000000"],
 .score-box svg [stroke="black"],
 .score-box svg [stroke="#000000"] {
   stroke: var(--ink);
+}
+/* Las líneas del pentagrama llevan un gris fijo; lo llevamos al gris del tema. */
+.score-box svg [stroke="#999999"] {
+  stroke: var(--staff);
 }
 
 .prose-music p {

@@ -2,6 +2,7 @@ import { LessonLayout, Section, P, Figure } from "@/components/lesson/lesson-lay
 import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
 import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PianoKeyboard } from "@/components/notation/piano-keyboard";
 import { PlayButton } from "@/components/audio/play-button";
 
@@ -43,7 +44,7 @@ export default function Page() {
         <div className="flex justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
             <div key={n} className="card w-14 h-14 flex items-center justify-center">
-              <Glyph name={`fingering${n}`} size={30} label={`dedo ${n}`} />
+              <GlyphIcon name={`fingering${n}`} size={30} label={`dedo ${n}`} />
             </div>
           ))}
         </div>

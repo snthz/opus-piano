@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { GLOSSARY, groupByLetter } from "@/data/glossary";
 
 /** Quita tildes para que la búsqueda funcione escribiendo "compas" o "compás". */
@@ -61,7 +61,7 @@ export function GlossaryList() {
               <li key={e.term} className="card p-4 flex gap-3 items-start">
                 {e.glyph && (
                   <span className="shrink-0 w-8 text-center text-ink-2">
-                    <Glyph name={e.glyph} size={26} />
+                    <GlyphIcon name={e.glyph} size={26} />
                   </span>
                 )}
                 <div className="min-w-0">

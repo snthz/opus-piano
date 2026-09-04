@@ -49,6 +49,16 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/glosario",
+    label: "Glosario",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+        <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5z" strokeLinejoin="round" />
+        <path d="M9 7.5h6M9 11h6M9 14.5h3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/mas",
     label: "Más",
     icon: (
@@ -65,56 +75,44 @@ export function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/** Barra inferior flotante (móvil): píldora blanca con círculos; el activo es negro. */
+/**
+ * Riel vertical flotante, centrado en el borde izquierdo.
+ * No es una barra lateral clásica de altura completa: es una cápsula estrecha
+ * que solo mide lo que ocupan sus iconos. El nombre aparece como etiqueta
+ * superpuesta, nunca ensanchando el riel, para que no tape el contenido.
+ */
 export function AppNav() {
   const pathname = usePathname();
   return (
-    <nav
-      aria-label="Navegación principal"
-      className="fixed bottom-0 inset-x-0 z-40 md:hidden pointer-events-none safe-bottom px-4"
-    >
-      <ul className="pointer-events-auto mx-auto max-w-sm card flex items-center justify-between px-2 py-2">
+    <nav aria-label="Navegación principal" className="fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-40">
+      <ul className="card flex flex-col gap-1 p-2">
         {items.map((it) => {
           const active = isActive(pathname, it.href);
           return (
-            <li key={it.href}>
+            <li key={it.href} className="relative group">
               <Link
                 href={it.href}
                 aria-label={it.label}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${
-                  active ? "bg-ink text-bg scale-105" : "text-ink-3 hover:bg-surface-2"
+                className={`grid place-items-center w-11 h-11 rounded-full transition-colors ${
+                  active ? "bg-ink text-bg" : "text-ink-3 hover:bg-surface-2 hover:text-ink"
                 }`}
               >
-                <span className="w-6 h-6">{it.icon}</span>
+                <span className="w-5 h-5">{it.icon}</span>
               </Link>
+              {/* Etiqueta flotante: se superpone al contenido, no desplaza nada. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 rounded-full
+                  bg-ink text-bg text-xs font-medium whitespace-nowrap opacity-0 transition-opacity
+                  group-hover:opacity-100 group-focus-within:opacity-100 hidden md:block"
+              >
+                {it.label}
+              </span>
             </li>
           );
         })}
       </ul>
     </nav>
-  );
-}
-
-/** Píldoras superiores (escritorio). */
-export function DesktopNav() {
-  const pathname = usePathname();
-  return (
-    <ul className="hidden md:flex items-center gap-2">
-      {items.map((it) => {
-        const active = isActive(pathname, it.href);
-        return (
-          <li key={it.href}>
-            <Link
-              href={it.href}
-              aria-current={active ? "page" : undefined}
-              className={`pill ${active ? "pill-active" : "hover:text-ink"}`}
-            >
-              {it.label}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

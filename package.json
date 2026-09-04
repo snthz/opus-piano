@@ -6,6 +6,7 @@
     "dev": "next dev",
     "gen:smufl": "node scripts/gen-smufl.mjs",
     "gen:sw": "node scripts/gen-sw.mjs",
+    "gen:bbox": "bun scripts/gen-glyph-bbox.mjs",
     "build": "node scripts/gen-smufl.mjs && node scripts/gen-sw.mjs && next build",
     "start": "next start",
     "lint": "eslint"

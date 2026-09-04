@@ -1,7 +1,7 @@
 /**
  * Genera src/data/smufl-codepoints.ts con los puntos de código de los glifos SMuFL
  * que usa la app. Los nombres se extraen del código fuente (glyph: "…", noteGlyph: "…",
- * restGlyph: "…", extraGlyphs: [...] y <Glyph name="…">).
+ * restGlyph: "…", extraGlyphs: [...] y <Glyph name="…"> / <GlyphIcon name="…">).
  *
  * Fuente de datos: metadata oficial de SMuFL (W3C Music Notation Community Group).
  * Se cachea en node_modules/.cache/smufl/glyphnames.json.
@@ -41,7 +41,7 @@ for (const file of walk(join(root, "src"))) {
   for (const m of src.matchAll(/extraGlyphs\s*:\s*\[([^\]]*)\]/g)) {
     for (const n of m[1].matchAll(/"([A-Za-z0-9]+)"/g)) used.add(n[1]);
   }
-  for (const m of src.matchAll(/<Glyph\b[^>]*\bname="([A-Za-z0-9]+)"/g)) used.add(m[1]);
+  for (const m of src.matchAll(/<Glyph(?:Icon)?\b[^>]*\bname="([A-Za-z0-9]+)"/g)) used.add(m[1]);
   for (const m of src.matchAll(/\bsmufl\(\s*"([A-Za-z0-9]+)"\s*\)/g)) used.add(m[1]);
 }
 

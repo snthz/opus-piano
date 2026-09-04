@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
-import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { LESSON_SECTIONS, ALL_LESSONS } from "@/data/lessons";
 
 export const metadata = { title: "Teoría" };
@@ -31,7 +31,7 @@ export default function TeoriaPage() {
                       className={`card-pastel ${color} relative p-4 min-h-40 flex flex-col justify-between group`}
                     >
                       <span className="w-10 h-10 rounded-full bg-surface/90 flex items-center justify-center">
-                        <Glyph name={l.glyph} size={22} />
+                        <GlyphIcon name={l.glyph} size={22} />
                       </span>
                       <span className="pr-10">
                         <span className="block text-xs text-ink-2">Lección {n}</span>

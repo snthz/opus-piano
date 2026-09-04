@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ExerciseShell, OptionButton, SettingRow, Choice, useExerciseSession, type Feedback } from "./exercise-shell";
 import { SYMBOL_CATEGORIES, ALL_SYMBOLS, type SymbolEntry } from "@/data/symbols";
 import { pickDifferent, sample, shuffle } from "@/lib/random";
@@ -35,7 +35,7 @@ function makeQuestion(category: string, prev?: Question): Question {
 }
 
 function GlyphBox({ s, size = 44 }: { s: SymbolEntry; size?: number }) {
-  return <Glyph name={[s.glyph, ...(s.extraGlyphs ?? [])]} size={size * (s.scale ?? 1)} label={s.name} />;
+  return <GlyphIcon name={[s.glyph, ...(s.extraGlyphs ?? [])]} size={size * (s.scale ?? 1)} fit="em" label={s.name} />;
 }
 
 export function SymbolFlashcards() {

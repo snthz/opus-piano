@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { lessonBySlug, lessonNeighbors, ALL_LESSONS } from "@/data/lessons";
-import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 
 export function LessonLayout({ slug, children }: { slug: string; children: React.ReactNode }) {
@@ -20,7 +20,7 @@ export function LessonLayout({ slug, children }: { slug: string; children: React
             <ChevronIcon dir="left" />
           </Link>
           <span className="pill">
-            <Glyph name={lesson.glyph} size={16} />
+            <GlyphIcon name={lesson.glyph} size={16} />
             Lección {number}
           </span>
         </div>

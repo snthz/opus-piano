@@ -2,6 +2,7 @@ import { LessonLayout, Section, P, Figure } from "@/components/lesson/lesson-lay
 import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
 import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayButton } from "@/components/audio/play-button";
 
 export const metadata = { title: "Las claves" };
@@ -22,7 +23,7 @@ export default function Page() {
             { g: "cClef", n: "Clave de do" },
           ].map((c) => (
             <div key={c.g} className="card p-4 flex flex-col items-center gap-2">
-              <Glyph name={c.g} size={64} label={c.n} />
+              <GlyphIcon name={c.g} size={64} fit="em" label={c.n} />
               <span className="text-sm font-medium text-center">{c.n}</span>
             </div>
           ))}

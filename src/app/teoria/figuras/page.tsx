@@ -2,6 +2,7 @@ import { LessonLayout, Section, P, Figure } from "@/components/lesson/lesson-lay
 import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
 import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayButton } from "@/components/audio/play-button";
 import { FIGURES } from "@/lib/music/durations";
 
@@ -34,7 +35,7 @@ export default function Page() {
               {FIGURES.map((f) => (
                 <tr key={f.id} className="border-t border-line">
                   <td className="py-2 w-14">
-                    <Glyph name={f.noteGlyph} size={34} label={f.name} />
+                    <GlyphIcon name={f.noteGlyph} size={34} fit="em" label={f.name} />
                   </td>
                   <td>
                     <span className="font-semibold">{f.name}</span>
@@ -44,7 +45,7 @@ export default function Page() {
                     </span>
                   </td>
                   <td className="text-center">
-                    <Glyph name={f.restGlyph} size={34} label={f.restName} />
+                    <GlyphIcon name={f.restGlyph} size={34} fit="em" label={f.restName} />
                   </td>
                   <td className="text-right tabular-nums">{f.beats}</td>
                   <td className="text-right tabular-nums text-ink-2">{4 / f.beats}</td>

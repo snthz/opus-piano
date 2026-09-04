@@ -2,6 +2,7 @@ import { LessonLayout, Section, P, Figure } from "@/components/lesson/lesson-lay
 import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
 import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayButton } from "@/components/audio/play-button";
 import { MeterDemo } from "@/components/audio/meter-demo";
 import { TIME_SIGNATURES, TIME_SIGNATURE_BY_ID } from "@/lib/music/meter";
@@ -42,7 +43,7 @@ export default function Page() {
             { g: "timeSigCutCommon", t: "Compasillo cortado", d: "= 2/2" },
           ].map((c) => (
             <div key={c.g} className="card p-4 flex items-center gap-4">
-              <Glyph name={c.g} size={48} label={c.t} />
+              <GlyphIcon name={c.g} size={48} fit="em" label={c.t} />
               <span>
                 <span className="block font-semibold">{c.t}</span>
                 <span className="block text-sm text-ink-2">{c.d}</span>

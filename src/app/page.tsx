@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Glyph } from "@/components/notation/glyph";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { ALL_LESSONS } from "@/data/lessons";
 
@@ -30,9 +30,9 @@ export default function Home() {
             className={`card-pastel ${m.color} relative p-4 md:p-5 min-h-44 flex flex-col justify-between overflow-hidden group`}
           >
             <span className="w-10 h-10 rounded-full bg-surface/90 flex items-center justify-center">
-              <Glyph name={m.glyph} size={22} />
+              <GlyphIcon name={m.glyph} size={22} />
             </span>
-            <Glyph
+            <GlyphIcon
               name={m.glyph}
               size={150}
               className="absolute -right-6 -top-6 opacity-[0.08] pointer-events-none"
@@ -60,7 +60,7 @@ export default function Home() {
             <li key={l.slug}>
               <Link href={`/teoria/${l.slug}`} className="card p-3 pr-4 flex items-center gap-3">
                 <span className="w-12 h-12 rounded-full bg-blue flex items-center justify-center shrink-0">
-                  <Glyph name={l.glyph} size={24} />
+                  <GlyphIcon name={l.glyph} size={24} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium truncate">

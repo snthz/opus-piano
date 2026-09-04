@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Glyph } from "./glyph";
+import { GlyphIcon } from "./glyph-icon";
 import { SYMBOL_CATEGORIES, type SymbolEntry } from "@/data/symbols";
 
 function normalize(s: string) {
@@ -16,7 +16,7 @@ export function SymbolCard({ s, compact = false }: { s: SymbolEntry; compact?: b
   return (
     <div className="card p-4 flex gap-4">
       <div className="w-20 h-20 rounded-2xl bg-surface-2 flex items-center justify-center shrink-0 overflow-hidden">
-        <Glyph name={glyphs} size={44 * (s.scale ?? 1)} label={s.name} />
+        <GlyphIcon name={glyphs} size={44 * (s.scale ?? 1)} fit="em" label={s.name} />
       </div>
       <div className="min-w-0">
         <h3 className="font-semibold leading-tight">{s.name}</h3>
