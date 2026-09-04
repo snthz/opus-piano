@@ -258,7 +258,10 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
       const voice = factory.Voice({ time: o.time ?? "4/4" });
       voice.setMode(vf.Voice.Mode.SOFT);
       voice.addTickables(notes);
-      if (o.beams) beamsToDraw.push(...vf.Beam.generateBeams(notes));
+      if (o.beams) {
+        const groups = vf.Beam.getDefaultBeamGroups(o.time ?? "4/4");
+        beamsToDraw.push(...vf.Beam.generateBeams(notes, { groups }));
+      }
       factory.Formatter().joinVoices([voice]).formatToStave([voice], stave);
     }
     return stave;
