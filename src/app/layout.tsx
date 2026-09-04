@@ -51,10 +51,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* El padding izquierdo deja sitio al riel de navegación flotante. */}
-      <body className="min-h-full flex flex-col pl-16 sm:pl-20">
+      {/* Abajo deja sitio a la barra móvil; a la izquierda, al panel lateral de escritorio. */}
+      <body className="min-h-full flex flex-col pb-28 md:pb-0 md:pl-72">
         <AppHeader />
-        <main className="flex-1 w-full max-w-3xl mx-auto px-4 pt-4 pb-10">
+        <main className="flex-1 w-full max-w-3xl mx-auto px-4 pt-4 md:pt-8 pb-10">
           {children}
         </main>
         <AppNav />

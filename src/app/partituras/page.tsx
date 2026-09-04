@@ -10,7 +10,7 @@ export default function PartiturasPage() {
       <PageHeader
         eyebrow="Biblioteca"
         title="Mis partituras"
-        intro="Tus PDF guardados solo en este dispositivo. Nadie más puede verlos."
+        intro="Tus PDF y MusicXML, guardados solo en este dispositivo. Dibuja encima, y con MusicXML escucha la pieza y ve el nombre de cada nota."
       />
       <ClientOnly>
         <ScoreLibrary />

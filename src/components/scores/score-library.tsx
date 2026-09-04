@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { listScores, deleteScore, type ScoreRecord } from "@/lib/scores-db";
 import { ScoreUpload } from "./score-upload";
 import { ScoreViewer } from "./score-viewer";
+import { GlyphIcon } from "@/components/notation/glyph-icon";
 
 export function ScoreLibrary() {
   const [scores, setScores] = useState<ScoreRecord[]>([]);
@@ -11,9 +12,8 @@ export function ScoreLibrary() {
   const [viewing, setViewing] = useState<ScoreRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    listScores().then((s) => { setScores(s); setLoaded(true); });
-  }, []);
+  const reload = () => listScores().then((s) => { setScores(s); setLoaded(true); });
+  useEffect(() => { void reload(); }, []);
 
   const onAdded = (r: ScoreRecord) => setScores((prev) => [r, ...prev]);
 
@@ -32,7 +32,8 @@ export function ScoreLibrary() {
     return (
       <ScoreViewer
         record={viewing}
-        onClose={() => setViewing(null)}
+        // Al volver se relee la biblioteca: notas y trazos guardados mientras se veía la partitura.
+        onClose={() => { setViewing(null); void reload(); }}
         onDelete={() => void onDelete(viewing.id)}
         onNotesChange={(notes) => onNotesChange(viewing.id, notes)}
       />
@@ -59,7 +60,7 @@ export function ScoreLibrary() {
 
       {loaded && scores.length === 0 && (
         <p className="text-sm text-ink-2 text-center py-8">
-          No tienes partituras guardadas. Añade tu primer PDF arriba.
+          No tienes partituras guardadas. Añade arriba tu primer PDF o MusicXML.
         </p>
       )}
 
@@ -89,7 +90,11 @@ function ScoreCard({ record, onOpen, onDelete }: { record: ScoreRecord; onOpen: 
           // eslint-disable-next-line @next/next/no-img-element
           <img src={record.thumbnail} alt={record.name} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl text-ink-3">📄</div>
+          // MusicXML no tiene páginas que miniaturizar: una tarjeta con las dos claves.
+          <div className="w-full h-full bg-lavender flex items-center justify-center gap-3 text-ink">
+            <GlyphIcon name="gClef" size={44} fit="em" />
+            <GlyphIcon name="fClef" size={44} fit="em" />
+          </div>
         )}
         <button
           type="button"
@@ -114,7 +119,11 @@ function ScoreCard({ record, onOpen, onDelete }: { record: ScoreRecord; onOpen: 
       </div>
       <div className="p-2">
         <p className="text-xs font-semibold truncate">{record.name}</p>
-        <p className="text-xs text-ink-2">{record.pageCount} {record.pageCount === 1 ? "página" : "páginas"}</p>
+        <p className="text-xs text-ink-2">
+          {record.kind === "musicxml"
+            ? `${record.pageCount} ${record.pageCount === 1 ? "compás" : "compases"} · se puede escuchar`
+            : `${record.pageCount} ${record.pageCount === 1 ? "página" : "páginas"}`}
+        </p>
       </div>
     </div>
   );

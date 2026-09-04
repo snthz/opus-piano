@@ -6,7 +6,7 @@ import { ALL_LESSONS } from "@/data/lessons";
 const modules = [
   { href: "/teoria", title: "Teoría", text: "Leer partituras paso a paso", glyph: "gClef", color: "bg-yellow" },
   { href: "/practica", title: "Práctica", text: "Notas, ritmo, solfeo y símbolos", glyph: "noteQuarterUp", color: "bg-mint" },
-  { href: "/partituras", title: "Partituras", text: "Tus PDF, solo en tu teléfono", glyph: "fClef", color: "bg-lavender" },
+  { href: "/partituras", title: "Partituras", text: "Tus PDF y MusicXML, solo en tu teléfono", glyph: "fClef", color: "bg-lavender" },
   { href: "/glosario", title: "Glosario", text: "Términos de la A a la Z", glyph: "dynamicForte", color: "bg-pink" },
 ];
 

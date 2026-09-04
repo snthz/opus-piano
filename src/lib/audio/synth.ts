@@ -287,3 +287,65 @@ export function playSequence(
     },
   };
 }
+
+export interface TimelineNote {
+  midis: number[];
+  /** Inicio en negras desde el principio */
+  start: number;
+  /** Duración en negras */
+  beats: number;
+}
+
+/**
+ * Reproduce notas con inicios independientes (dos manos, voces que se solapan).
+ * A diferencia de `playSequence`, aquí cada nota lleva su propio instante de
+ * inicio en lugar de encadenarse con la anterior.
+ * `onNote(index)` se llama al empezar cada nota y con -1 al terminar o detener.
+ */
+export function playTimeline(
+  notes: TimelineNote[],
+  bpm: number,
+  opts: { onNote?: (index: number) => void; countIn?: number } = {},
+): PlaybackHandle {
+  const c = getAudioContext();
+  const beatSec = 60 / bpm;
+  const countIn = opts.countIn ?? 0;
+  const start = c.currentTime + 0.1 + countIn * beatSec;
+  const timeouts: number[] = [];
+  const stops: (() => void)[] = [];
+  let stopped = false;
+
+  for (let i = 0; i < countIn; i++) playClick(c.currentTime + 0.1 + i * beatSec, i === 0);
+
+  let end = start;
+  notes.forEach((n, index) => {
+    const when = start + n.start * beatSec;
+    const dur = n.beats * beatSec;
+    end = Math.max(end, when + dur);
+    for (const m of n.midis) stops.push(playNote(m, { when, duration: dur * 0.95 }));
+    timeouts.push(window.setTimeout(() => !stopped && opts.onNote?.(index), Math.max(0, (when - c.currentTime) * 1000)));
+  });
+
+  let resolveDone: () => void = () => {};
+  const done = new Promise<void>((res) => (resolveDone = res));
+  timeouts.push(
+    window.setTimeout(
+      () => {
+        opts.onNote?.(-1);
+        resolveDone();
+      },
+      Math.max(0, (end - c.currentTime) * 1000) + 50,
+    ),
+  );
+
+  return {
+    done,
+    stop: () => {
+      stopped = true;
+      timeouts.forEach((id) => window.clearTimeout(id));
+      stops.forEach((s) => s());
+      opts.onNote?.(-1);
+      resolveDone();
+    },
+  };
+}

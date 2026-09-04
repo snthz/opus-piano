@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { renderPage } from "@/lib/pdf-thumbnail";
-import { updateScoreNotes, type ScoreRecord } from "@/lib/scores-db";
+import { updateScoreAnnotations, updateScoreNotes, type Annotations, type ScoreRecord, type Stroke } from "@/lib/scores-db";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { MusicXmlViewer } from "./musicxml-viewer";
+import { PEN_COLORS, ScoreAnnotator, type Tool } from "./score-annotator";
 
 interface Props {
   record: ScoreRecord;
@@ -13,24 +15,11 @@ interface Props {
 }
 
 export function ScoreViewer({ record, onClose, onDelete, onNotesChange }: Props) {
-  const [page, setPage] = useState(1);
-  const [scale, setScale] = useState(1.5);
   const [notes, setNotes] = useState(record.notes);
   const [showNotes, setShowNotes] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const canvasRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const draw = useCallback(async () => {
-    const container = canvasRef.current;
-    if (!container) return;
-    container.innerHTML = "";
-    const canvas = await renderPage(record.file, page, scale);
-    canvas.className = "mx-auto shadow-lg";
-    container.appendChild(canvas);
-  }, [record.file, page, scale]);
-
-  useEffect(() => { void draw(); }, [draw]);
+  const isXml = record.kind === "musicxml";
 
   const saveNotes = (v: string) => {
     setNotes(v);
@@ -47,7 +36,9 @@ export function ScoreViewer({ record, onClose, onDelete, onNotesChange }: Props)
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="font-bold truncate">{record.name}</h1>
-          <p className="text-xs text-ink-2">{record.pageCount} {record.pageCount === 1 ? "página" : "páginas"}</p>
+          {!isXml && (
+            <p className="text-xs text-ink-2">{record.pageCount} {record.pageCount === 1 ? "página" : "páginas"}</p>
+          )}
         </div>
         <button type="button" onClick={() => setShowNotes((v) => !v)} className={`pill text-xs py-1.5 ${showNotes ? "pill-active" : ""}`}>
           Notas
@@ -73,6 +64,56 @@ export function ScoreViewer({ record, onClose, onDelete, onNotesChange }: Props)
         />
       )}
 
+      {isXml ? <MusicXmlViewer record={record} /> : <PdfViewer record={record} />}
+    </div>
+  );
+}
+
+/** Páginas del PDF con zoom y una capa para dibujar encima. */
+function PdfViewer({ record }: { record: ScoreRecord }) {
+  const [page, setPage] = useState(1);
+  const [scale, setScale] = useState(1.5);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [tool, setTool] = useState<Tool | null>(null);
+  const [color, setColor] = useState(PEN_COLORS[0].value);
+  const [annotations, setAnnotations] = useState<Annotations>(record.annotations ?? {});
+  const pageRef = useRef<HTMLDivElement>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const draw = useCallback(async () => {
+    const holder = pageRef.current;
+    if (!holder) return;
+    const canvas = await renderPage(record.file, page, scale);
+    if (!pageRef.current) return;
+    holder.replaceChildren(canvas);
+    setSize({ w: canvas.width, h: canvas.height });
+  }, [record.file, page, scale]);
+
+  useEffect(() => {
+    void draw();
+  }, [draw]);
+
+  const strokes = annotations[page] ?? [];
+  const setStrokes = (next: Stroke[]) => {
+    const all = { ...annotations, [page]: next };
+    setAnnotations(all);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => void updateScoreAnnotations(record.id, all), 600);
+  };
+
+  const toolButton = (t: Tool, label: string) => (
+    <button
+      type="button"
+      onClick={() => setTool((cur) => (cur === t ? null : t))}
+      className={`pill text-xs py-1.5 ${tool === t ? "pill-active" : ""}`}
+      aria-pressed={tool === t}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <button
@@ -96,13 +137,60 @@ export function ScoreViewer({ record, onClose, onDelete, onNotesChange }: Props)
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setScale((s) => Math.max(0.5, s - 0.25))} className="btn-circle w-9 h-9 text-sm">−</button>
+          <button type="button" onClick={() => setScale((s) => Math.max(0.5, s - 0.25))} className="btn-circle w-9 h-9 text-sm" aria-label="Reducir">−</button>
           <span className="text-xs text-ink-2 w-10 text-center">{Math.round(scale * 100)}%</span>
-          <button type="button" onClick={() => setScale((s) => Math.min(3, s + 0.25))} className="btn-circle w-9 h-9 text-sm">+</button>
+          <button type="button" onClick={() => setScale((s) => Math.min(3, s + 0.25))} className="btn-circle w-9 h-9 text-sm" aria-label="Ampliar">+</button>
         </div>
       </div>
 
-      <div ref={canvasRef} className="overflow-auto rounded-2xl bg-surface-2 min-h-64 p-2" />
+      <div className="flex items-center gap-2 flex-wrap">
+        {toolButton("pen", "✎ Lápiz")}
+        {toolButton("highlighter", "Subrayador")}
+        {toolButton("eraser", "Borrador")}
+        {tool === "pen" && (
+          <span className="flex items-center gap-1.5 ml-1">
+            {PEN_COLORS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setColor(c.value)}
+                aria-label={c.label}
+                aria-pressed={color === c.value}
+                className={`w-6 h-6 rounded-full border-2 ${color === c.value ? "border-accent scale-110" : "border-transparent"}`}
+                style={{ background: c.value }}
+              />
+            ))}
+          </span>
+        )}
+        <span className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStrokes(strokes.slice(0, -1))}
+            disabled={!strokes.length}
+            className="pill text-xs py-1.5 disabled:opacity-40"
+          >
+            Deshacer
+          </button>
+          <button
+            type="button"
+            onClick={() => setStrokes([])}
+            disabled={!strokes.length}
+            className="pill text-xs py-1.5 disabled:opacity-40"
+          >
+            Limpiar página
+          </button>
+        </span>
+      </div>
+      {tool && <p className="text-xs text-ink-3">Dibuja sobre la página. Vuelve a pulsar la herramienta para desactivarla y poder desplazarte.</p>}
+
+      <div className="overflow-auto rounded-2xl bg-surface-2 min-h-64 p-2">
+        <div className="relative mx-auto w-fit shadow-lg" style={size ? { width: size.w, height: size.h } : undefined}>
+          <div ref={pageRef} />
+          {size && (
+            <ScoreAnnotator width={size.w} height={size.h} strokes={strokes} onChange={setStrokes} tool={tool} color={color} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

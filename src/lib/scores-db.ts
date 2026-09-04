@@ -2,14 +2,34 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
+/** Un trazo dibujado sobre una página, en coordenadas relativas (0–1) al tamaño de la página. */
+export interface Stroke {
+  color: string;
+  /** Grosor relativo al ancho de la página */
+  width: number;
+  /** Trazo de subrayador: semitransparente y ancho */
+  highlighter?: boolean;
+  points: [number, number][];
+}
+
+/** Trazos por número de página (empezando en 1). */
+export type Annotations = Record<number, Stroke[]>;
+
+export type ScoreKind = "pdf" | "musicxml";
+
 export interface ScoreRecord {
   id: string;
   name: string;
+  /** PDF original, o el XML de MusicXML ya descomprimido */
   file: Blob;
   thumbnail: string; // data URL
   notes: string;
   addedAt: number;
+  /** PDF: páginas. MusicXML: compases. */
   pageCount: number;
+  /** Los registros anteriores a este campo son PDF. */
+  kind?: ScoreKind;
+  annotations?: Annotations;
 }
 
 interface EtudeDB extends DBSchema {
@@ -56,6 +76,12 @@ export async function updateScoreNotes(id: string, notes: string): Promise<void>
   const db = await getDB();
   const rec = await db.get("scores", id);
   if (rec) await db.put("scores", { ...rec, notes });
+}
+
+export async function updateScoreAnnotations(id: string, annotations: Annotations): Promise<void> {
+  const db = await getDB();
+  const rec = await db.get("scores", id);
+  if (rec) await db.put("scores", { ...rec, annotations });
 }
 
 export async function deleteScore(id: string): Promise<void> {
