@@ -31,6 +31,17 @@ export interface ScoreProps {
   width?: number;
   /** Unir corcheas con barras automáticamente */
   beams?: boolean;
+  /** Etiquetas de texto bajo cada nota del pentagrama superior (en orden) */
+  labels?: string[];
+  /** Etiquetas para el pentagrama inferior */
+  bassLabels?: string[];
+  labelPosition?: "above" | "below";
+  /** Ligaduras de prolongación entre índices de notas del pentagrama superior: [[0,1],[3,4]] */
+  ties?: [number, number][];
+  /** Ligaduras de expresión (curvas) entre índices de notas */
+  slurs?: [number, number][];
+  /** Tresillos: [índice inicial, número de notas]. Por defecto 3 notas en el tiempo de 2. */
+  tuplets?: [number, number][];
   /** Índice (entre todas las notas del pentagrama superior) que se resalta */
   highlight?: number;
   highlightColor?: string;
@@ -46,7 +57,7 @@ export interface ScoreProps {
   onNotes?: (notes: StemmableNote[]) => void;
 }
 
-const STAVE_HEIGHT = 110;
+const STAVE_HEIGHT = 125;
 
 export function Score({
   clef = "treble",
@@ -57,6 +68,12 @@ export function Score({
   bassClef = "bass",
   width = 520,
   beams = true,
+  labels,
+  bassLabels,
+  labelPosition = "below",
+  ties,
+  slurs,
+  tuplets,
   highlight,
   highlightColor,
   endBar = "none",
@@ -74,6 +91,7 @@ export function Score({
   const grand = !!bassMeasures;
   const computedHeight = height ?? (render ? 160 : grand ? STAVE_HEIGHT * 2 + 40 : STAVE_HEIGHT + 30);
   const measuresKey = JSON.stringify([measures, bassMeasures]);
+  const labelsKey = JSON.stringify([labels, bassLabels, ties, slurs, tuplets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +119,12 @@ export function Score({
               width,
               height: computedHeight,
               beams,
+              labels,
+              bassLabels,
+              labelPosition,
+              ties,
+              slurs,
+              tuplets,
               highlight,
               highlightColor: highlightColor ?? getAccentColor(el),
               endBar,
@@ -126,7 +150,7 @@ export function Score({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measuresKey, clef, time, keySignature, width, beams, highlight, highlightColor, endBar, computedHeight, render]);
+  }, [measuresKey, clef, time, keySignature, width, beams, highlight, highlightColor, endBar, computedHeight, render, labelsKey, labelPosition]);
 
   return (
     <div className={`score-box ${className}`}>
@@ -152,6 +176,12 @@ interface DrawOptions {
   width: number;
   height: number;
   beams: boolean;
+  labels?: string[];
+  bassLabels?: string[];
+  labelPosition: "above" | "below";
+  ties?: [number, number][];
+  slurs?: [number, number][];
+  tuplets?: [number, number][];
   highlight?: number;
   highlightColor: string;
   endBar: NonNullable<ScoreProps["endBar"]>;
@@ -173,6 +203,7 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
   const base = (usable - firstExtra) / count;
 
   const allTreble: StemmableNote[] = [];
+  let bassCount = 0;
   const beamsToDraw: InstanceType<VexFlowModule["Beam"]>[] = [];
 
   const buildStave = (
@@ -198,9 +229,35 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
     }
     if (notesStr && notesStr.trim()) {
       const notes = score.notes(notesStr, { clef: clefName });
+      const labelList = collect ? o.labels : o.bassLabels;
+      if (labelList) {
+        const offset = collect ? allTreble.length : bassCount;
+        notes.forEach((n, i) => {
+          const text = labelList[offset + i];
+          if (!text) return;
+          const ann = new vf.Annotation(text);
+          ann.setFont("Academico", 13);
+          ann.setVerticalJustification(
+            o.labelPosition === "above" ? vf.Annotation.VerticalJustify.TOP : vf.Annotation.VerticalJustify.BOTTOM,
+          );
+          n.addModifier(ann, 0);
+        });
+      }
+      const startIndex = allTreble.length;
       if (collect) allTreble.push(...notes);
-      const voice = score.voice(notes, { time: o.time ?? "4/4" });
+      else bassCount += notes.length;
+      if (collect && o.tuplets) {
+        for (const [from, n] of o.tuplets) {
+          const local = from - startIndex;
+          if (local >= 0 && local + n <= notes.length) {
+            score.tuplet(notes.slice(local, local + n), { numNotes: n, notesOccupied: n === 3 ? 2 : n - 1 });
+          }
+        }
+      }
+      // Voz en modo SOFT: permite compases incompletos o ejemplos sin compás estricto.
+      const voice = factory.Voice({ time: o.time ?? "4/4" });
       voice.setMode(vf.Voice.Mode.SOFT);
+      voice.addTickables(notes);
       if (o.beams) beamsToDraw.push(...vf.Beam.generateBeams(notes));
       factory.Formatter().joinVoices([voice]).formatToStave([voice], stave);
     }
@@ -234,6 +291,13 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
     if ("setLedgerLineStyle" in n) {
       (n as { setLedgerLineStyle: (s: { strokeStyle: string }) => void }).setLedgerLineStyle({ strokeStyle: o.highlightColor });
     }
+  }
+
+  for (const [a, b] of o.ties ?? []) {
+    if (allTreble[a] && allTreble[b]) factory.StaveTie({ from: allTreble[a], to: allTreble[b] });
+  }
+  for (const [a, b] of o.slurs ?? []) {
+    if (allTreble[a] && allTreble[b]) factory.Curve({ from: allTreble[a], to: allTreble[b], options: {} });
   }
 
   factory.draw();

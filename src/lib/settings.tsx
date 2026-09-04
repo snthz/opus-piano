@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keyLabels: true,
 };
 
-const STORAGE_KEY = "piano-learn:settings";
+const STORAGE_KEY = "etude:settings";
 
 /* Store externo mínimo: evita setState en efectos y mantiene la hidratación estable. */
 let cached: Settings | null = null;

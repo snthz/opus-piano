@@ -119,6 +119,11 @@ export function toVexKey(p: Pitch): string {
   return `${p.letter.toLowerCase()}${ACCIDENTAL_VEX[p.accidental]}/${p.octave}`;
 }
 
+/** Nota en formato EasyScore: "C#4", "Bb3". */
+export function toEasyScore(p: Pitch): string {
+  return `${p.letter}${ACCIDENTAL_VEX[p.accidental]}${p.octave}`;
+}
+
 /** Interpreta "C#4", "Bb3", "F4". */
 export function parsePitch(text: string): Pitch {
   const m = /^([A-Ga-g])(##|bb|#|b|x)?(-?\d)$/.exec(text.trim());

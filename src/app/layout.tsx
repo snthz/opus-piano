@@ -16,16 +16,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Piano Learn",
-    template: "%s · Piano Learn",
+    default: "Etude",
+    template: "%s · Etude",
   },
   description:
     "Aprende a leer partituras y a tocar el piano: solfeo, claves, notas, compases y símbolos. Funciona sin conexión y guarda tus partituras en tu teléfono.",
-  applicationName: "Piano Learn",
+  applicationName: "Etude",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Piano Learn",
+    title: "Etude",
   },
   formatDetection: { telephone: false },
   icons: {
@@ -36,8 +36,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbf7ef" },
-    { media: "(prefers-color-scheme: dark)", color: "#141210" },
+    { media: "(prefers-color-scheme: light)", color: "#f3f3f6" },
+    { media: "(prefers-color-scheme: dark)", color: "#121215" },
   ],
   width: "device-width",
   initialScale: 1,

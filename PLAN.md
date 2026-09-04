@@ -1,4 +1,4 @@
-# Plan de desarrollo — Piano Learn
+# Plan de desarrollo — Etude
 
 Aplicación web progresiva (PWA) personal, en español, para aprender a leer partituras y tocar el piano.
 Todo funciona sin servidor: exportación estática de Next.js, datos guardados solo en el teléfono

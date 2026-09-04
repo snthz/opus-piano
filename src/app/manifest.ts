@@ -4,8 +4,8 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Piano Learn — Aprende a leer partituras",
-    short_name: "Piano Learn",
+    name: "Etude — Aprende a leer partituras",
+    short_name: "Etude",
     description:
       "Aprende solfeo, claves, notas, compases y símbolos de la partitura. Guarda tus partituras en tu teléfono y practica sin conexión.",
     id: "/",
@@ -13,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#fbf7ef",
-    theme_color: "#1c1917",
+    background_color: "#f3f3f6",
+    theme_color: "#f3f3f6",
     lang: "es",
     dir: "ltr",
     categories: ["education", "music"],

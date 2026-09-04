@@ -23,7 +23,7 @@ export default function MasPage() {
         ))}
       </ul>
       <p className="mt-8 text-xs text-ink-3">
-        Piano Learn es software libre (MIT). Fuentes musicales Bravura y Academico de Steinberg
+        Etude es software libre (MIT). Fuentes musicales Bravura y Academico de Steinberg
         bajo licencia SIL OFL 1.1.
       </p>
     </div>

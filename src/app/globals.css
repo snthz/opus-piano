@@ -17,58 +17,86 @@
   font-display: swap;
 }
 
+/* Sistema de diseño: fondo gris claro, superficies blancas muy redondeadas,
+   tarjetas pastel, píldoras negras para lo activo. */
 :root {
-  --paper: #fbf7ef;
-  --paper-2: #f3ecdd;
-  --paper-3: #e8dfc9;
-  --ink: #1c1917;
-  --ink-2: #57534e;
-  --ink-3: #8a8278;
-  --accent: #c26a08;
-  --accent-2: #f2a83b;
-  --accent-soft: #fdebc9;
-  --ok: #2f7d4f;
-  --bad: #b3261e;
-  --line: #d9d0bd;
-  --shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 8px 24px -12px rgb(28 25 23 / 0.25);
+  --bg: #f3f3f6;
+  --surface: #ffffff;
+  --surface-2: #f7f7fa;
+  --surface-3: #ececf1;
+  --ink: #111114;
+  --ink-2: #5c5c66;
+  --ink-3: #9a9aa5;
+  --line: #e5e5ea;
+  --accent: #6b5fd6;
+  --accent-soft: #e9e5fa;
+  --ok: #2f9d68;
+  --ok-soft: #d8f0e3;
+  --bad: #d9534f;
+  --bad-soft: #fbe0df;
+  --yellow: #fbe9a6;
+  --mint: #d5e8dd;
+  --lavender: #ddd5f1;
+  --pink: #f9d6e2;
+  --blue: #e2e8fb;
+  --peach: #fde1cf;
+  --shadow: 0 1px 2px rgb(17 17 20 / 0.04), 0 10px 30px -14px rgb(17 17 20 / 0.18);
+  --radius: 28px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #141210;
-    --paper-2: #1e1b18;
-    --paper-3: #2a2521;
-    --ink: #efe8da;
-    --ink-2: #b8ae9e;
-    --ink-3: #7d7366;
-    --accent: #f2a83b;
-    --accent-2: #c26a08;
-    --accent-soft: #3a2a10;
-    --ok: #5cbf83;
-    --bad: #f28b82;
-    --line: #35302a;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --bg: #121215;
+    --surface: #1c1c21;
+    --surface-2: #232329;
+    --surface-3: #2c2c34;
+    --ink: #f2f2f5;
+    --ink-2: #b3b3bd;
+    --ink-3: #7c7c88;
+    --line: #2e2e36;
+    --accent: #9d93f0;
+    --accent-soft: #2d2850;
+    --ok: #5fc48f;
+    --ok-soft: #1f3a2c;
+    --bad: #f07f7a;
+    --bad-soft: #43242a;
+    --yellow: #4d4218;
+    --mint: #1f3a2d;
+    --lavender: #2e2750;
+    --pink: #4a2535;
+    --blue: #232b48;
+    --peach: #4a3223;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.6);
   }
 }
 
 @theme inline {
-  --color-paper: var(--paper);
-  --color-paper-2: var(--paper-2);
-  --color-paper-3: var(--paper-3);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
   --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
   --color-accent-soft: var(--accent-soft);
   --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
   --color-bad: var(--bad);
-  --color-line: var(--line);
+  --color-bad-soft: var(--bad-soft);
+  --color-yellow: var(--yellow);
+  --color-mint: var(--mint);
+  --color-lavender: var(--lavender);
+  --color-pink: var(--pink);
+  --color-blue: var(--blue);
+  --color-peach: var(--peach);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-music: "Bravura", serif;
   --font-music-text: "Bravura Text", serif;
   --font-serif: "Academico", Georgia, serif;
+  --radius-card: var(--radius);
 }
 
 html {
@@ -77,7 +105,7 @@ html {
 }
 
 body {
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
   overscroll-behavior-y: none;
@@ -100,7 +128,7 @@ body {
   height: auto;
   display: block;
 }
-/* VexFlow pinta en negro; en modo oscuro lo pasamos al color de tinta del tema. */
+/* VexFlow pinta en negro; lo pasamos al color de tinta del tema. */
 .score-box svg [fill="black"],
 .score-box svg [fill="#000000"] {
   fill: var(--ink);
@@ -114,15 +142,53 @@ body {
   line-height: 1.7;
 }
 
+/* Tarjeta blanca muy redondeada */
 @utility card {
-  background: var(--paper-2);
-  border: 1px solid var(--line);
-  border-radius: 1rem;
+  background: var(--surface);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
 
+/* Tarjeta pastel (usar con bg-yellow, bg-mint, …) */
+@utility card-pastel {
+  border-radius: var(--radius);
+  color: var(--ink);
+}
+
+/* Botón circular negro con icono */
+@utility btn-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  background: var(--ink);
+  color: var(--bg);
+  transition: transform 0.15s ease;
+}
+
+/* Píldora (pestaña/filtro) */
+@utility pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--shadow);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+@utility pill-active {
+  background: var(--ink);
+  color: var(--bg);
+}
+
 @utility safe-bottom {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 @keyframes pulse-key {

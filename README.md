@@ -1,4 +1,4 @@
-# Piano Learn
+# Etude
 
 Aplicación web progresiva (PWA), en español y de código abierto, para aprender a leer partituras
 y a tocar el piano: solfeo, claves, notas, figuras, compases, armaduras y todos los símbolos

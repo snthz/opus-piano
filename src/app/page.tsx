@@ -1,59 +1,78 @@
 import Link from "next/link";
+import { Glyph } from "@/components/notation/glyph";
+import { ArrowIcon } from "@/components/ui/arrow-icon";
+import { ALL_LESSONS } from "@/data/lessons";
 
 const modules = [
-  {
-    href: "/teoria",
-    title: "Teoría",
-    text: "Pentagrama, claves, notas, figuras, compases, símbolos y tonalidades explicados paso a paso.",
-    glyph: "",
-  },
-  {
-    href: "/practica",
-    title: "Práctica",
-    text: "Ejercicios de lectura de notas, ritmo, solfeo y reconocimiento de símbolos con seguimiento de progreso.",
-    glyph: "",
-  },
-  {
-    href: "/partituras",
-    title: "Mis partituras",
-    text: "Sube tus PDF desde el teléfono. Se guardan solo en este dispositivo y se pueden leer sin conexión.",
-    glyph: "",
-  },
+  { href: "/teoria", title: "Teoría", text: "Leer partituras paso a paso", glyph: "gClef", color: "bg-yellow" },
+  { href: "/practica", title: "Práctica", text: "Notas, ritmo, solfeo y símbolos", glyph: "noteQuarterUp", color: "bg-mint" },
+  { href: "/partituras", title: "Partituras", text: "Tus PDF, solo en tu teléfono", glyph: "fClef", color: "bg-lavender" },
+  { href: "/glosario", title: "Glosario", text: "Términos de la A a la Z", glyph: "dynamicForte", color: "bg-pink" },
 ];
 
 export default function Home() {
+  const firstLessons = ALL_LESSONS.slice(0, 3);
   return (
     <div className="space-y-8">
-      <section className="pt-4">
-        <p className="text-sm uppercase tracking-widest text-ink-3 font-medium">
-          Aprende piano en español
-        </p>
-        <h1 className="mt-2 text-3xl md:text-4xl font-bold tracking-tight">
-          Lee partituras y toca el piano, a tu ritmo.
+      <section className="pt-2">
+        <p className="text-ink-2">¡Hola de nuevo!</p>
+        <h1 className="mt-1 text-3xl md:text-4xl font-bold tracking-tight leading-tight">
+          Aprende a leer música
+          <br />y a tocar el piano
         </h1>
-        <p className="mt-3 text-ink-2 leading-relaxed">
-          Material completo para aprender a leer música desde cero: solfeo, claves, notas,
-          compases y todos los símbolos de la partitura, con los glifos originales del estándar
-          SMuFL. Todo funciona sin conexión.
-        </p>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid grid-cols-2 gap-3 md:gap-4">
         {modules.map((m) => (
           <Link
             key={m.href}
             href={m.href}
-            className="card p-4 flex sm:flex-col gap-4 hover:border-accent/60 transition-colors"
+            className={`card-pastel ${m.color} relative p-4 md:p-5 min-h-44 flex flex-col justify-between overflow-hidden group`}
           >
-            <span className="smufl text-4xl text-accent shrink-0 w-12 text-center" aria-hidden="true">
-              {m.glyph}
+            <span className="w-10 h-10 rounded-full bg-surface/90 flex items-center justify-center">
+              <Glyph name={m.glyph} size={22} />
             </span>
-            <span>
-              <span className="block font-semibold">{m.title}</span>
-              <span className="block text-sm text-ink-2 mt-1">{m.text}</span>
+            <Glyph
+              name={m.glyph}
+              size={150}
+              className="absolute -right-6 -top-6 opacity-[0.08] pointer-events-none"
+            />
+            <span className="pr-10">
+              <span className="block text-xl font-semibold tracking-tight">{m.title}</span>
+              <span className="block text-sm text-ink-2 mt-0.5">{m.text}</span>
+            </span>
+            <span className="btn-circle absolute right-3 bottom-3 w-10 h-10 group-hover:-translate-y-0.5">
+              <ArrowIcon />
             </span>
           </Link>
         ))}
+      </section>
+
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-xl font-semibold tracking-tight">Empieza por aquí</h2>
+          <Link href="/teoria" className="text-sm text-ink-2 hover:text-ink">
+            Ver todo
+          </Link>
+        </div>
+        <ul className="space-y-2">
+          {firstLessons.map((l, i) => (
+            <li key={l.slug}>
+              <Link href={`/teoria/${l.slug}`} className="card p-3 pr-4 flex items-center gap-3">
+                <span className="w-12 h-12 rounded-full bg-blue flex items-center justify-center shrink-0">
+                  <Glyph name={l.glyph} size={24} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium truncate">
+                    {i + 1}. {l.title}
+                  </span>
+                  <span className="block text-xs text-ink-3">{l.minutes} min</span>
+                </span>
+                <ArrowIcon className="w-5 h-5 text-ink-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

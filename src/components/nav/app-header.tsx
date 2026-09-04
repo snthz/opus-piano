@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { DesktopNav } from "./app-nav";
+import { Glyph } from "@/components/notation/glyph";
 
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur">
-      <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="smufl text-2xl text-accent leading-none" aria-hidden="true">
-            {""}
+    <header className="sticky top-0 z-30 bg-bg/85 backdrop-blur">
+      <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+        <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
+          <span className="btn-circle w-9 h-9">
+            <Glyph name="gClef" size={20} />
           </span>
-          <span>Piano Learn</span>
+          <span className="text-lg">Etude</span>
         </Link>
         <DesktopNav />
       </div>
