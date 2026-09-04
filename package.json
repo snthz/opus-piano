@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "gen:smufl": "node scripts/gen-smufl.mjs",
+    "build": "node scripts/gen-smufl.mjs && next build",
     "start": "next start",
     "lint": "eslint"
   },

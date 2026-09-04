@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Más" };
 

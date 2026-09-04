@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DesktopNav } from "./AppNav";
+import { DesktopNav } from "./app-nav";
 
 export function AppHeader() {
   return (

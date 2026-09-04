@@ -100,6 +100,15 @@ body {
   height: auto;
   display: block;
 }
+/* VexFlow pinta en negro; en modo oscuro lo pasamos al color de tinta del tema. */
+.score-box svg [fill="black"],
+.score-box svg [fill="#000000"] {
+  fill: var(--ink);
+}
+.score-box svg [stroke="black"],
+.score-box svg [stroke="#000000"] {
+  stroke: var(--ink);
+}
 
 .prose-music p {
   line-height: 1.7;

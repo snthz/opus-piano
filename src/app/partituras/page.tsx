@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Mis partituras" };
 
