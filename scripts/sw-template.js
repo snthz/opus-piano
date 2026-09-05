@@ -5,12 +5,16 @@ const OFFLINE = "/offline";
 /** Rutas que se descargan al instalar para que la app arranque sin conexión. */
 const PRECACHE = [
   "/",
-  "/teoria",
-  "/practica",
-  "/partituras",
-  "/glosario",
-  "/ajustes",
-  "/mas",
+  "/theory",
+  "/practice",
+  "/scores",
+  "/glossary",
+  "/settings",
+  "/more",
+  "/account",
+  "/guide",
+  "/symbols",
+  "/faq",
   OFFLINE,
   "/manifest.webmanifest",
   "/fonts/bravura/Bravura.woff2",
@@ -47,7 +51,7 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== self.location.origin) return;
   // El propio service worker se pide siempre a la red: si no, no habría forma de actualizarlo.
   if (url.pathname === "/sw.js") return;
-  // La API es dinámica (progreso, transcripción): siempre a la red.
+  // La API es dinámica (cuentas, progreso): siempre a la red.
   if (url.pathname.startsWith("/api/")) return;
 
   e.respondWith(

@@ -4,8 +4,16 @@ import { Score } from "@/components/notation/score";
 import { PlayButton } from "@/components/audio/play-button";
 import { ScaleExplorer } from "@/components/notation/scale-explorer";
 import { INTERVALS, CHORDS, DEGREE_NAMES, ROMAN } from "@/lib/music/scales";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Escalas, intervalos y acordes" };
+export const metadata = pageMetadata({
+  title: "Escalas, intervalos y acordes al piano",
+  description:
+    "Tonos y semitonos, el patrón de la escala mayor y de las menores, cómo se miden los intervalos y cómo se forman las tríadas básicas.",
+  path: "/theory/scales",
+  keywords: ["escala mayor", "escala menor", "intervalos musicales", "acordes", "tríada", "tonos y semitonos"],
+  type: "article",
+});
 
 const C4 = 60;
 

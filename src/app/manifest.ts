@@ -29,9 +29,11 @@ export default function manifest(): MetadataRoute.Manifest {
       },
       { src: "/icons/icon.svg", sizes: "any", type: "image/svg+xml" },
     ],
+    // Sin barra final: con ella el navegador se come una redirección en cada arranque.
     shortcuts: [
-      { name: "Práctica de notas", url: "/practica/notas/" },
-      { name: "Mis partituras", url: "/partituras/" },
+      { name: "Práctica de notas", url: "/practice/notes" },
+      { name: "Mis partituras", url: "/scores" },
+      { name: "Guía para leer partituras", url: "/guide" },
     ],
   };
 }

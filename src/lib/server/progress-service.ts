@@ -1,13 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { ProgressMap } from "@/lib/progress";
 
-/** Código legible para vincular dispositivos: 8 caracteres sin ambigüedades (sin 0/O, 1/I). */
-export function newCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-}
-
 export interface AnswerInput {
   exerciseId: string;
   correct: boolean;
@@ -34,7 +27,7 @@ export function isAnswer(x: unknown): x is AnswerInput {
 }
 
 /** Aplica respuestas acumulándolas sobre lo que ya hay. Idempotente por lote no, por eso el cliente vacía su cola al confirmar. */
-export async function applyAnswers(profileId: string, answers: AnswerInput[]): Promise<void> {
+export async function applyAnswers(userId: string, answers: AnswerInput[]): Promise<void> {
   // Se agrupan para hacer una escritura por ejercicio y por día.
   const byExercise = new Map<string, { attempts: number; correct: number; bestStreak: number; last: Date }>();
   const byDay = new Map<string, { exerciseId: string; day: string; attempts: number; correct: number }>();
@@ -56,10 +49,10 @@ export async function applyAnswers(profileId: string, answers: AnswerInput[]): P
 
   await prisma.$transaction(async (tx) => {
     for (const [exerciseId, ex] of byExercise) {
-      const current = await tx.exerciseProgress.findUnique({ where: { profileId_exerciseId: { profileId, exerciseId } } });
+      const current = await tx.exerciseProgress.findUnique({ where: { userId_exerciseId: { userId, exerciseId } } });
       await tx.exerciseProgress.upsert({
-        where: { profileId_exerciseId: { profileId, exerciseId } },
-        create: { profileId, exerciseId, attempts: ex.attempts, correct: ex.correct, bestStreak: ex.bestStreak, lastPlayed: ex.last },
+        where: { userId_exerciseId: { userId, exerciseId } },
+        create: { userId, exerciseId, attempts: ex.attempts, correct: ex.correct, bestStreak: ex.bestStreak, lastPlayed: ex.last },
         update: {
           attempts: { increment: ex.attempts },
           correct: { increment: ex.correct },
@@ -70,8 +63,8 @@ export async function applyAnswers(profileId: string, answers: AnswerInput[]): P
     }
     for (const d of byDay.values()) {
       await tx.dailyActivity.upsert({
-        where: { profileId_exerciseId_day: { profileId, exerciseId: d.exerciseId, day: d.day } },
-        create: { profileId, exerciseId: d.exerciseId, day: d.day, attempts: d.attempts, correct: d.correct },
+        where: { userId_exerciseId_day: { userId, exerciseId: d.exerciseId, day: d.day } },
+        create: { userId, exerciseId: d.exerciseId, day: d.day, attempts: d.attempts, correct: d.correct },
         update: { attempts: { increment: d.attempts }, correct: { increment: d.correct } },
       });
     }
@@ -79,10 +72,10 @@ export async function applyAnswers(profileId: string, answers: AnswerInput[]): P
 }
 
 /** El progreso completo en la misma forma que usa el cliente. */
-export async function progressMap(profileId: string): Promise<ProgressMap> {
+export async function progressMap(userId: string): Promise<ProgressMap> {
   const [exercises, days] = await Promise.all([
-    prisma.exerciseProgress.findMany({ where: { profileId } }),
-    prisma.dailyActivity.findMany({ where: { profileId } }),
+    prisma.exerciseProgress.findMany({ where: { userId } }),
+    prisma.dailyActivity.findMany({ where: { userId } }),
   ]);
   const map: ProgressMap = {};
   for (const e of exercises) {

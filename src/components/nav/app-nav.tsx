@@ -18,7 +18,7 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/teoria",
+    href: "/theory",
     label: "Teoría",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -28,7 +28,7 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/practica",
+    href: "/practice",
     label: "Práctica",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -39,7 +39,7 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/partituras",
+    href: "/scores",
     label: "Partituras",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -49,7 +49,7 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/glosario",
+    href: "/glossary",
     label: "Glosario",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -59,7 +59,7 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/mas",
+    href: "/more",
     label: "Más",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">

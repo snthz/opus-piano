@@ -1,37 +1,44 @@
-# Opus Piano en Dokploy: tres servicios en la misma red interna.
+# Opus Piano en Dokploy (VPS). Las imágenes las construye GitHub Actions y las
+# publica en ghcr.io: el VPS solo descarga y arranca, sin compilar nada.
 # Solo `web` recibe tráfico de fuera (Dokploy le asigna el dominio en su interfaz).
+# Servicios: web (Next.js) + db (Postgres).
 services:
   web:
-    build: .
+    image: ${WEB_IMAGE:-ghcr.io/snthz/etude-web:latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://etude:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}@db:5432/etude
-      OMR_URL: http://omr:8000
+      # connection_limit bajo: una sola instancia de Node no necesita más y Postgres gasta ~10 MB por conexión.
+      DATABASE_URL: postgresql://etude:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}@db:5432/etude?connection_limit=5
+      # Google (opcional): sin estas variables, el modal solo ofrece correo y contraseña.
+      APP_URL: ${APP_URL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Archivos de las partituras (PDF / MusicXML) en un volumen; los metadatos van en Postgres.
+      SCORES_DIR: /data/scores
+      SCORES_QUOTA_MB: ${SCORES_QUOTA_MB:-300}
+    volumes:
+      - scores:/data/scores
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
-      omr:
-        condition: service_started
-
-  omr:
-    build: ./omr
-    restart: unless-stopped
-    environment:
-      OMR_MAX_PAGES: "10"
-      # Ventanas por lote en la inferencia: menos lote, menos RAM (y algo más lento).
-      OMR_BATCH: "${OMR_BATCH:-4}"
-    # oemer carga modelos grandes: con 3 GB el proceso muere (OOM) a mitad de página.
-    # Reserva al menos 6 GB o ajusta OMR_MEMORY al VPS; si no hay tanta RAM, baja OMR_DPI a 150.
     deploy:
       resources:
         limits:
-          memory: ${OMR_MEMORY:-6g}
+          memory: ${WEB_MEMORY:-384m}
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Postgres ajustado a un VPS pequeño: pocas conexiones y poca caché (la base de datos es diminuta).
+    command: >
+      postgres -c shared_buffers=32MB -c effective_cache_size=96MB -c work_mem=2MB
+               -c maintenance_work_mem=16MB -c max_connections=20 -c wal_buffers=1MB
     environment:
       POSTGRES_USER: etude
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
@@ -43,6 +50,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEMORY:-256m}
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
 volumes:
   pgdata:
+  scores:

@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Sin conexión" };
+export const metadata = pageMetadata({
+  title: "Sin conexión",
+  description:
+    "Esta parte de Opus Piano todavía no se había descargado en tu dispositivo.",
+  path: "/offline",
+  noindex: true,
+});
 
 export default function OfflinePage() {
   return (

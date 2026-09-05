@@ -75,3 +75,55 @@ export function groupByLetter(entries: GlossaryEntry[]): [string, GlossaryEntry[
   }
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
 }
+
+/** Slug de URL a partir del término: sin tildes, minúsculas y guiones. */
+export function glossarySlug(term: string): string {
+  return term
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Todas las entradas con su slug ya calculado, en el orden del glosario. */
+export const GLOSSARY_SLUGS: { slug: string; entry: GlossaryEntry }[] = GLOSSARY.map((entry) => ({
+  slug: glossarySlug(entry.term),
+  entry,
+}));
+
+export function glossaryBySlug(slug: string): GlossaryEntry | undefined {
+  return GLOSSARY_SLUGS.find((e) => e.slug === slug)?.entry;
+}
+
+/** Anterior y siguiente por orden alfabético, para enlazar las fichas entre sí. */
+export function glossaryNeighbors(slug: string): { prev?: GlossaryEntry; next?: GlossaryEntry } {
+  const i = GLOSSARY_SLUGS.findIndex((e) => e.slug === slug);
+  if (i < 0) return {};
+  return { prev: GLOSSARY_SLUGS[i - 1]?.entry, next: GLOSSARY_SLUGS[i + 1]?.entry };
+}
+
+/**
+ * Términos emparentados: los que remiten a la misma lección. Si no hay
+ * suficientes, se completa con los vecinos alfabéticos para que ninguna ficha
+ * quede sin enlaces salientes.
+ */
+export function relatedGlossary(entry: GlossaryEntry, limit = 6): GlossaryEntry[] {
+  const related = entry.href
+    ? GLOSSARY.filter((e) => e.term !== entry.term && e.href === entry.href)
+    : [];
+  if (related.length >= limit) return related.slice(0, limit);
+
+  const i = GLOSSARY.findIndex((e) => e.term === entry.term);
+  const chosen = new Set(related.map((e) => e.term));
+  for (let d = 1; related.length < limit && d < GLOSSARY.length; d++) {
+    for (const candidate of [GLOSSARY[i - d], GLOSSARY[i + d]]) {
+      if (candidate && !chosen.has(candidate.term) && candidate.term !== entry.term) {
+        chosen.add(candidate.term);
+        related.push(candidate);
+        if (related.length === limit) break;
+      }
+    }
+  }
+  return related;
+}

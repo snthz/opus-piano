@@ -4,8 +4,16 @@ import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PracticeStats, ExerciseBadge } from "@/components/practice/practice-stats";
 import { EXERCISES } from "@/data/exercises";
+import { exercisePath } from "@/lib/routes";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Práctica" };
+export const metadata = pageMetadata({
+  title: "Ejercicios de solfeo y lectura musical",
+  description:
+    "Siete ejercicios interactivos que corrigen solos: lectura de notas, teclado, símbolos, armaduras, ritmo, solfeo y reconocimiento de intervalos de oído.",
+  path: "/practice",
+  keywords: ["ejercicios de solfeo", "practicar lectura musical", "ejercicios de teoría musical", "entrenamiento auditivo"],
+});
 
 export default function PracticaPage() {
   return (
@@ -13,13 +21,13 @@ export default function PracticaPage() {
       <PageHeader
         eyebrow="Práctica"
         title="Ejercicios"
-        intro="Sesiones cortas y diarias. Tu progreso se guarda en este dispositivo."
+        intro="Sesiones cortas y diarias. Tu progreso se guarda en este dispositivo y, con una cuenta, en todos los demás."
       />
       <PracticeStats />
       <ul className="grid grid-cols-2 gap-3 mt-6">
         {EXERCISES.map((e) => (
           <li key={e.id}>
-            <Link href={e.href} className={`card-pastel ${e.color} relative p-4 min-h-44 flex flex-col justify-between group`}>
+            <Link href={exercisePath(e.id)} className={`card-pastel ${e.color} relative p-4 min-h-44 flex flex-col justify-between group`}>
               <span className="w-10 h-10 rounded-full bg-surface/90 flex items-center justify-center">
                 <GlyphIcon name={e.glyph} size={22} />
               </span>

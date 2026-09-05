@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { transcribePdf } from "@/lib/omr-client";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { parseMusicXml, unpackMxl } from "@/lib/music/musicxml";
 import { analyzePdf, buildMeasureMap, locate, type MeasureMap } from "@/lib/score-layout";
 import {
@@ -40,9 +39,53 @@ const Eye = (
   </svg>
 );
 
-/** Alto que ocupan las barras flotantes, para que la página quepa entre ellas. */
-const TOP_BAR = 64;
+/** Alto que ocupan las barras flotantes, para que la página quepa entre ellas
+ *  dejando un respiro visible entre el menú y la partitura. */
+const TOP_BAR = 88;
 const BOTTOM_BAR = 128;
+const MAX_ZOOM = 4;
+
+type Pair = ArrayLike<{ clientX: number; clientY: number }>;
+const touchMid = (t: Pair) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+const touchGap = (t: Pair) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Referencia de un zoom: el punto (u, v) de la página (fracciones de su ancho y
+ * alto) que hay bajo el punto (fx, fy) del contenedor, el tamaño de la página al
+ * 100 % y dónde está su esquina en el contenido desplazable.
+ */
+interface Anchor {
+  u: number;
+  v: number;
+  fx: number;
+  fy: number;
+  baseW: number;
+  baseH: number;
+  px: number;
+  py: number;
+}
+
+/** Transform que se ve en pantalla mientras se pellizca o se anima. */
+interface Live {
+  k: number;
+  tx: number;
+  ty: number;
+}
+
+const setLive = (pg: HTMLElement, l: Live) => {
+  pg.style.transformOrigin = "0 0";
+  pg.style.willChange = "transform";
+  pg.style.zIndex = "1";
+  pg.style.transform = `translate(${l.tx}px, ${l.ty}px) scale(${l.k})`;
+};
+const clearLive = (pg: HTMLElement) => {
+  pg.style.transform = "";
+  pg.style.transition = "";
+  pg.style.willChange = "";
+  pg.style.zIndex = "";
+};
+const sameLive = (a: Live, b: Live) => Math.abs(a.k - b.k) < 0.002 && Math.abs(a.tx - b.tx) < 0.5 && Math.abs(a.ty - b.ty) < 0.5;
 
 /**
  * Lector a pantalla completa. Al 100 % cada página llena la pantalla y se pasa
@@ -67,13 +110,25 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
   const [view, setView] = useState<"pdf" | "xml">("pdf");
   const [showNames, setShowNames] = useState(true);
   const [guideOn, setGuideOn] = useState(true);
-  const [ai, setAi] = useState<{ running: boolean; status: string }>({ running: false, status: "" });
   const [layout, setLayout] = useState<{ of: unknown; map: MeasureMap } | null>(null);
   const [cursor, setCursor] = useState<{ measure: number; frac: number } | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
+  const [pinching, setPinching] = useState(false);
   const areaRef = useRef<HTMLDivElement>(null);
-  const pagerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(page);
+  const zoomRef = useRef(zoom);
+  const viewRef = useRef(view);
+  const chromeRef = useRef(chrome);
+  const gesture = useRef<
+    | ({ kind: "pinch"; el: HTMLElement; gap: number; zoom: number; ratio: number } & Anchor & Live)
+    | { kind: "pan"; x: number; y: number; left: number; top: number }
+    | null
+  >(null);
+  const pending = useRef<{ x: number; y: number } | null>(null);
+  /** Página con un transform que hay que limpiar al fijar la escala real */
+  const live = useRef<HTMLElement | null>(null);
+  /** Animación de asentamiento en curso (se puede acabar de golpe) */
+  const settling = useRef<(() => void) | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const xmlInput = useRef<HTMLInputElement>(null);
 
@@ -83,6 +138,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
   useEffect(() => {
     playerRef.current = player;
     pageRef.current = page;
+    zoomRef.current = zoom;
+    viewRef.current = view;
+    chromeRef.current = chrome;
   });
 
   const map = layout && layout.of === parsed ? layout.map : null;
@@ -101,22 +159,231 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
   const goTo = (p: number) => {
     const target = Math.min(record.pageCount, Math.max(1, p));
     setPage(target);
-    pagerRef.current?.scrollTo({ left: (target - 1) * area.w, behavior: "smooth" });
+    if (zoomRef.current === 1) areaRef.current?.scrollTo({ left: (target - 1) * area.w, behavior: "smooth" });
   };
 
   // Al deslizar, la página es la celda que ha quedado centrada.
   const onPagerScroll = () => {
-    const el = pagerRef.current;
-    if (!el || !area.w) return;
+    const el = areaRef.current;
+    if (!el || !area.w || zoomRef.current !== 1) return;
     const p = Math.round(el.scrollLeft / area.w) + 1;
     if (p !== pageRef.current && p >= 1 && p <= record.pageCount) setPage(p);
   };
 
   // Al volver al modo de deslizamiento, el carrusel debe estar en la página actual.
   useEffect(() => {
-    if (pager && pagerRef.current && area.w) pagerRef.current.scrollLeft = (page - 1) * area.w;
+    if (pager && areaRef.current && area.w) areaRef.current.scrollLeft = (page - 1) * area.w;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pager, area.w, view]);
+
+  /* ---------- Zoom con los dedos ---------- */
+
+  // Mientras dura el pellizco la página solo se escala con un transform CSS (lo
+  // compone la GPU, sin re-render ni retrazado). Al soltar se fija la escala real
+  // y el desplazamiento en el mismo fotograma en que se quita el transform, para
+  // que la partitura no salte ni tiemble.
+  useLayoutEffect(() => {
+    const el = areaRef.current;
+    if (el && pending.current) {
+      el.scrollLeft = pending.current.x;
+      el.scrollTop = pending.current.y;
+    }
+    pending.current = null;
+    if (live.current) clearLive(live.current);
+    live.current = null;
+  });
+
+  const pageEl = (el: HTMLElement) => el.querySelector<HTMLElement>(`[data-page="${pageRef.current}"]`);
+
+  /** Referencia de la página bajo el punto (fx, fy) del contenedor. */
+  const anchorAt = (el: HTMLElement, pg: HTMLElement, fx: number, fy: number): Anchor => {
+    const r = el.getBoundingClientRect();
+    const p = pg.getBoundingClientRect();
+    const z = zoomRef.current;
+    return {
+      u: (fx + r.left - p.left) / p.width,
+      v: (fy + r.top - p.top) / p.height,
+      fx,
+      fy,
+      baseW: p.width / z,
+      baseH: p.height / z,
+      px: p.left - r.left + el.scrollLeft,
+      py: p.top - r.top + el.scrollTop,
+    };
+  };
+
+  /**
+   * Con la escala z y la referencia a: desplazamiento que hay que fijar y esquina
+   * de la página respecto al contenedor una vez fijado. Al 100 % la página va
+   * centrada en su celda del carrusel; ampliada, en el contenedor con márgenes.
+   */
+  const target = (el: HTMLElement, z: number, a: Anchor) => {
+    const w = a.baseW * z;
+    const h = a.baseH * z;
+    const cw = el.clientWidth;
+    const ch = el.clientHeight;
+    const chrome = chromeRef.current;
+    if (z === 1) {
+      const top = chrome ? TOP_BAR : 8;
+      const bottom = chrome ? BOTTOM_BAR : 8;
+      return { sx: (pageRef.current - 1) * cw, sy: 0, left: (cw - w) / 2, top: top + (ch - top - bottom - h) / 2 };
+    }
+    const top = chrome ? TOP_BAR : 12;
+    const bottom = chrome ? BOTTOM_BAR : 12;
+    const x = Math.max(0, (cw - w - 24) / 2) + 12;
+    const sx = clamp(x + a.u * w - a.fx, 0, Math.max(0, w + 24 - cw));
+    const sy = clamp(top + a.v * h - a.fy, 0, Math.max(0, top + h + bottom - ch));
+    return { sx, sy, left: x - sx, top: top - sy };
+  };
+
+  /**
+   * Lleva la página a la escala z dejando la referencia bajo el dedo. Si lo que
+   * se ve (cur) no coincide con la posición final, primero se anima el transform
+   * hasta ella y solo entonces se fija la escala real: así el cambio de
+   * disposición pasa desapercibido.
+   */
+  const settle = (el: HTMLElement, pg: HTMLElement, a: Anchor, to: number, cur: Live, animate: boolean) => {
+    const z = +clamp(to, 1, MAX_ZOOM).toFixed(3);
+    const from = zoomRef.current;
+    const t = target(el, z, a);
+    const next: Live = { k: z / from, tx: t.left - (a.px - el.scrollLeft), ty: t.top - (a.py - el.scrollTop) };
+    const commit = () => {
+      settling.current = null;
+      if (z !== from) {
+        zoomRef.current = z;
+        pending.current = { x: t.sx, y: t.sy };
+        live.current = pg;
+        setZoom(z);
+      } else {
+        el.scrollLeft = t.sx;
+        el.scrollTop = t.sy;
+        clearLive(pg);
+      }
+    };
+    if (!animate || sameLive(cur, next)) {
+      commit();
+      return;
+    }
+    let done = false;
+    const end = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      pg.removeEventListener("transitionend", end);
+      commit();
+    };
+    const timer = setTimeout(end, 280);
+    pg.addEventListener("transitionend", end);
+    pg.style.transition = "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+    setLive(pg, next);
+    settling.current = end;
+  };
+
+  /** Zoom con los botones: se anima alrededor del centro de la pantalla. */
+  const zoomTo = (z: number) => {
+    const el = areaRef.current;
+    const pg = el && pageEl(el);
+    if (!el || !pg || settling.current || gesture.current) return;
+    settle(el, pg, anchorAt(el, pg, el.clientWidth / 2, el.clientHeight / 2), z, { k: 1, tx: 0, ty: 0 }, true);
+  };
+
+  // Al ampliar, el contenedor deja de desplazarse solo (touch-action: none) y el
+  // arrastre de un dedo se traduce aquí; con dos dedos se pellizca para ampliar.
+  const onTouchStart = (e: React.TouchEvent) => {
+    const el = areaRef.current;
+    if (!el || settling.current) return;
+    if (gesture.current?.kind === "pinch") return;
+    if (e.touches.length === 2) {
+      const pg = pageEl(el);
+      if (!pg) return;
+      const r = el.getBoundingClientRect();
+      const m = touchMid(e.touches);
+      gesture.current = {
+        kind: "pinch",
+        el: pg,
+        gap: touchGap(e.touches),
+        zoom: zoomRef.current,
+        ratio: 1,
+        k: 1,
+        tx: 0,
+        ty: 0,
+        ...anchorAt(el, pg, m.x - r.left, m.y - r.top),
+      };
+      setPinching(true);
+    } else if (e.touches.length === 1 && zoomRef.current > 1 && !tool) {
+      gesture.current = { kind: "pan", x: e.touches[0].clientX, y: e.touches[0].clientY, left: el.scrollLeft, top: el.scrollTop };
+    } else {
+      gesture.current = null;
+    }
+  };
+
+  // Los oyentes van en window para que el gesto siga vivo aunque el dedo salga
+  // del contenedor.
+  useEffect(() => {
+    const finishPinch = (g: NonNullable<typeof gesture.current> & { kind: "pinch" }) => {
+      gesture.current = null;
+      setPinching(false);
+      const el = areaRef.current;
+      if (!el) return clearLive(g.el);
+      settle(el, g.el, g, g.zoom * g.ratio, g, true);
+    };
+    const onMove = (e: TouchEvent) => {
+      const g = gesture.current;
+      const el = areaRef.current;
+      if (!g || !el) return;
+      if (g.kind === "pan") {
+        e.preventDefault();
+        el.scrollLeft = g.left - (e.touches[0].clientX - g.x);
+        el.scrollTop = g.top - (e.touches[0].clientY - g.y);
+        return;
+      }
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const m = touchMid(e.touches);
+      g.fx = m.x - r.left;
+      g.fy = m.y - r.top;
+      g.ratio = touchGap(e.touches) / g.gap;
+      const raw = g.zoom * g.ratio;
+      // Fuera del rango la escala cede solo un poco, como una goma, y al soltar vuelve.
+      const z = raw < 1 ? 1 - (1 - raw) * 0.3 : raw > MAX_ZOOM ? MAX_ZOOM + (raw - MAX_ZOOM) * 0.3 : raw;
+      g.k = z / g.zoom;
+      g.tx = g.fx - (g.px - el.scrollLeft) - g.u * g.baseW * z;
+      g.ty = g.fy - (g.py - el.scrollTop) - g.v * g.baseH * z;
+      setLive(g.el, g);
+    };
+    const onEnd = (e: TouchEvent) => {
+      const g = gesture.current;
+      if (!g) return;
+      if (g.kind === "pinch") {
+        if (e.touches.length < 2) finishPinch(g);
+      } else if (e.touches.length === 0) {
+        gesture.current = null;
+      }
+    };
+    // En el trackpad y con Ctrl + rueda se amplía igual que con los dedos.
+    const onWheel = (e: WheelEvent) => {
+      const el = areaRef.current;
+      if (!el || viewRef.current !== "pdf" || !(e.ctrlKey || e.metaKey) || !el.contains(e.target as Node)) return;
+      e.preventDefault();
+      const pg = pageEl(el);
+      if (!pg || settling.current || gesture.current) return;
+      const r = el.getBoundingClientRect();
+      const a = anchorAt(el, pg, e.clientX - r.left, e.clientY - r.top);
+      settle(el, pg, a, zoomRef.current * Math.exp(-e.deltaY / 240), { k: 1, tx: 0, ty: 0 }, false);
+    };
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
+      window.removeEventListener("wheel", onWheel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -211,19 +478,6 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
     }
   };
 
-  const runAi = async () => {
-    setAi({ running: true, status: "Empezando…" });
-    setIssue(null);
-    try {
-      const xml = await transcribePdf(record.file, { onProgress: (status) => setAi({ running: true, status }) });
-      await applyXml(xml);
-      setAi({ running: false, status: "Transcripción lista. Es un borrador: si algo suena raro, revísala." });
-    } catch (e) {
-      setAi({ running: false, status: "" });
-      setIssue(e instanceof Error ? e.message : "La transcripción falló.");
-    }
-  };
-
   const unlinkXml = async () => {
     player.stop();
     await updateScoreLinkedXml(record.id, undefined);
@@ -258,13 +512,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
     cursor && map && map.boxes[cursor.measure]?.page === p ? { box: map.boxes[cursor.measure], frac: cursor.frac } : null;
 
   const statusLine =
-    ai.running || ai.status
-      ? ai.status
-      : parsed && guideOn && !map
-        ? "Buscando los compases en la página…"
-        : map?.approximate && guideOn && view === "pdf"
-          ? "Guía aproximada: no se pudieron contar bien las barras de compás."
-          : null;
+    parsed && guideOn && !map
+      ? "Buscando los compases en la página…"
+      : map?.approximate && guideOn && view === "pdf"
+        ? "Guía aproximada: no se pudieron contar bien las barras de compás."
+        : null;
 
   return (
     <div
@@ -275,28 +527,32 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
     >
       {/* ---- Contenido ---- */}
       {view === "pdf" ? (
-        pager ? (
-          <div
-            ref={(el) => {
-              (areaRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-              (pagerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-            }}
-            onScroll={onPagerScroll}
-            className="flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]"
-            style={{ touchAction: tool ? "none" : "pan-x" }}
-          >
-            {Array.from({ length: record.pageCount }, (_, i) => i + 1).map((p) => (
+        // Un solo contenedor para el carrusel y la vista ampliada: la página
+        // actual conserva su nodo (y su lienzo) al cambiar de escala.
+        <div
+          ref={areaRef}
+          onScroll={onPagerScroll}
+          onTouchStart={onTouchStart}
+          className={pager ? "flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]" : "flex-1 overflow-auto"}
+          style={{ touchAction: pager && !tool && !pinching ? "pan-x" : "none" }}
+        >
+          {Array.from({ length: record.pageCount }, (_, i) => i + 1).map((p) =>
+            pager || p === page ? (
               <div
                 key={p}
-                className="snap-center shrink-0 h-full flex items-center justify-center"
-                style={{ width: area.w, paddingTop: chrome ? TOP_BAR : 8, paddingBottom: chrome ? BOTTOM_BAR : 8 }}
+                className={pager ? "snap-center shrink-0 h-full flex items-center justify-center" : "w-fit mx-auto p-3"}
+                style={
+                  pager
+                    ? { width: area.w, paddingTop: chrome ? TOP_BAR : 8, paddingBottom: chrome ? BOTTOM_BAR : 8 }
+                    : { paddingTop: chrome ? TOP_BAR : 12, paddingBottom: chrome ? BOTTOM_BAR : 12 }
+                }
               >
                 {Math.abs(p - page) <= 1 && area.w > 0 ? (
                   <PdfPage
                     file={record.file}
                     page={p}
                     fit={fit}
-                    zoom={1}
+                    zoom={zoom}
                     strokes={strokesOf(p)}
                     onStrokes={(s) => setStrokes(p, s)}
                     tool={tool}
@@ -305,29 +561,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
                   />
                 ) : null}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div ref={areaRef} className="flex-1 overflow-auto">
-            <div className="w-fit mx-auto p-3" style={{ paddingTop: chrome ? TOP_BAR : 12, paddingBottom: chrome ? BOTTOM_BAR : 12 }}>
-              {area.w > 0 && (
-                <PdfPage
-                  file={record.file}
-                  page={page}
-                  fit={fit}
-                  zoom={zoom}
-                  strokes={strokesOf(page)}
-                  onStrokes={(s) => setStrokes(page, s)}
-                  tool={tool}
-                  color={color}
-                  guide={guideFor(page)}
-                />
-              )}
-            </div>
-          </div>
-        )
+            ) : null,
+          )}
+        </div>
       ) : (
-        <div ref={areaRef} className={`flex-1 overflow-auto px-3 ${chrome ? "pt-16 pb-36" : "py-3"}`}>
+        <div ref={areaRef} className={`flex-1 overflow-auto px-3 ${chrome ? "pt-24 pb-36" : "py-3"}`}>
           <div className="max-w-4xl mx-auto">
             {xmlError && <p className="text-sm text-bad">{xmlError}</p>}
             {parsed ? <ScoreSheet parsed={parsed} active={player.active} showNames={showNames} /> : <p className="text-sm text-ink-2">Leyendo…</p>}
@@ -403,7 +641,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
                 {linkedXml ? (
                   <button type="button" onClick={() => void unlinkXml()} className="pill py-1">Quitar MusicXML vinculado</button>
                 ) : (
-                  <button type="button" onClick={() => { setAskXml(true); setNotesOpen(false); }} className="pill py-1">Escuchar / transcribir</button>
+                  <button type="button" onClick={() => { setAskXml(true); setNotesOpen(false); }} className="pill py-1">Vincular MusicXML</button>
                 )}
                 <span className="ml-auto">
                   {!confirmDelete ? (
@@ -440,9 +678,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
                     <ChevronIcon dir="right" className="w-4 h-4" />
                   </button>
                   <span className="w-px h-6 bg-surface-3 mx-1" />
-                  <button type="button" onClick={() => setZoom((z) => Math.max(1, +(z - 0.25).toFixed(2)))} disabled={zoom === 1} className="btn-circle w-9 h-9 text-sm disabled:opacity-40" aria-label="Reducir">−</button>
-                  <button type="button" onClick={() => setZoom(1)} className="text-xs tabular-nums w-10 text-center" title="Página entera">{Math.round(zoom * 100)}%</button>
-                  <button type="button" onClick={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))} className="btn-circle w-9 h-9 text-sm" aria-label="Ampliar">+</button>
+                  <button type="button" onClick={() => zoomTo(zoom - 0.25)} disabled={zoom === 1} className="btn-circle w-9 h-9 text-sm disabled:opacity-40" aria-label="Reducir">−</button>
+                  <button type="button" onClick={() => zoomTo(1)} className="text-xs tabular-nums w-10 text-center" title="Página entera">{Math.round(zoom * 100)}%</button>
+                  <button type="button" onClick={() => zoomTo(zoom + 0.25)} className="btn-circle w-9 h-9 text-sm" aria-label="Ampliar">+</button>
                   <span className="w-px h-6 bg-surface-3 mx-1" />
                   {toolButton("pen", "✎")}
                   {toolButton("highlighter", "Sub.")}
@@ -467,7 +705,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
               <button
                 type="button"
                 onClick={onPlay}
-                disabled={!settings.sound || (!!linkedXml && !parsed) || ai.running}
+                disabled={!settings.sound || (!!linkedXml && !parsed)}
                 title={settings.sound ? undefined : "El sonido está desactivado en Ajustes"}
                 className={`pill text-xs py-1.5 ${player.playing ? "pill-active" : "bg-accent text-white"} disabled:opacity-50`}
               >
@@ -501,27 +739,15 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
 
       {/* ---- Cómo conseguir la reproducción ---- */}
       {askXml && (
-        <div className="fixed inset-0 z-10 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => !ai.running && setAskXml(false)}>
+        <div className="fixed inset-0 z-10 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => setAskXml(false)}>
           <div className="card p-5 max-w-md w-full space-y-3" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-bold">Escuchar esta partitura</h2>
             <p className="text-sm text-ink-2">
               Un PDF es solo una imagen. Para tocar la pieza, mostrarte los nombres y seguir el sonido con una guía,
-              Opus Piano necesita el <strong>MusicXML</strong> de esa misma partitura. Hay dos caminos:
+              Opus Piano necesita el <strong>MusicXML</strong> de esa misma partitura.
             </p>
             <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-              <p className="text-sm font-semibold">1. Transcribirlo automáticamente</p>
-              <p className="text-xs text-ink-2">
-                El servidor lee la partitura con oemer (reconocimiento óptico de partituras, código abierto). Tarda
-                varios minutos por página y el resultado es un borrador: acierta bien en partituras impresas limpias,
-                peor en escaneos. Se transcriben como máximo las 10 primeras páginas.
-              </p>
-              <button type="button" onClick={() => void runAi()} disabled={ai.running} className="pill pill-active text-xs py-1.5 disabled:opacity-50">
-                {ai.running ? "Transcribiendo…" : "Transcribir"}
-              </button>
-              {ai.running && <p className="text-xs text-ink-2">{ai.status}</p>}
-            </div>
-            <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-              <p className="text-sm font-semibold">2. Vincular un MusicXML que ya tengas</p>
+              <p className="text-sm font-semibold">Vincular un MusicXML</p>
               <p className="text-xs text-ink-2">
                 En MuseScore: «Archivo → Exportar → MusicXML». En musescore.com y otras webs suele haber descarga .mxl.
               </p>
@@ -532,13 +758,13 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
                 className="hidden"
                 onChange={(e) => e.target.files?.[0] && void linkXml(e.target.files[0])}
               />
-              <button type="button" onClick={() => xmlInput.current?.click()} disabled={ai.running} className="pill text-xs py-1.5 disabled:opacity-50">
+              <button type="button" onClick={() => xmlInput.current?.click()} className="pill pill-active text-xs py-1.5">
                 Elegir archivo
               </button>
             </div>
             {issue && <p className="text-xs text-bad">{issue}</p>}
             <div className="flex justify-end">
-              <button type="button" onClick={() => setAskXml(false)} disabled={ai.running} className="pill text-xs py-1.5 disabled:opacity-50">Cerrar</button>
+              <button type="button" onClick={() => setAskXml(false)} className="pill text-xs py-1.5">Cerrar</button>
             </div>
           </div>
         </div>

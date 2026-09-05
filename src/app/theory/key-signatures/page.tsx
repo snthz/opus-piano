@@ -6,8 +6,16 @@ import { PlayButton } from "@/components/audio/play-button";
 import { CircleOfFifths } from "@/components/notation/circle-of-fifths";
 import { MAJOR_KEYS, keyName, relativeKey, keyAccidentals } from "@/lib/music/keys";
 import { LATIN_NAMES } from "@/lib/music/pitch";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Armaduras y tonalidades" };
+export const metadata = pageMetadata({
+  title: "Armaduras: sostenidos, bemoles y tonalidad",
+  description:
+    "Cómo se lee la armadura de una partitura, en qué orden aparecen los sostenidos y los bemoles, el círculo de quintas y los relativos mayores y menores.",
+  path: "/theory/key-signatures",
+  keywords: ["armadura musical", "tonalidad", "círculo de quintas", "sostenidos y bemoles", "relativo menor"],
+  type: "article",
+});
 
 export default function Page() {
   const sharps = MAJOR_KEYS.filter((k) => k.fifths >= 0).sort((a, b) => a.fifths - b.fifths);

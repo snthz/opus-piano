@@ -1,4 +1,4 @@
-// Progreso de práctica por perfil. Las partituras siguen solo en el dispositivo (IndexedDB).
+// Usuarios, sesiones y progreso de práctica. Las partituras siguen solo en el dispositivo (IndexedDB).
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,40 +8,100 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Un perfil por persona. No hay contraseña: el dispositivo guarda el id y el
-/// `code` sirve para vincular otro dispositivo al mismo perfil.
-model Profile {
-  id        String             @id @default(cuid())
-  code      String             @unique
-  createdAt DateTime           @default(now())
-  exercises ExerciseProgress[]
-  days      DailyActivity[]
+/// Cuenta con correo. Contraseña (scrypt) si se registró con ella; con Google
+/// puede no tener ninguna. El progreso cuelga del usuario.
+model User {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  name         String
+  passwordHash String?
+  createdAt    DateTime           @default(now())
+  sessions     Session[]
+  accounts     OAuthAccount[]
+  exercises    ExerciseProgress[]
+  days         DailyActivity[]
+  scores       Score[]
+}
+
+/// Identidad externa (Google) vinculada a un usuario, por el `sub` del proveedor.
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  provider          String
+  providerAccountId String
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+/// Sesión iniciada en un dispositivo. La cookie lleva el token en claro;
+/// aquí se guarda solo su hash (SHA-256), como con las contraseñas.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  /// Navegador que la abrió, para listarla en Ajustes.
+  userAgent String?
+
+  @@index([userId])
 }
 
 model ExerciseProgress {
   id         String    @id @default(cuid())
-  profileId  String
-  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   exerciseId String
   attempts   Int       @default(0)
   correct    Int       @default(0)
   bestStreak Int       @default(0)
   lastPlayed DateTime?
 
-  @@unique([profileId, exerciseId])
+  @@unique([userId, exerciseId])
 }
 
 /// Actividad por día y ejercicio, para rachas y calendario.
 model DailyActivity {
-  id         String  @id @default(cuid())
-  profileId  String
-  profile    Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id         String @id @default(cuid())
+  userId     String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   exerciseId String
   /// "2026-09-04"
   day        String
-  attempts   Int     @default(0)
-  correct    Int     @default(0)
+  attempts   Int    @default(0)
+  correct    Int    @default(0)
 
-  @@unique([profileId, exerciseId, day])
-  @@index([profileId, day])
+  @@unique([userId, exerciseId, day])
+  @@index([userId, day])
+}
+
+/// Partitura de un usuario. El archivo (PDF o MusicXML) y el MusicXML vinculado
+/// viven en disco (SCORES_DIR); aquí solo los metadatos, la miniatura y los trazos.
+/// El id lo genera el dispositivo (UUID) para que coincida con su copia local.
+model Score {
+  id          String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  /// "pdf" | "musicxml"
+  kind        String
+  notes       String   @default("")
+  pageCount   Int      @default(0)
+  /// data URL de la miniatura (vacía en MusicXML)
+  thumbnail   String   @default("")
+  annotations Json?
+  /// Bytes del archivo principal; 0 hasta que se sube
+  size        Int      @default(0)
+  uploaded    Boolean  @default(false)
+  /// Bytes del MusicXML vinculado (solo PDF), 0 si no hay
+  xmlSize     Int      @default(0)
+  createdAt   DateTime @default(now())
+  /// Última modificación de metadatos, la pone el dispositivo (ms desde época)
+  updatedAt   BigInt
+
+  @@index([userId, createdAt])
 }

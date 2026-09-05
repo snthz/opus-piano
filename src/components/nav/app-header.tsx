@@ -6,9 +6,12 @@ import { useState } from "react";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ALL_LESSONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
+import { exercisePath, lessonPath } from "@/lib/routes";
 import { isActive } from "./app-nav";
+import { useAuth } from "@/lib/auth";
+import { openAuthModal } from "@/lib/auth-modal";
 
-const LEARN_PREFIXES = ["/teoria", "/practica", "/glosario"];
+const LEARN_PREFIXES = ["/theory", "/practice", "/glossary"];
 
 /**
  * Cabecera fija. En escritorio lleva la navegación con un desplegable «Aprender»
@@ -18,10 +21,11 @@ const LEARN_PREFIXES = ["/teoria", "/practica", "/glosario"];
 export function AppHeader() {
   const pathname = usePathname();
   const learnActive = LEARN_PREFIXES.some((p) => isActive(pathname, p));
+  const { user } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
-      <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center gap-6">
+      <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center gap-2 md:gap-6">
         <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight shrink-0">
           <span className="btn-circle w-9 h-9">
             <GlyphIcon name="gClef" size={20} />
@@ -33,15 +37,40 @@ export function AppHeader() {
           <TopLink href="/" active={pathname === "/"}>Inicio</TopLink>
           {/* key={pathname}: al navegar se desmonta y el desplegable se cierra solo. */}
           <LearnMenu key={pathname} active={learnActive} pathname={pathname} />
-          <TopLink href="/partituras" active={isActive(pathname, "/partituras")}>Partituras</TopLink>
-          <TopLink href="/mas" active={isActive(pathname, "/mas")}>Más</TopLink>
+          <TopLink href="/scores" active={isActive(pathname, "/scores")}>Partituras</TopLink>
+          <TopLink href="/more" active={isActive(pathname, "/more")}>Más</TopLink>
         </nav>
 
+        {user ? (
+          <Link
+            href="/account"
+            aria-label={`Cuenta de ${user.name}`}
+            title={user.name}
+            className={`hidden md:grid place-items-center w-10 h-10 rounded-full text-sm font-bold transition-colors ${
+              isActive(pathname, "/account") ? "bg-ink text-bg" : "bg-lavender text-ink hover:opacity-80"
+            }`}
+          >
+            {user.name.trim()[0]?.toUpperCase()}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openAuthModal("login")}
+            className="hidden md:inline-flex items-center gap-2 rounded-full bg-accent text-white text-sm font-semibold px-4 py-2 transition hover:brightness-110 active:translate-y-px"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" strokeLinecap="round" />
+            </svg>
+            Entrar
+          </button>
+        )}
+
         <Link
-          href="/ajustes"
+          href="/settings"
           aria-label="Ajustes"
           className={`hidden md:grid place-items-center w-10 h-10 rounded-full transition-colors ${
-            isActive(pathname, "/ajustes") ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
+            isActive(pathname, "/settings") ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
           }`}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="w-5 h-5">
@@ -105,11 +134,11 @@ function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) 
         <div role="menu" className="absolute left-0 top-full pt-2 w-[620px]">
           <div className="card p-5 grid grid-cols-[1.1fr_1fr] gap-6 shadow-lg">
             <section>
-              <MenuHeading href="/teoria" active={isActive(pathname, "/teoria")}>Teoría</MenuHeading>
+              <MenuHeading href="/theory" active={isActive(pathname, "/theory")}>Teoría</MenuHeading>
               <ul className="mt-2 space-y-0.5">
                 {ALL_LESSONS.map((l, i) => (
                   <li key={l.slug}>
-                    <MenuItem href={`/teoria/${l.slug}`} active={pathname === `/teoria/${l.slug}/` || pathname === `/teoria/${l.slug}`}>
+                    <MenuItem href={lessonPath(l.slug)} active={pathname === lessonPath(l.slug)}>
                       <span className="w-5 text-ink-3 tabular-nums text-xs">{i + 1}.</span>
                       <span className="flex-1 truncate">{l.title}</span>
                       <span className="text-xs text-ink-3">{l.minutes} min</span>
@@ -120,11 +149,11 @@ function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) 
             </section>
             <section className="space-y-5">
               <div>
-                <MenuHeading href="/practica" active={isActive(pathname, "/practica")}>Práctica</MenuHeading>
+                <MenuHeading href="/practice" active={isActive(pathname, "/practice")}>Práctica</MenuHeading>
                 <ul className="mt-2 space-y-0.5">
                   {EXERCISES.map((e) => (
                     <li key={e.id}>
-                      <MenuItem href={e.href} active={isActive(pathname, e.href)}>
+                      <MenuItem href={exercisePath(e.id)} active={isActive(pathname, exercisePath(e.id))}>
                         <span className="w-5 grid place-items-center text-ink-2">
                           <GlyphIcon name={e.glyph} size={14} />
                         </span>
@@ -135,7 +164,7 @@ function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) 
                 </ul>
               </div>
               <div>
-                <MenuHeading href="/glosario" active={isActive(pathname, "/glosario")}>Glosario</MenuHeading>
+                <MenuHeading href="/glossary" active={isActive(pathname, "/glossary")}>Glosario</MenuHeading>
                 <p className="mt-1 text-xs text-ink-2 px-2">Términos musicales de la A a la Z.</p>
               </div>
             </section>

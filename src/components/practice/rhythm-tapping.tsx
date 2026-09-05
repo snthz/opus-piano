@@ -153,7 +153,7 @@ export function RhythmTapping() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
+      if (e.code === "Space" && !e.repeat) {
         e.preventDefault();
         tap();
       }
@@ -202,14 +202,16 @@ export function RhythmTapping() {
       <p className="text-sm text-ink-2 text-center">
         Pulsa el botón (o la barra espaciadora) en cada nota, siguiendo el metrónomo. Primero suena un compás de espera.
       </p>
-      <Score
-        time={`${ts.numerator}/${ts.denominator}`}
-        measures={measures}
-        width={bars > 2 ? 720 : 520}
-        noteStyles={results}
-        highlight={phase === "playing" ? playhead : undefined}
-        endBar="end"
-      />
+      <div className="flex justify-center">
+        <Score
+          time={`${ts.numerator}/${ts.denominator}`}
+          measures={measures}
+          width={bars > 2 ? 720 : 520}
+          noteStyles={results}
+          highlight={phase === "playing" ? playhead : undefined}
+          endBar="end"
+        />
+      </div>
       <div className="flex items-center justify-center gap-2">
         {Array.from({ length: ts.beats }).map((_, i) => (
           <span
@@ -221,22 +223,27 @@ export function RhythmTapping() {
         ))}
       </div>
       {phase === "idle" || phase === "done" ? (
-        <button type="button" onClick={start} disabled={!settings.sound} className="pill pill-active mx-auto disabled:opacity-50">
-          {phase === "done" ? "Repetir" : "▶ Empezar"}
-        </button>
+        <div className="flex justify-center">
+          <button type="button" onClick={start} disabled={!settings.sound} className="pill pill-active disabled:opacity-50">
+            {phase === "done" ? "Repetir" : "▶ Empezar"}
+          </button>
+        </div>
       ) : (
-        <button
-          type="button"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            tap();
-          }}
-          className={`mx-auto w-full max-w-xs h-24 rounded-3xl font-semibold text-lg select-none touch-none active:scale-[0.98] transition-transform ${
-            phase === "countin" ? "bg-surface-3 text-ink-2" : "bg-ink text-bg"
-          }`}
-        >
-          {phase === "countin" ? "Espera…" : "TAP"}
-        </button>
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              tap();
+            }}
+            className={`w-full max-w-xs h-24 rounded-3xl font-semibold text-lg select-none touch-none active:scale-[0.98] transition-transform flex flex-col items-center justify-center gap-1 ${
+              phase === "countin" ? "bg-surface-3 text-ink-2" : "bg-ink text-bg"
+            }`}
+          >
+            <span>{phase === "countin" ? "Espera…" : "TAP"}</span>
+            <span className="text-xs font-medium opacity-60">o barra espaciadora</span>
+          </button>
+        </div>
       )}
       {!settings.sound && <p className="text-xs text-center text-bad">Activa el sonido en Ajustes para usar el metrónomo.</p>}
     </ExerciseShell>

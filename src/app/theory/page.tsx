@@ -3,8 +3,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { LESSON_SECTIONS, ALL_LESSONS } from "@/data/lessons";
+import { lessonPath } from "@/lib/routes";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Teoría" };
+export const metadata = pageMetadata({
+  title: "Teoría musical: el curso completo en orden",
+  description:
+    "Las lecciones de lenguaje musical en el orden en que conviene estudiarlas: pentagrama, claves, notas, figuras, compases, armaduras, escalas y técnica de piano.",
+  path: "/theory",
+  keywords: ["teoría musical", "lenguaje musical", "curso de solfeo", "aprender teoría musical gratis"],
+});
 
 const COLORS = ["bg-yellow", "bg-mint", "bg-lavender", "bg-pink", "bg-blue", "bg-peach"];
 
@@ -27,7 +35,7 @@ export default function TeoriaPage() {
                 return (
                   <li key={l.slug}>
                     <Link
-                      href={`/teoria/${l.slug}`}
+                      href={lessonPath(l.slug)}
                       className={`card-pastel ${color} relative p-4 min-h-40 flex flex-col justify-between group`}
                     >
                       <span className="w-10 h-10 rounded-full bg-surface/90 flex items-center justify-center">

@@ -107,6 +107,7 @@ export function SolfegeReading() {
         measures={melody.easy}
         labels={showNames ? labels : undefined}
         width={bars > 2 ? 760 : 560}
+        scale={1.4}
         highlight={current >= 0 ? current : undefined}
         endBar="end"
       />

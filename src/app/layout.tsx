@@ -5,6 +5,18 @@ import { AppNav } from "@/components/nav/app-nav";
 import { AppHeader } from "@/components/nav/app-header";
 import { ServiceWorkerInit, InstallBanner } from "@/components/ui/service-worker-init";
 import { ProgressSync } from "@/components/ui/progress-sync";
+import { AuthModal } from "@/components/account/auth-modal";
+import { JsonLd } from "@/components/seo/json-ld";
+import {
+  SITE_DESCRIPTION,
+  SITE_KEYWORDS,
+  SITE_LOCALE,
+  SITE_NAME,
+  SITE_TAGLINE,
+  SITE_URL,
+  OG_IMAGE,
+  siteJsonLd,
+} from "@/lib/seo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,17 +29,52 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Base de todas las URL relativas de los metadatos (canónicas, og:image…).
+  // Sin ella Next avisa y las etiquetas salen con rutas relativas, que los
+  // buscadores y las redes sociales no saben resolver.
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Opus Piano",
-    template: "%s · Opus Piano",
+    default: `${SITE_NAME} — ${SITE_TAGLINE} gratis y en español`,
+    template: `%s · ${SITE_NAME}`,
   },
-  description:
-    "Aprende a leer partituras y a tocar el piano: solfeo, claves, notas, compases y símbolos. Funciona sin conexión y guarda tus partituras en tu teléfono.",
-  applicationName: "Opus Piano",
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "education",
+  alternates: { canonical: "/" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: SITE_NAME,
+    locale: SITE_LOCALE,
+    title: `${SITE_NAME} — ${SITE_TAGLINE} gratis y en español`,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE.url],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Opus Piano",
+    title: SITE_NAME,
   },
   formatDetection: { telephone: false },
   icons: {
@@ -62,6 +109,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerInit />
         <ProgressSync />
         <InstallBanner />
+        <AuthModal />
+        {/* Identidad del sitio para Google: se declara una vez, en el layout. */}
+        <JsonLd data={siteJsonLd()} />
       </body>
     </html>
   );

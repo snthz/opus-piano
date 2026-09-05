@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listScores, deleteScore, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
+import { listScores, deleteScore, onScoresChange, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
+import { useScoresSync } from "@/lib/scores-sync";
+import { useAuth } from "@/lib/auth";
+import { openAuthModal } from "@/lib/auth-modal";
+import { SignupNudge } from "@/components/account/signup-nudge";
 import { ScoreUpload } from "./score-upload";
 import { ScoreViewer } from "./score-viewer";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
@@ -11,11 +15,19 @@ export function ScoreLibrary() {
   const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState<ScoreRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [added, setAdded] = useState(false);
+  const sync = useScoresSync();
+  const { user } = useAuth();
 
   const reload = () => listScores().then((s) => { setScores(s); setLoaded(true); });
   useEffect(() => { void reload(); }, []);
+  // Lo que llega del servidor (otro dispositivo) aparece sin recargar la página.
+  useEffect(() => onScoresChange((c) => { if (c.type !== "put" || c.source === "remote") void reload(); }), []);
 
-  const onAdded = (r: ScoreRecord) => setScores((prev) => [r, ...prev]);
+  const onAdded = (r: ScoreRecord) => {
+    setScores((prev) => [r, ...prev]);
+    setAdded(true);
+  };
 
   const onDelete = async (id: string) => {
     await deleteScore(id);
@@ -50,7 +62,32 @@ export function ScoreLibrary() {
 
   return (
     <div className="space-y-6">
+      <SignupNudge
+        when={added}
+        title="¿La guardamos en tu cuenta?"
+        text="Con una cuenta, tus partituras, anotaciones y notas se guardan en el servidor y las abres desde cualquier dispositivo."
+      />
       <ScoreUpload onAdded={onAdded} />
+
+      {user ? (
+        <p className="text-xs text-ink-3 px-1">
+          {sync.busy
+            ? "Sincronizando biblioteca…"
+            : sync.error
+              ? `Sin sincronizar: ${sync.error}`
+              : sync.lastSync
+                ? `Biblioteca sincronizada con tu cuenta${sync.quota ? ` · ${Math.round(sync.used / 1048576)} de ${Math.round(sync.quota / 1048576)} MB` : ""}`
+                : "Biblioteca guardada en tu cuenta."}
+        </p>
+      ) : (
+        <p className="text-xs text-ink-3 px-1">
+          Tus partituras se guardan solo en este dispositivo.{" "}
+          <button type="button" onClick={() => openAuthModal("register")} className="font-semibold text-ink hover:underline">
+            Crea una cuenta
+          </button>{" "}
+          para tenerlas en todos.
+        </p>
+      )}
 
       {scores.length > 0 && (
         <div className="flex items-center gap-3">

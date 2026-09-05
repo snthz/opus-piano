@@ -29,6 +29,12 @@ export interface ScoreProps {
   bassClef?: ClefName;
   /** Ancho lógico del dibujo; el SVG se escala al contenedor. */
   width?: number;
+  /**
+   * Factor máximo de ampliación cuando sobra espacio. Con 1 (por defecto) el
+   * dibujo nunca crece más allá de `width`. Con un valor mayor ocupa el ancho
+   * disponible hasta `width * scale` y se centra.
+   */
+  scale?: number;
   /** Unir corcheas con barras automáticamente */
   beams?: boolean;
   /** Etiquetas de texto bajo cada nota del pentagrama superior (en orden) */
@@ -75,6 +81,7 @@ export function Score({
   bassMeasures,
   bassClef = "bass",
   width = 520,
+  scale = 1,
   beams = true,
   labels,
   bassLabels,
@@ -150,9 +157,25 @@ export function Score({
           }
           const svg = el.querySelector("svg");
           if (svg) {
-            svg.setAttribute("viewBox", `0 0 ${width} ${computedHeight}`);
+            // VexFlow deja 40px sobre la primera línea y la clave de sol asoma por
+            // debajo de la última: con alturas ajustadas el SVG recortaba el dibujo.
+            // Medimos el contenido real y ampliamos la vista si se sale (nunca la
+            // encogemos, para no cambiar el tamaño de los ejemplos que ya encajan).
+            let top = 0;
+            let bottom = computedHeight;
+            try {
+              const box = (svg as SVGSVGElement).getBBox();
+              if (box.height > 0) {
+                const pad = 4;
+                top = Math.min(top, box.y - pad);
+                bottom = Math.max(bottom, box.y + box.height + pad);
+              }
+            } catch {
+              // getBBox falla si el SVG no está en el layout; nos quedamos con la caja pedida.
+            }
+            svg.setAttribute("viewBox", `0 ${top} ${width} ${bottom - top}`);
             svg.setAttribute("width", String(width));
-            svg.setAttribute("height", String(computedHeight));
+            svg.setAttribute("height", String(bottom - top));
             svg.setAttribute("role", "img");
             if (title) svg.setAttribute("aria-label", title);
           }
@@ -170,8 +193,12 @@ export function Score({
   }, [measuresKey, clef, time, keySignature, width, beams, highlightKey, highlightColor, endBar, computedHeight, render, labelsKey, labelPosition, showTime]);
 
   return (
-    <div className={`score-box ${className}`}>
-      <div id={elementId} ref={ref} style={{ width: "100%", maxWidth: width }} />
+    <div className={`score-box ${scale > 1 ? "w-full" : ""} ${className}`}>
+      <div
+        id={elementId}
+        ref={ref}
+        style={{ width: "100%", maxWidth: width * scale, marginInline: scale > 1 ? "auto" : undefined }}
+      />
       {error && <p className="text-xs text-bad mt-1">No se pudo dibujar la partitura: {error}</p>}
     </div>
   );

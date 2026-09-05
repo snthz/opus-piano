@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useSettings } from "@/lib/settings";
-import { useProgress, useSyncState, resetProgress, summarize, syncProgress } from "@/lib/progress";
-import { getProfile, linkProfile, type Profile } from "@/lib/profile";
+import Link from "next/link";
+import { useProgress, useSyncState, resetProgress, summarize } from "@/lib/progress";
+import { useAuth } from "@/lib/auth";
+import { openAuthModal } from "@/lib/auth-modal";
 import { clearScores, scoresSize } from "@/lib/scores-db";
 import { playNote, unlockAudio } from "@/lib/audio/synth";
 
@@ -77,28 +79,20 @@ export function SettingsPanel() {
       </section>
 
       <section className="card p-5 space-y-4">
-        <h2 className="font-bold">Progreso y sincronización</h2>
+        <h2 className="font-bold">Cuenta y sincronización</h2>
         <p className="text-sm text-ink-2">
-          Tu progreso de práctica se guarda en el servidor bajo un perfil sin contraseña, y sigue funcionando sin
-          conexión: lo que hagas se envía cuando vuelva la red. Para ver el mismo progreso en otro dispositivo,
-          introduce allí el código de este perfil. Las partituras no se sincronizan: se quedan en cada dispositivo.
+          Con una cuenta, el progreso de práctica se guarda en el servidor y se ve igual en todos tus dispositivos.
+          Las partituras, con sus anotaciones, también se guardan en la cuenta. Sigue funcionando sin conexión:
+          lo que hagas se envía cuando vuelva la red.
         </p>
-        <SyncPanel />
-      </section>
-
-      <section className="card p-5 space-y-2">
-        <h2 className="font-bold">Transcripción de PDF</h2>
-        <p className="text-sm text-ink-2">
-          Convertir un PDF en MusicXML lo hace <strong>oemer</strong>, un reconocedor de partituras de código abierto
-          que corre en tu propio servidor. No necesita claves ni servicios externos; tarda varios minutos por página y
-          el resultado es un borrador. Se inicia desde el lector de cada PDF con «Escuchar».
-        </p>
+        <AccountRow />
       </section>
 
       <section className="card p-5 space-y-4">
         <h2 className="font-bold">Datos guardados</h2>
         <p className="text-sm text-ink-2">
-          Todo se guarda solo en este dispositivo. Nada se envía a ningún servidor.
+          Los ajustes se guardan solo en este dispositivo. El progreso y las partituras también, y además en tu
+          cuenta si has iniciado sesión (borrarlos aquí los borra también de la cuenta).
         </p>
         <dl className="grid grid-cols-3 gap-2 text-center">
           <Stat label="Respuestas" value={String(totals.attempts)} />
@@ -141,80 +135,34 @@ export function SettingsPanel() {
   );
 }
 
-function SyncPanel() {
+function AccountRow() {
+  const { user } = useAuth();
   const sync = useSyncState();
-  // Este panel solo se monta en cliente (ClientOnly), así que localStorage existe.
-  const [profile, setProfile] = useState<Profile | null>(() => getProfile());
-  const [code, setCode] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const link = async () => {
-    try {
-      const p = await linkProfile(code);
-      setProfile(p);
-      setCode("");
-      setMessage("Dispositivo vinculado. Sincronizando…");
-      await syncProgress();
-      setMessage("Listo: este dispositivo usa ahora ese perfil.");
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "No se pudo vincular.");
-    }
-  };
-
-  const copy = async () => {
-    if (!profile) return;
-    try {
-      await navigator.clipboard.writeText(profile.code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* sin portapapeles */
-    }
-  };
-
-  const status = sync.busy
-    ? "Sincronizando…"
-    : sync.error
-      ? `Sin sincronizar (${sync.error})${sync.pending ? ` · ${sync.pending} pendientes` : ""}`
-      : sync.lastSync
-        ? `Última sincronización: ${new Date(sync.lastSync).toLocaleString("es")}`
-        : "Todavía no se ha sincronizado.";
+  const status = !user
+    ? "Sin cuenta: el progreso solo está en este dispositivo."
+    : sync.busy
+      ? "Sincronizando…"
+      : sync.error
+        ? `Sin sincronizar (${sync.error})${sync.pending ? ` · ${sync.pending} pendientes` : ""}`
+        : sync.lastSync
+          ? `Última sincronización: ${new Date(sync.lastSync).toLocaleString("es")}`
+          : "Todavía no se ha sincronizado.";
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl bg-surface-2 px-4 py-3">
-        <div>
-          <p className="text-xs text-ink-2">Código de este perfil</p>
-          <p className="font-mono text-lg font-bold tracking-[0.2em]">{profile?.code ?? "—"}</p>
-        </div>
-        <button type="button" onClick={() => void copy()} disabled={!profile} className="pill text-xs py-1.5 disabled:opacity-40">
-          {copied ? "Copiado" : "Copiar"}
-        </button>
+    <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl bg-surface-2 px-4 py-3">
+      <div className="min-w-0">
+        <p className="font-medium truncate">{user ? user.name : "Sin sesión"}</p>
+        <p className="text-xs text-ink-3">{status}</p>
       </div>
-      <p className="text-xs text-ink-3">{status}</p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void link();
-        }}
-        className="flex gap-2"
-      >
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="Código de otro dispositivo"
-          maxLength={8}
-          spellCheck={false}
-          autoCapitalize="characters"
-          className="flex-1 rounded-2xl px-4 py-2 text-sm font-mono tracking-widest bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-          aria-label="Código de otro dispositivo"
-        />
-        <button type="submit" disabled={code.trim().length < 8} className="pill pill-active text-xs disabled:opacity-40">
-          Vincular
+      {user ? (
+        <Link href="/account" className="pill text-xs py-1.5 shrink-0">
+          Ver cuenta
+        </Link>
+      ) : (
+        <button type="button" onClick={() => openAuthModal("login")} className="pill pill-active text-xs py-1.5 shrink-0">
+          Entrar o crear cuenta
         </button>
-      </form>
-      {message && <p className="text-xs text-ink-2">{message}</p>}
+      )}
     </div>
   );
 }

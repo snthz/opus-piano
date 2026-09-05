@@ -6,8 +6,16 @@ import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayButton } from "@/components/audio/play-button";
 import { MeterDemo } from "@/components/audio/meter-demo";
 import { TIME_SIGNATURES, TIME_SIGNATURE_BY_ID } from "@/lib/music/meter";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Los compases" };
+export const metadata = pageMetadata({
+  title: "Los compases: 4/4, 3/4, 6/8 y el pulso",
+  description:
+    "Qué significan los dos números del principio de la partitura, en qué se diferencian los compases simples y los compuestos, y qué son la anacrusa y la síncopa.",
+  path: "/theory/measures",
+  keywords: ["compases musicales", "qué significa 4/4", "compás 3/4", "compás 6/8", "anacrusa", "síncopa"],
+  type: "article",
+});
 
 const G = 67;
 const n = (beats: number, count = 1, midi = G) => Array.from({ length: count }, () => ({ midis: [midi], beats }));

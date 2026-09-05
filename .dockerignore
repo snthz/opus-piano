@@ -2,8 +2,10 @@ node_modules
 .next
 out
 .git
+.github
+.idea
 .env*
 !.env.example
-omr/__pycache__
+tests
 *.log
 .DS_Store

@@ -1,9 +1,10 @@
-import { profileFromRequest, unauthorized } from "@/lib/server/auth";
+import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
 import { applyAnswers, isAnswer, progressMap } from "@/lib/server/progress-service";
 
 /** Recibe un lote de respuestas (la cola del dispositivo) y devuelve el progreso actualizado. */
 export async function POST(req: Request) {
-  const me = await profileFromRequest(req);
+  if (!sameOrigin(req)) return Response.json({ error: "Origen no permitido" }, { status: 403 });
+  const me = await userFromRequest(req);
   if (!me) return unauthorized();
 
   let body: unknown;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
 import type { Stroke } from "@/lib/scores-db";
 import type { MeasureBox } from "@/lib/score-layout";
@@ -28,6 +28,8 @@ interface Props {
 export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color, guide }: Props) {
   const [dims, setDims] = useState<{ page: number; width: number; height: number } | null>(null);
   const [holder, setHolder] = useState<HTMLDivElement | null>(null);
+  /** Lienzo pintado y la resolución (página y px de ancho) a la que se trazó */
+  const drawn = useRef<{ canvas: HTMLCanvasElement; key: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,25 +44,43 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
   const cssW = ready ? Math.max(80, dims.width * scale) : 0;
   const cssH = ready ? Math.max(80, dims.height * scale) : 0;
 
+  // El lienzo que ya hay se reescala al instante con CSS, antes de pintar: el
+  // zoom se ve fluido mientras llega el trazado a la nueva resolución.
+  useLayoutEffect(() => {
+    const c = drawn.current?.canvas;
+    if (!c) return;
+    c.style.width = `${cssW}px`;
+    c.style.height = `${cssH}px`;
+  }, [cssW, cssH]);
+
+  // Trazar con pdf.js es caro: se espera a que la escala se asiente y no se
+  // repite si el lienzo ya está a esa resolución.
   useEffect(() => {
     if (!ready || !holder) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const key = `${page}:${Math.round(cssW * dpr)}`;
+    const cur = drawn.current;
+    if (cur && cur.key === key && cur.canvas.parentNode === holder) return;
     let cancelled = false;
-    renderPage(file, page, (cssW / dims.width) * dpr).then((canvas) => {
-      if (cancelled) return;
-      canvas.style.width = `${cssW}px`;
-      canvas.style.height = `${cssH}px`;
-      holder.replaceChildren(canvas);
-    });
+    const draw = () =>
+      renderPage(file, page, (cssW / dims.width) * dpr).then((canvas) => {
+        if (cancelled) return;
+        canvas.style.width = `${cssW}px`;
+        canvas.style.height = `${cssH}px`;
+        holder.replaceChildren(canvas);
+        drawn.current = { canvas, key };
+      });
+    const timer = setTimeout(draw, cur ? 160 : 0);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [ready, holder, file, page, cssW, cssH, dims]);
 
   if (!ready) return <div className="bg-white/60 rounded" style={{ width: fit.w, height: fit.h }} />;
 
   return (
-    <div className="relative shadow-lg bg-white" style={{ width: cssW, height: cssH }}>
+    <div data-page={page} className="relative shadow-lg bg-white" style={{ width: cssW, height: cssH }}>
       <div ref={setHolder} />
       {guide && (
         <>

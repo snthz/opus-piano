@@ -5,8 +5,16 @@ import { Glyph } from "@/components/notation/glyph";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PianoKeyboard } from "@/components/notation/piano-keyboard";
 import { PlayButton } from "@/components/audio/play-button";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Técnica básica del piano" };
+export const metadata = pageMetadata({
+  title: "Técnica de piano: postura, dedos y manos",
+  description:
+    "Cómo sentarse al piano, la posición de la mano, la numeración de los dedos, el paso del pulgar y los primeros ejercicios de lectura a dos manos.",
+  path: "/theory/piano",
+  keywords: ["técnica de piano", "postura al piano", "digitación piano", "numeración de los dedos", "tocar con las dos manos"],
+  type: "article",
+});
 
 const fiveFinger = [60, 62, 64, 65, 67, 65, 64, 62, 60];
 

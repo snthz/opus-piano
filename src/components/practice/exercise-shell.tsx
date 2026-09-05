@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { recordAnswer } from "@/lib/progress";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { SignupNudge } from "@/components/account/signup-nudge";
 
 export interface SessionStats {
   total: number;
@@ -61,8 +62,13 @@ export function ExerciseShell({
   const accuracy = stats.total ? Math.round((stats.correct / stats.total) * 100) : 0;
   return (
     <div className="space-y-4">
+      <SignupNudge
+        when={stats.total >= 8}
+        title="¿Guardamos tu progreso?"
+        text="Vas bien. Con una cuenta, tus respuestas, rachas y estadísticas se guardan y te siguen en cualquier dispositivo."
+      />
       <div className="flex items-center justify-between">
-        <Link href="/practica" aria-label="Volver a Práctica" className="card w-11 h-11 flex items-center justify-center hover:bg-surface-2">
+        <Link href="/practice" aria-label="Volver a Práctica" className="card w-11 h-11 flex items-center justify-center hover:bg-surface-2">
           <ChevronIcon dir="left" />
         </Link>
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>

@@ -1,14 +1,21 @@
-import { prisma } from "@/lib/db";
+import { userFromRequest } from "@/lib/server/session";
+
+export { userFromRequest };
+
+export const unauthorized = () => Response.json({ error: "Inicia sesión para continuar" }, { status: 401 });
 
 /**
- * Identifica el perfil por la cabecera `x-profile-id` que envía el cliente.
- * No hay contraseñas: la app es personal y el id es una cadena aleatoria larga
- * que solo conoce el dispositivo (y quien tenga su código de vinculación).
+ * Defensa CSRF sencilla: las peticiones que cambian datos deben venir del propio
+ * origen. La cookie es SameSite=Lax, así que esto solo añade una segunda barrera.
  */
-export async function profileFromRequest(req: Request): Promise<{ id: string; code: string } | null> {
-  const id = req.headers.get("x-profile-id");
-  if (!id || !/^[a-z0-9]{10,40}$/.test(id)) return null;
-  return prisma.profile.findUnique({ where: { id }, select: { id: true, code: true } });
+export function sameOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // fetch del mismo origen sin cabecera (p. ej. navegadores antiguos) o llamadas de test
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (!host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
 }
-
-export const unauthorized = () => Response.json({ error: "Perfil no válido" }, { status: 401 });

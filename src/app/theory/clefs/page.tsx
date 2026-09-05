@@ -4,8 +4,16 @@ import { Score } from "@/components/notation/score";
 import { Glyph } from "@/components/notation/glyph";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayButton } from "@/components/audio/play-button";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Las claves" };
+export const metadata = pageMetadata({
+  title: "Clave de sol y clave de fa: cómo se leen",
+  description:
+    "En qué se diferencian la clave de sol, la clave de fa y la clave de do, por qué la misma línea suena distinta en cada una y cómo se lee el gran pentagrama del piano.",
+  path: "/theory/clefs",
+  keywords: ["clave de sol", "clave de fa", "diferencia clave de sol y fa", "clave de do", "gran pentagrama"],
+  type: "article",
+});
 
 export default function Page() {
   return (

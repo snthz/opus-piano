@@ -5,8 +5,16 @@ import { Glyph } from "@/components/notation/glyph";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayButton } from "@/components/audio/play-button";
 import { FIGURES } from "@/lib/music/durations";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Figuras y silencios" };
+export const metadata = pageMetadata({
+  title: "Figuras y silencios: cuánto dura cada nota",
+  description:
+    "Redonda, blanca, negra, corchea y semicorchea, sus silencios equivalentes y los tres modificadores de duración: puntillo, ligadura y tresillo.",
+  path: "/theory/note-values",
+  keywords: ["figuras musicales", "duración de las notas", "redonda blanca negra corchea", "silencios musicales", "puntillo"],
+  type: "article",
+});
 
 const G = 67;
 const ev = (beats: number, n = 1) => Array.from({ length: n }, () => ({ midis: [G], beats }));

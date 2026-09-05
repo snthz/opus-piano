@@ -1,15 +1,17 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { api, ensureProfile, getProfile } from "@/lib/profile";
+import { getUser, onAuthChange } from "@/lib/auth";
 
 /**
  * Progreso de los ejercicios.
  *
  * El dispositivo lleva una copia en localStorage para responder al instante y
- * funcionar sin conexión. Cada respuesta se guarda en local y se encola; la cola
- * se envía al servidor (Postgres) cuando hay red, y lo que devuelve el servidor
- * pasa a ser la copia local. Así varios dispositivos con el mismo perfil ven lo mismo.
+ * funcionar sin conexión. Cada respuesta se guarda en local y se encola; si hay
+ * una sesión iniciada, la cola se envía al servidor (Postgres) cuando hay red y
+ * lo que devuelve el servidor pasa a ser la copia local. Así todos los
+ * dispositivos de la misma cuenta ven lo mismo. Sin cuenta, todo queda en local
+ * y se sube en cuanto el usuario inicia sesión.
  */
 export interface ExerciseProgress {
   attempts: number;
@@ -25,6 +27,8 @@ export type ProgressMap = Record<string, ExerciseProgress>;
 export interface SyncState {
   /** null = nunca; ISO de la última sincronización correcta */
   lastSync: string | null;
+  /** false = sin cuenta: el progreso solo está en este dispositivo */
+  account: boolean;
   /** Respuestas pendientes de enviar */
   pending: number;
   error: string | null;
@@ -45,7 +49,7 @@ const SYNC_KEY = "etude:progress-sync";
 const EMPTY: ProgressMap = {};
 
 let cached: ProgressMap | null = null;
-let syncState: SyncState = { lastSync: null, pending: 0, error: null, busy: false };
+let syncState: SyncState = { lastSync: null, account: false, pending: 0, error: null, busy: false };
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
@@ -131,22 +135,23 @@ export function recordAnswer(exerciseId: string, correct: boolean, streak: numbe
   flushTimer = window.setTimeout(() => void flushQueue(), 1500);
 }
 
-/** Envía la cola al servidor y adopta lo que devuelve. Silencioso si no hay red. */
+/** Envía la cola al servidor y adopta lo que devuelve. Silencioso si no hay red o no hay cuenta. */
 export async function flushQueue(): Promise<boolean> {
   if (typeof navigator !== "undefined" && !navigator.onLine) return false;
-  const answers = queue();
-  const profile = await ensureProfile().catch(() => null);
-  if (!profile) {
-    setSync({ error: "Sin conexión con el servidor" });
+  if (!getUser()) {
+    setSync({ account: false, error: null, busy: false });
     return false;
   }
-  setSync({ busy: true });
+  const answers = queue();
+  setSync({ account: true, busy: true });
   try {
-    const res = await api("/api/progress/answers", {
+    const res = await fetch("/api/progress/answers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answers }),
+      cache: "no-store",
     });
+    if (res.status === 401) throw new Error("La sesión ha caducado");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const map = (await res.json()) as ProgressMap;
     // Solo se vacía lo que se envió: lo que llegue mientras tanto sigue en cola.
@@ -165,22 +170,38 @@ export async function flushQueue(): Promise<boolean> {
 export async function syncProgress(): Promise<void> {
   if (typeof window === "undefined") return;
   const saved = readJson<{ lastSync: string | null }>(SYNC_KEY, { lastSync: null });
-  syncState = { ...syncState, lastSync: saved.lastSync, pending: queue().length };
+  syncState = { ...syncState, lastSync: saved.lastSync, pending: queue().length, account: !!getUser() };
   await flushQueue();
+}
+
+/** Vacía la copia local sin tocar el servidor (al cerrar sesión, para no mezclar cuentas en un mismo dispositivo). */
+export function clearLocalProgress() {
+  writeJson(QUEUE_KEY, []);
+  write({});
+  setSync({ lastSync: null, pending: 0, error: null, busy: false, account: !!getUser() });
 }
 
 export async function resetProgress() {
   writeJson(QUEUE_KEY, []);
   write({});
   setSync({ pending: 0 });
-  if (getProfile()) await api("/api/progress", { method: "DELETE" }).catch(() => {});
+  if (getUser()) await fetch("/api/progress", { method: "DELETE" }).catch(() => {});
+}
+
+// Al iniciar sesión se sube lo hecho sin cuenta y se adopta el progreso del servidor;
+// al cerrarla se limpia la copia local.
+if (typeof window !== "undefined") {
+  onAuthChange((user) => {
+    if (user) void flushQueue();
+    else clearLocalProgress();
+  });
 }
 
 export function useProgress(): ProgressMap {
   return useSyncExternalStore(subscribe, read, () => EMPTY);
 }
 
-const SYNC_SERVER: SyncState = { lastSync: null, pending: 0, error: null, busy: false };
+const SYNC_SERVER: SyncState = { lastSync: null, account: false, pending: 0, error: null, busy: false };
 export function useSyncState(): SyncState {
   return useSyncExternalStore(subscribe, () => syncState, () => SYNC_SERVER);
 }

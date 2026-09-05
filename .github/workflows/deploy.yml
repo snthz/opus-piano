@@ -1,0 +1,74 @@
+# En cada push a main: pruebas → imágenes Docker en ghcr.io → aviso a Dokploy para
+# que descargue y reinicie. El VPS nunca compila nada.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  WEB_IMAGE: ghcr.io/${{ github.repository }}-web
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  web:
+    name: Imagen web
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.WEB_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          # El dominio se incrusta al compilar (canónicas, sitemap, Open Graph).
+          # Se cambia en Settings → Variables → SITE_URL, sin tocar el código.
+          build-args: |
+            SITE_URL=${{ vars.SITE_URL || 'https://opuspiano.app' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+  deploy:
+    name: Desplegar en Dokploy
+    needs: [web]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Dokploy (webhook del servicio Compose)
+        env:
+          URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::Falta el secreto DOKPLOY_WEBHOOK_URL: las imágenes están en ghcr.io pero no se ha avisado a Dokploy."
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$URL"
+          echo "Dokploy avisado: descargará ${WEB_IMAGE}:latest y reiniciará."

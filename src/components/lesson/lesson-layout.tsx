@@ -2,6 +2,10 @@ import Link from "next/link";
 import { lessonBySlug, lessonNeighbors, ALL_LESSONS } from "@/data/lessons";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { Breadcrumbs } from "@/components/seo/breadcrumbs";
+import { JsonLd } from "@/components/seo/json-ld";
+import { lessonPath } from "@/lib/routes";
+import { learningResourceJsonLd } from "@/lib/seo";
 
 export function LessonLayout({ slug, children }: { slug: string; children: React.ReactNode }) {
   const lesson = lessonBySlug(slug);
@@ -10,10 +14,26 @@ export function LessonLayout({ slug, children }: { slug: string; children: React
   const number = ALL_LESSONS.findIndex((l) => l.slug === slug) + 1;
   return (
     <article className="prose-music">
+      {/* Datos estructurados y migas comunes a las lecciones: al vivir aquí,
+          cada lección nueva los hereda sin tener que acordarse de añadirlos. */}
+      <JsonLd
+        data={learningResourceJsonLd({
+          name: lesson.title,
+          description: lesson.summary,
+          path: lessonPath(slug),
+          minutes: lesson.minutes,
+        })}
+      />
+      <Breadcrumbs
+        items={[
+          { name: "Teoría", path: "/theory" },
+          { name: lesson.title, path: lessonPath(slug) },
+        ]}
+      />
       <header className="mb-8">
         <div className="flex items-center justify-between mb-5">
           <Link
-            href="/teoria"
+            href="/theory"
             aria-label="Volver a Teoría"
             className="card w-11 h-11 flex items-center justify-center hover:bg-surface-2"
           >
@@ -32,7 +52,7 @@ export function LessonLayout({ slug, children }: { slug: string; children: React
 
       <nav className="mt-12 grid grid-cols-2 gap-3" aria-label="Lecciones anterior y siguiente">
         {prev ? (
-          <Link href={`/teoria/${prev.slug}`} className="card p-4 hover:bg-surface-2">
+          <Link href={lessonPath(prev.slug)} className="card p-4 hover:bg-surface-2">
             <span className="block text-xs text-ink-3">Anterior</span>
             <span className="font-medium">{prev.title}</span>
           </Link>
@@ -40,12 +60,12 @@ export function LessonLayout({ slug, children }: { slug: string; children: React
           <span />
         )}
         {next ? (
-          <Link href={`/teoria/${next.slug}`} className="card-pastel bg-mint p-4 text-right">
+          <Link href={lessonPath(next.slug)} className="card-pastel bg-mint p-4 text-right">
             <span className="block text-xs text-ink-2">Siguiente</span>
             <span className="font-medium">{next.title}</span>
           </Link>
         ) : (
-          <Link href="/practica" className="card-pastel bg-mint p-4 text-right">
+          <Link href="/practice" className="card-pastel bg-mint p-4 text-right">
             <span className="block text-xs text-ink-2">Continuar</span>
             <span className="font-medium">Ir a la práctica</span>
           </Link>

@@ -126,6 +126,7 @@ body {
 
 /* Contenedor de partituras VexFlow: escala el SVG al ancho disponible. */
 .score-box svg {
+  width: 100%;
   max-width: 100%;
   height: auto;
   display: block;
@@ -209,4 +210,84 @@ body {
   0% { transform: scaleY(1); }
   50% { transform: scaleY(0.97); }
   100% { transform: scaleY(1); }
+}
+
+/* Modales (<dialog>): tarjeta centrada, fondo difuminado, sin barras de desplazamiento. */
+@utility modal {
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius);
+  box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.45);
+  overflow: visible;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+}
+.modal[open] {
+  animation: fade-in 0.18s ease;
+}
+.modal::backdrop {
+  background: rgb(17 17 20 / 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.modal > * {
+  max-height: inherit;
+  overflow-y: auto;
+  border-radius: inherit;
+}
+
+/* Botón principal (acento) y secundario (superficie), a todo el ancho cuando toca. */
+@utility btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.25rem;
+  border-radius: 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+.btn-primary:active {
+  transform: translateY(1px);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  transform: none;
+}
+@utility btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.25rem;
+  border-radius: 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  transition: background 0.15s ease;
+}
+.btn-secondary:hover {
+  background: var(--surface-3);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
-import { GLOSSARY, groupByLetter } from "@/data/glossary";
+import { GLOSSARY, glossarySlug, groupByLetter } from "@/data/glossary";
+import { normalizePath } from "@/lib/routes";
 
 /** Quita tildes para que la búsqueda funcione escribiendo "compas" o "compás". */
 function fold(s: string): string {
@@ -65,10 +66,16 @@ export function GlossaryList() {
                   </span>
                 )}
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-sm">{e.term}</h3>
+                  {/* El título enlaza a su ficha: es lo que hace rastreables las
+                      53 páginas del glosario desde una sola página índice. */}
+                  <h3 className="font-semibold text-sm">
+                    <Link href={`/glossary/${glossarySlug(e.term)}`} className="hover:text-accent transition-colors">
+                      {e.term}
+                    </Link>
+                  </h3>
                   <p className="text-sm text-ink-2 mt-0.5">{e.definition}</p>
                   {e.href && (
-                    <Link href={e.href} className="text-xs text-accent hover:underline mt-1 inline-block">
+                    <Link href={normalizePath(e.href)} className="text-xs text-accent hover:underline mt-1 inline-block">
                       Ver la lección →
                     </Link>
                   )}

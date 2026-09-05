@@ -1,11 +1,22 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Más" };
+export const metadata = pageMetadata({
+  title: "Más: glosario, guía y preguntas frecuentes",
+  description:
+    "El resto de recursos de Opus Piano: el glosario de términos, el diccionario de símbolos, la guía para leer partituras, las preguntas frecuentes y los ajustes.",
+  path: "/more",
+  keywords: ["recursos musicales", "opus piano"],
+});
 
 const links = [
-  { href: "/glosario", title: "Glosario", text: "Términos musicales de la A a la Z." },
-  { href: "/ajustes", title: "Ajustes", text: "Nombres de notas, sonido y datos guardados." },
+  { href: "/guide", title: "Guía para leer partituras", text: "El recorrido completo, del pentagrama a los símbolos, en una sola página." },
+  { href: "/symbols", title: "Diccionario de símbolos", text: "Todos los signos de la partitura, por familias, con su significado." },
+  { href: "/glossary", title: "Glosario", text: "Términos musicales de la A a la Z." },
+  { href: "/faq", title: "Preguntas frecuentes", text: "Cuánto se tarda, por dónde se empieza y qué hace falta para practicar." },
+  { href: "/account", title: "Cuenta", text: "Entra o crea una cuenta para guardar tu progreso en todos tus dispositivos." },
+  { href: "/settings", title: "Ajustes", text: "Nombres de notas, sonido y datos guardados." },
 ];
 
 export default function MasPage() {

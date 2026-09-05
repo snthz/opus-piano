@@ -2,8 +2,16 @@ import { LessonLayout, Section, P, Figure } from "@/components/lesson/lesson-lay
 import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
 import { SymbolCatalog } from "@/components/notation/symbol-catalog";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Símbolos de la partitura" };
+export const metadata = pageMetadata({
+  title: "Símbolos de la partitura y su significado",
+  description:
+    "Catálogo con buscador de los signos de la partitura: dinámicas, articulaciones, adornos, repeticiones, octavas y pedal, dibujados con las fuentes SMuFL originales.",
+  path: "/theory/symbols",
+  keywords: ["símbolos musicales", "signos de la partitura", "dinámicas musicales", "articulaciones", "adornos musicales"],
+  type: "article",
+});
 
 export default function Page() {
   return (

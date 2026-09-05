@@ -3,8 +3,16 @@ import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
 import { Glyph } from "@/components/notation/glyph";
 import { PlayButton } from "@/components/audio/play-button";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "El pentagrama" };
+export const metadata = pageMetadata({
+  title: "El pentagrama: líneas, espacios y notas",
+  description:
+    "Qué es el pentagrama, cómo se cuentan sus cinco líneas y sus cuatro espacios, dónde va cada nota y para qué sirven las líneas adicionales.",
+  path: "/theory/staff",
+  keywords: ["pentagrama", "qué es el pentagrama", "líneas y espacios del pentagrama", "líneas adicionales"],
+  type: "article",
+});
 
 const scaleEvents = [60, 62, 64, 65, 67, 69, 71, 72].map((m) => ({ midis: [m], beats: 1 }));
 

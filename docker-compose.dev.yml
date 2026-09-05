@@ -1,9 +1,11 @@
-# Solo para desarrollo local: publica los puertos de Postgres y del servicio oemer.
-# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db omr
+# Solo para desarrollo local: construye la imagen aquí (en vez de bajarla de ghcr.io)
+# y publica el puerto de Postgres.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#      docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build web   # probar la imagen final
 services:
+  web:
+    build: .
+    pull_policy: build
   db:
     ports:
       - "5432:5432"
-  omr:
-    ports:
-      - "8000:8000"

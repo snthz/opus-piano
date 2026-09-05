@@ -6,8 +6,16 @@ import { Glyph } from "@/components/notation/glyph";
 import { PianoKeyboard } from "@/components/notation/piano-keyboard";
 import { NoteExplorer } from "@/components/notation/note-explorer";
 import { PlayButton } from "@/components/audio/play-button";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Las notas y el teclado" };
+export const metadata = pageMetadata({
+  title: "Las notas musicales y el teclado del piano",
+  description:
+    "Los nombres de las notas, las octavas, los sostenidos y bemoles, las enarmonías y cómo encontrar cada nota del pentagrama en las teclas del piano.",
+  path: "/theory/notes",
+  keywords: ["notas musicales", "notas en el piano", "octavas", "sostenidos y bemoles", "enarmonía"],
+  type: "article",
+});
 
 const NAMES = [
   ["do", "C"],
@@ -62,7 +70,7 @@ export default function Page() {
         </div>
         <Callout kind="info">
           Puedes elegir qué sistema muestra la app en los ejercicios y el teclado desde{" "}
-          <Link href="/ajustes" className="underline">
+          <Link href="/settings" className="underline">
             Ajustes
           </Link>
           . Las lecciones usan el sistema latino y añaden la letra cuando ayuda.
