@@ -30,6 +30,8 @@ export interface ScoreRecord {
   /** Los registros anteriores a este campo son PDF. */
   kind?: ScoreKind;
   annotations?: Annotations;
+  /** Solo PDF: MusicXML de la misma pieza, para poder escucharla y ver los nombres */
+  linkedXml?: Blob;
 }
 
 interface EtudeDB extends DBSchema {
@@ -82,6 +84,12 @@ export async function updateScoreAnnotations(id: string, annotations: Annotation
   const db = await getDB();
   const rec = await db.get("scores", id);
   if (rec) await db.put("scores", { ...rec, annotations });
+}
+
+export async function updateScoreLinkedXml(id: string, linkedXml: Blob | undefined): Promise<void> {
+  const db = await getDB();
+  const rec = await db.get("scores", id);
+  if (rec) await db.put("scores", { ...rec, linkedXml });
 }
 
 export async function deleteScore(id: string): Promise<void> {

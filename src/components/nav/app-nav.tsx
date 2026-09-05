@@ -129,17 +129,18 @@ function SideNav() {
   return (
     <nav
       aria-label="Navegación principal"
-      className="hidden md:flex fixed left-4 top-4 bottom-4 z-40 w-60 card flex-col p-4"
+      className="hidden md:flex fixed left-4 top-4 bottom-4 z-40 w-64 card flex-col p-4"
     >
-      <Link href="/" className="flex items-center gap-3 px-2 py-1 font-semibold tracking-tight">
+      <Link href="/" className="flex items-center gap-3 px-2 py-2 font-semibold tracking-tight">
         <span className="btn-circle w-10 h-10">
           <GlyphIcon name="gClef" size={22} />
         </span>
         <span className="text-xl">Etude</span>
       </Link>
 
-      {/* La lista se centra en la altura libre: el panel respira en pantallas altas. */}
-      <ul className="flex-1 flex flex-col justify-center gap-1.5">
+      {/* El menú va pegado a la marca; el espacio sobrante queda abajo, antes de Ajustes. */}
+      <p className="px-4 mt-6 mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Aprender</p>
+      <ul className="flex flex-col gap-1">
         {items.map((it) => {
           const active = isActive(pathname, it.href);
           return (
@@ -159,6 +160,7 @@ function SideNav() {
         })}
       </ul>
 
+      <div className="flex-1" />
       <Link
         href="/ajustes"
         aria-current={settingsActive ? "page" : undefined}

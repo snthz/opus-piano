@@ -99,7 +99,7 @@ function ScoreCard({ record, onOpen, onDelete }: { record: ScoreRecord; onOpen: 
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-          className="absolute top-2 right-2 btn-circle w-7 h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 btn-circle w-7 h-7 text-xs opacity-60 group-hover:opacity-100 transition-opacity"
           aria-label="Eliminar"
         >
           ✕

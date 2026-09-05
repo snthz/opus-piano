@@ -26,7 +26,7 @@ export function ServiceWorkerInit() {
   if (!updated) return null;
 
   return (
-    <div className="fixed bottom-28 md:bottom-4 left-4 md:left-72 right-4 max-w-sm mx-auto bg-ink text-bg rounded-3xl shadow-lg p-4 flex items-center gap-3 z-50">
+    <div className="fixed bottom-28 md:bottom-4 left-4 md:left-76 right-4 max-w-sm mx-auto bg-ink text-bg rounded-3xl shadow-lg p-4 flex items-center gap-3 z-50">
       <p className="flex-1 text-sm font-medium">Hay una versión nueva de Etude.</p>
       <button
         type="button"
@@ -102,7 +102,7 @@ function InstallBannerInner() {
   };
 
   return (
-    <div className="fixed bottom-28 md:bottom-4 left-4 md:left-72 right-4 max-w-sm mx-auto bg-surface border border-surface-3 rounded-3xl shadow-lg p-4 flex items-center gap-3 z-50">
+    <div className="fixed bottom-28 md:bottom-4 left-4 md:left-76 right-4 max-w-sm mx-auto bg-surface border border-surface-3 rounded-3xl shadow-lg p-4 flex items-center gap-3 z-50">
       <span className="text-2xl shrink-0" aria-hidden>
         🎹
       </span>
