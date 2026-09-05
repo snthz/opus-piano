@@ -9,7 +9,7 @@ export default function OfflinePage() {
       <PageHeader
         eyebrow="Sin conexión"
         title="Esta página no está guardada"
-        intro="No hay conexión y esta parte de Etude todavía no se había descargado en tu dispositivo."
+        intro="No hay conexión y esta parte de Opus Piano todavía no se había descargado en tu dispositivo."
       />
       <div className="card p-5">
         <p className="text-sm text-ink-2">

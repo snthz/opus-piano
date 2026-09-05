@@ -1,0 +1,9 @@
+# Solo para desarrollo local: publica los puertos de Postgres y del servicio oemer.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db omr
+services:
+  db:
+    ports:
+      - "5432:5432"
+  omr:
+    ports:
+      - "8000:8000"

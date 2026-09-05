@@ -26,7 +26,7 @@ export function AppHeader() {
           <span className="btn-circle w-9 h-9">
             <GlyphIcon name="gClef" size={20} />
           </span>
-          <span className="text-lg">Etude</span>
+          <span className="text-lg">Opus Piano</span>
         </Link>
 
         <nav aria-label="Navegación principal" className="hidden md:flex items-center gap-1 flex-1">
@@ -57,10 +57,19 @@ export function AppHeader() {
   );
 }
 
+/** Texto plano, sin fondo ni sombra; el activo se marca con una línea corta debajo. */
+const topLinkClass = (active: boolean) =>
+  `relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+    active ? "text-ink" : "text-ink-2 hover:text-ink"
+  }`;
+
+const Indicator = () => <span aria-hidden className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-accent" />;
+
 function TopLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={`pill text-sm ${active ? "pill-active" : "hover:text-ink"}`}>
+    <Link href={href} aria-current={active ? "page" : undefined} className={topLinkClass(active)}>
       {children}
+      {active && <Indicator />}
     </Link>
   );
 }
@@ -83,12 +92,13 @@ function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) 
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`pill text-sm inline-flex items-center gap-1.5 ${active ? "pill-active" : "hover:text-ink"}`}
+        className={`${topLinkClass(active)} gap-1.5`}
       >
         Aprender
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}>
           <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
+        {active && <Indicator />}
       </button>
 
       {open && (

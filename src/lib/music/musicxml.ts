@@ -4,7 +4,7 @@ import { toMidi, noteName, type Letter, type NamingSystem, type Pitch } from "./
 import type { ClefName } from "@/components/notation/score";
 
 /**
- * Lector de MusicXML (partwise) reducido a lo que Etude sabe dibujar y tocar:
+ * Lector de MusicXML (partwise) reducido a lo que Opus Piano sabe dibujar y tocar:
  * dos pentagramas como máximo, una voz por pentagrama, acordes, silencios,
  * puntillos y ligaduras. Suficiente para lo que exporta MuseScore de una pieza
  * de piano; adornos, voces secundarias y notas de adorno se omiten.
@@ -201,7 +201,7 @@ export function parseMusicXml(xml: string): ParsedScore {
   return { title, keyVex, time, tempo, clefs, measures };
 }
 
-/* ---------- De la partitura leída a lo que dibuja y suena Etude ---------- */
+/* ---------- De la partitura leída a lo que dibuja y suena Opus Piano ---------- */
 
 /** Texto EasyScore de un evento; el silencio se coloca en el centro del pentagrama. */
 export function eventToEasyScore(ev: XmlEvent, clef: ClefName): string {

@@ -80,7 +80,7 @@ export function ScoreUpload({ onAdded }: Props) {
             <p className="font-semibold text-sm">Añadir partitura</p>
             <p className="text-xs text-ink-2 mt-1">Toca para seleccionar o arrastra aquí un PDF o un MusicXML (.musicxml, .mxl)</p>
             <p className="text-xs text-ink-3 mt-2">
-              Con MusicXML, Etude puede tocar la pieza y mostrarte el nombre de cada nota. MuseScore lo exporta desde
+              Con MusicXML, Opus Piano puede tocar la pieza y mostrarte el nombre de cada nota. MuseScore lo exporta desde
               «Archivo → Exportar».
             </p>
           </>

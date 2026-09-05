@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Sitio 100 % estático: se puede servir desde cualquier hosting o carpeta.
-  output: "export",
-  trailingSlash: true,
+  // Servidor Node en Docker: hacen falta rutas de API (progreso en Postgres, transcripción).
+  output: "standalone",
   images: { unoptimized: true },
   reactStrictMode: true,
 };

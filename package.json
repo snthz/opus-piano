@@ -7,15 +7,20 @@
     "gen:smufl": "node scripts/gen-smufl.mjs",
     "gen:sw": "node scripts/gen-sw.mjs",
     "gen:bbox": "bun scripts/gen-glyph-bbox.mjs",
-    "build": "node scripts/gen-smufl.mjs && node scripts/gen-sw.mjs && next build",
+    "build": "prisma generate && node scripts/gen-smufl.mjs && node scripts/gen-sw.mjs && next build",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "6",
     "fflate": "^0.8.3",
     "idb": "^8.0.3",
     "next": "16.3.4",
     "pdfjs-dist": "^6.3.289",
+    "prisma": "6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "vexflow": "^5.0.0"

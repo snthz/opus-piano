@@ -1,16 +1,16 @@
 /* Generado por scripts/gen-sw.mjs — no editar a mano. Edita scripts/sw-template.js. */
 const CACHE = "etude-__VERSION__";
-const OFFLINE = "/offline/";
+const OFFLINE = "/offline";
 
 /** Rutas que se descargan al instalar para que la app arranque sin conexión. */
 const PRECACHE = [
   "/",
-  "/teoria/",
-  "/practica/",
-  "/partituras/",
-  "/glosario/",
-  "/ajustes/",
-  "/mas/",
+  "/teoria",
+  "/practica",
+  "/partituras",
+  "/glosario",
+  "/ajustes",
+  "/mas",
   OFFLINE,
   "/manifest.webmanifest",
   "/fonts/bravura/Bravura.woff2",
@@ -47,6 +47,8 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== self.location.origin) return;
   // El propio service worker se pide siempre a la red: si no, no habría forma de actualizarlo.
   if (url.pathname === "/sw.js") return;
+  // La API es dinámica (progreso, transcripción): siempre a la red.
+  if (url.pathname.startsWith("/api/")) return;
 
   e.respondWith(
     (async () => {

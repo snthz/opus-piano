@@ -1,0 +1,45 @@
+# Opus Piano en Dokploy: tres servicios en la misma red interna.
+# Solo `web` recibe tráfico de fuera (Dokploy le asigna el dominio en su interfaz).
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://etude:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}@db:5432/etude
+      OMR_URL: http://omr:8000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      omr:
+        condition: service_started
+
+  omr:
+    build: ./omr
+    restart: unless-stopped
+    environment:
+      OMR_MAX_PAGES: "10"
+    # oemer es intensivo en CPU y memoria: 2 GB suelen bastar para una página a 200 dpi.
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: etude
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
+      POSTGRES_DB: etude
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etude -d etude"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pgdata:

@@ -12,10 +12,6 @@ export interface Settings {
   volume: number;
   /** Mostrar nombres de las teclas en el piano virtual */
   keyLabels: boolean;
-  /** Clave de la API de OpenAI para transcribir PDF a MusicXML; solo en este dispositivo */
-  openaiKey: string;
-  /** Modelo con visión que hace la transcripción */
-  openaiModel: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,10 +19,6 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
   volume: 0.7,
   keyLabels: true,
-  // NEXT_PUBLIC_* se incrusta en el build estático: útil para uso personal,
-  // pero nunca lo publiques. Lo normal es pegar la clave en Ajustes.
-  openaiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY ?? "",
-  openaiModel: "gpt-4o",
 };
 
 const STORAGE_KEY = "etude:settings";

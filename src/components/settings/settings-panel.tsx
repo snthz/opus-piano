@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useSettings } from "@/lib/settings";
-import { useProgress, resetProgress, summarize } from "@/lib/progress";
+import { useProgress, useSyncState, resetProgress, summarize, syncProgress } from "@/lib/progress";
+import { getProfile, linkProfile, type Profile } from "@/lib/profile";
 import { clearScores, scoresSize } from "@/lib/scores-db";
 import { playNote, unlockAudio } from "@/lib/audio/synth";
 
@@ -76,35 +77,22 @@ export function SettingsPanel() {
       </section>
 
       <section className="card p-5 space-y-4">
-        <h2 className="font-bold">Transcripción con IA</h2>
+        <h2 className="font-bold">Progreso y sincronización</h2>
         <p className="text-sm text-ink-2">
-          Con una clave de la API de OpenAI, Etude puede convertir un PDF en MusicXML para escucharlo y ver el
-          nombre de cada nota. La clave se guarda solo en este dispositivo y se envía únicamente a api.openai.com.
-          Cada transcripción consume crédito de tu cuenta y el resultado es un borrador: revísalo.
+          Tu progreso de práctica se guarda en el servidor bajo un perfil sin contraseña, y sigue funcionando sin
+          conexión: lo que hagas se envía cuando vuelva la red. Para ver el mismo progreso en otro dispositivo,
+          introduce allí el código de este perfil. Las partituras no se sincronizan: se quedan en cada dispositivo.
         </p>
-        <label className="block">
-          <span className="text-sm font-medium">Clave de API</span>
-          <input
-            type="password"
-            value={settings.openaiKey}
-            onChange={(e) => update({ openaiKey: e.target.value.trim() })}
-            placeholder="sk-…"
-            autoComplete="off"
-            spellCheck={false}
-            className="mt-1 w-full rounded-2xl px-4 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Modelo</span>
-          <span className="block text-xs text-ink-2">Debe admitir imágenes (gpt-4o, gpt-4.1, gpt-5…).</span>
-          <input
-            type="text"
-            value={settings.openaiModel}
-            onChange={(e) => update({ openaiModel: e.target.value.trim() })}
-            spellCheck={false}
-            className="mt-1 w-full rounded-2xl px-4 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
+        <SyncPanel />
+      </section>
+
+      <section className="card p-5 space-y-2">
+        <h2 className="font-bold">Transcripción de PDF</h2>
+        <p className="text-sm text-ink-2">
+          Convertir un PDF en MusicXML lo hace <strong>oemer</strong>, un reconocedor de partituras de código abierto
+          que corre en tu propio servidor. No necesita claves ni servicios externos; tarda varios minutos por página y
+          el resultado es un borrador. Se inicia desde el lector de cada PDF con «Escuchar».
+        </p>
       </section>
 
       <section className="card p-5 space-y-4">
@@ -127,7 +115,7 @@ export function SettingsPanel() {
             active={confirm === "progress"}
             onAsk={() => setConfirm("progress")}
             onCancel={() => setConfirm(null)}
-            onConfirm={() => { resetProgress(); setConfirm(null); }}
+            onConfirm={() => { void resetProgress(); setConfirm(null); }}
           />
           <DangerRow
             label="Borrar todas las partituras"
@@ -142,13 +130,91 @@ export function SettingsPanel() {
             onAsk={() => setConfirm("all")}
             onCancel={() => setConfirm(null)}
             onConfirm={() => {
-              resetProgress();
+              void resetProgress();
               reset();
               void clearScores().then(() => { refreshLibrary(); setConfirm(null); });
             }}
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+function SyncPanel() {
+  const sync = useSyncState();
+  // Este panel solo se monta en cliente (ClientOnly), así que localStorage existe.
+  const [profile, setProfile] = useState<Profile | null>(() => getProfile());
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const link = async () => {
+    try {
+      const p = await linkProfile(code);
+      setProfile(p);
+      setCode("");
+      setMessage("Dispositivo vinculado. Sincronizando…");
+      await syncProgress();
+      setMessage("Listo: este dispositivo usa ahora ese perfil.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "No se pudo vincular.");
+    }
+  };
+
+  const copy = async () => {
+    if (!profile) return;
+    try {
+      await navigator.clipboard.writeText(profile.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* sin portapapeles */
+    }
+  };
+
+  const status = sync.busy
+    ? "Sincronizando…"
+    : sync.error
+      ? `Sin sincronizar (${sync.error})${sync.pending ? ` · ${sync.pending} pendientes` : ""}`
+      : sync.lastSync
+        ? `Última sincronización: ${new Date(sync.lastSync).toLocaleString("es")}`
+        : "Todavía no se ha sincronizado.";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl bg-surface-2 px-4 py-3">
+        <div>
+          <p className="text-xs text-ink-2">Código de este perfil</p>
+          <p className="font-mono text-lg font-bold tracking-[0.2em]">{profile?.code ?? "—"}</p>
+        </div>
+        <button type="button" onClick={() => void copy()} disabled={!profile} className="pill text-xs py-1.5 disabled:opacity-40">
+          {copied ? "Copiado" : "Copiar"}
+        </button>
+      </div>
+      <p className="text-xs text-ink-3">{status}</p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void link();
+        }}
+        className="flex gap-2"
+      >
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="Código de otro dispositivo"
+          maxLength={8}
+          spellCheck={false}
+          autoCapitalize="characters"
+          className="flex-1 rounded-2xl px-4 py-2 text-sm font-mono tracking-widest bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          aria-label="Código de otro dispositivo"
+        />
+        <button type="submit" disabled={code.trim().length < 8} className="pill pill-active text-xs disabled:opacity-40">
+          Vincular
+        </button>
+      </form>
+      {message && <p className="text-xs text-ink-2">{message}</p>}
     </div>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { transcribePdf } from "@/lib/ai/openai-omr";
+import { transcribePdf } from "@/lib/omr-client";
 import { parseMusicXml, unpackMxl } from "@/lib/music/musicxml";
 import { analyzePdf, buildMeasureMap, locate, type MeasureMap } from "@/lib/score-layout";
 import {
@@ -208,15 +207,10 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
   };
 
   const runAi = async () => {
-    if (!settings.openaiKey) return;
     setAi({ running: true, status: "Empezando…" });
     setIssue(null);
     try {
-      const xml = await transcribePdf(record.file, {
-        apiKey: settings.openaiKey,
-        model: settings.openaiModel || "gpt-4o",
-        onProgress: (status) => setAi({ running: true, status }),
-      });
+      const xml = await transcribePdf(record.file, { onProgress: (status) => setAi({ running: true, status }) });
       await applyXml(xml);
       setAi({ running: false, status: "Transcripción lista. Es un borrador: si algo suena raro, revísala." });
     } catch (e) {
@@ -486,27 +480,19 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
             <h2 className="font-bold">Escuchar esta partitura</h2>
             <p className="text-sm text-ink-2">
               Un PDF es solo una imagen. Para tocar la pieza, mostrarte los nombres y seguir el sonido con una guía,
-              Etude Piano necesita el <strong>MusicXML</strong> de esa misma partitura. Hay dos caminos:
+              Opus Piano necesita el <strong>MusicXML</strong> de esa misma partitura. Hay dos caminos:
             </p>
             <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-              <p className="text-sm font-semibold">1. Transcribirlo con IA</p>
-              {settings.openaiKey ? (
-                <>
-                  <p className="text-xs text-ink-2">
-                    Se envían las páginas a OpenAI ({settings.openaiModel || "gpt-4o"}). Tarda un minuto por página, consume crédito de tu
-                    cuenta y el resultado es un borrador que conviene revisar.
-                  </p>
-                  <button type="button" onClick={() => void runAi()} disabled={ai.running} className="pill pill-active text-xs py-1.5 disabled:opacity-50">
-                    {ai.running ? "Transcribiendo…" : "Transcribir con IA"}
-                  </button>
-                  {ai.running && <p className="text-xs text-ink-2">{ai.status}</p>}
-                </>
-              ) : (
-                <p className="text-xs text-ink-2">
-                  Añade tu clave de la API de OpenAI en{" "}
-                  <Link href="/ajustes" className="text-accent underline">Ajustes</Link> y este botón aparecerá aquí.
-                </p>
-              )}
+              <p className="text-sm font-semibold">1. Transcribirlo automáticamente</p>
+              <p className="text-xs text-ink-2">
+                El servidor lee la partitura con oemer (reconocimiento óptico de partituras, código abierto). Tarda
+                varios minutos por página y el resultado es un borrador: acierta bien en partituras impresas limpias,
+                peor en escaneos. Se transcriben como máximo las 10 primeras páginas.
+              </p>
+              <button type="button" onClick={() => void runAi()} disabled={ai.running} className="pill pill-active text-xs py-1.5 disabled:opacity-50">
+                {ai.running ? "Transcribiendo…" : "Transcribir"}
+              </button>
+              {ai.running && <p className="text-xs text-ink-2">{ai.status}</p>}
             </div>
             <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
               <p className="text-sm font-semibold">2. Vincular un MusicXML que ya tengas</p>

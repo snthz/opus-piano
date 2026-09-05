@@ -23,7 +23,7 @@ export default function MasPage() {
         ))}
       </ul>
       <p className="mt-8 text-xs text-ink-3">
-        Etude es software libre (MIT). Fuentes musicales Bravura y Academico de Steinberg
+        Opus Piano es software libre (MIT). Fuentes musicales Bravura y Academico de Steinberg
         bajo licencia SIL OFL 1.1.
       </p>
     </div>

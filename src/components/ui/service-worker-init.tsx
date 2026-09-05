@@ -27,7 +27,7 @@ export function ServiceWorkerInit() {
 
   return (
     <div className="fixed bottom-28 md:bottom-4 left-4 md:left-4 right-4 max-w-sm mx-auto bg-ink text-bg rounded-3xl shadow-lg p-4 flex items-center gap-3 z-50">
-      <p className="flex-1 text-sm font-medium">Hay una versión nueva de Etude.</p>
+      <p className="flex-1 text-sm font-medium">Hay una versión nueva de Opus Piano.</p>
       <button
         type="button"
         onClick={() => window.location.reload()}
@@ -107,7 +107,7 @@ function InstallBannerInner() {
         🎹
       </span>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm">Instalar Etude</p>
+        <p className="font-semibold text-sm">Instalar Opus Piano</p>
         <p className="text-xs text-ink-2">
           {iosHint ? "Pulsa Compartir y luego «Añadir a pantalla de inicio»." : "Úsala sin conexión como una app."}
         </p>

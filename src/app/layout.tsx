@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppNav } from "@/components/nav/app-nav";
 import { AppHeader } from "@/components/nav/app-header";
 import { ServiceWorkerInit, InstallBanner } from "@/components/ui/service-worker-init";
+import { ProgressSync } from "@/components/ui/progress-sync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,16 +18,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Etude",
-    template: "%s · Etude",
+    default: "Opus Piano",
+    template: "%s · Opus Piano",
   },
   description:
     "Aprende a leer partituras y a tocar el piano: solfeo, claves, notas, compases y símbolos. Funciona sin conexión y guarda tus partituras en tu teléfono.",
-  applicationName: "Etude",
+  applicationName: "Opus Piano",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Etude",
+    title: "Opus Piano",
   },
   formatDetection: { telephone: false },
   icons: {
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </main>
         <AppNav />
         <ServiceWorkerInit />
+        <ProgressSync />
         <InstallBanner />
       </body>
     </html>

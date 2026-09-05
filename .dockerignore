@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+.git
+.env*
+!.env.example
+omr/__pycache__
+*.log
+.DS_Store

@@ -4,8 +4,8 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Etude — Aprende a leer partituras",
-    short_name: "Etude",
+    name: "Opus Piano — Aprende a leer partituras",
+    short_name: "Opus Piano",
     description:
       "Aprende solfeo, claves, notas, compases y símbolos de la partitura. Guarda tus partituras en tu teléfono y practica sin conexión.",
     id: "/",

@@ -17,7 +17,17 @@ const URL = "https://raw.githubusercontent.com/w3c/smufl/gh-pages/metadata/glyph
 
 async function loadGlyphNames() {
   if (existsSync(cacheFile)) return JSON.parse(readFileSync(cacheFile, "utf8"));
-  const res = await fetch(URL);
+  let res;
+  try {
+    res = await fetch(URL);
+  } catch (e) {
+    // Sin red (p. ej. en una build de Docker aislada): vale el archivo ya generado y commiteado.
+    if (existsSync(join(root, "src", "data", "smufl-codepoints.ts"))) {
+      console.warn("smufl-codepoints.ts: sin red, se conserva el archivo existente");
+      process.exit(0);
+    }
+    throw e;
+  }
   if (!res.ok) throw new Error(`No se pudo descargar ${URL}: ${res.status}`);
   const text = await res.text();
   mkdirSync(cacheDir, { recursive: true });

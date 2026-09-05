@@ -1,0 +1,47 @@
+// Progreso de práctica por perfil. Las partituras siguen solo en el dispositivo (IndexedDB).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Un perfil por persona. No hay contraseña: el dispositivo guarda el id y el
+/// `code` sirve para vincular otro dispositivo al mismo perfil.
+model Profile {
+  id        String             @id @default(cuid())
+  code      String             @unique
+  createdAt DateTime           @default(now())
+  exercises ExerciseProgress[]
+  days      DailyActivity[]
+}
+
+model ExerciseProgress {
+  id         String    @id @default(cuid())
+  profileId  String
+  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  exerciseId String
+  attempts   Int       @default(0)
+  correct    Int       @default(0)
+  bestStreak Int       @default(0)
+  lastPlayed DateTime?
+
+  @@unique([profileId, exerciseId])
+}
+
+/// Actividad por día y ejercicio, para rachas y calendario.
+model DailyActivity {
+  id         String  @id @default(cuid())
+  profileId  String
+  profile    Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  exerciseId String
+  /// "2026-09-04"
+  day        String
+  attempts   Int     @default(0)
+  correct    Int     @default(0)
+
+  @@unique([profileId, exerciseId, day])
+  @@index([profileId, day])
+}
