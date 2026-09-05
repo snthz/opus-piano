@@ -21,7 +21,7 @@ RUN OEMER_DIR="$(python -c 'import oemer, os; print(os.path.dirname(oemer.__file
  && curl -fsSL -o "$OEMER_DIR/checkpoints/unet_big/model.onnx" https://github.com/BreezeWhite/oemer/releases/download/checkpoints/1st_model.onnx \
  && curl -fsSL -o "$OEMER_DIR/checkpoints/seg_net/model.onnx"  https://github.com/BreezeWhite/oemer/releases/download/checkpoints/2nd_model.onnx
 
-COPY app.py .
+COPY app.py run_oemer.py .
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fs http://localhost:8000/health || exit 1

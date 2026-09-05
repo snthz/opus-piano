@@ -20,11 +20,14 @@ services:
     restart: unless-stopped
     environment:
       OMR_MAX_PAGES: "10"
-    # oemer es intensivo en CPU y memoria: 2 GB suelen bastar para una página a 200 dpi.
+      # Ventanas por lote en la inferencia: menos lote, menos RAM (y algo más lento).
+      OMR_BATCH: "${OMR_BATCH:-4}"
+    # oemer carga modelos grandes: con 3 GB el proceso muere (OOM) a mitad de página.
+    # Reserva al menos 6 GB o ajusta OMR_MEMORY al VPS; si no hay tanta RAM, baja OMR_DPI a 150.
     deploy:
       resources:
         limits:
-          memory: 3g
+          memory: ${OMR_MEMORY:-6g}
 
   db:
     image: postgres:16-alpine

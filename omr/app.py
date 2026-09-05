@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -26,6 +27,7 @@ MAX_PAGES = int(os.environ.get("OMR_MAX_PAGES", "10"))
 MAX_BYTES = int(os.environ.get("OMR_MAX_BYTES", str(25 * 1024 * 1024)))
 DPI = int(os.environ.get("OMR_DPI", "200"))
 JOB_TTL = 60 * 60  # segundos que se conserva un trabajo terminado
+MAX_QUEUE = int(os.environ.get("OMR_MAX_QUEUE", "5"))  # trabajos pendientes admitidos
 
 app = FastAPI(title="Opus Piano OMR")
 
@@ -42,7 +44,7 @@ class Job:
     xml: str | None = None
     error: str | None = None
     finished_at: float | None = None
-    lock: threading.Lock = field(default_factory=threading.Lock)
+    created_at: float = field(default_factory=time.time)
 
     def public(self, with_xml: bool) -> dict:
         d = {"id": self.id, "status": self.status, "message": self.message, "page": self.page, "pages": self.pages}
@@ -70,10 +72,10 @@ def pdf_to_images(pdf: Path, out: Path) -> list[Path]:
 
 
 def run_oemer(image: Path, out: Path) -> Path:
-    """Ejecuta oemer sobre una imagen; si falla, reintenta sin enderezado (issue #9 de oemer)."""
+    """Ejecuta oemer (con lote pequeño, ver run_oemer.py); si falla, reintenta sin enderezado (issue #9 de oemer)."""
     for extra in ([], ["--without-deskew"]):
         proc = subprocess.run(
-            ["oemer", str(image), "-o", str(out), *extra],
+            [sys.executable, str(Path(__file__).with_name("run_oemer.py")), str(image), str(out), *extra],
             capture_output=True,
             text=True,
             timeout=60 * 30,
@@ -81,8 +83,17 @@ def run_oemer(image: Path, out: Path) -> Path:
         produced = list(out.glob(f"{image.stem}*.musicxml")) + list(out.glob(f"{image.stem}*.xml"))
         if proc.returncode == 0 and produced:
             return produced[0]
-        last = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else f"código {proc.returncode}"
+        last = explain_failure(proc)
     raise RuntimeError(f"oemer no pudo leer la página ({last})")
+
+
+def explain_failure(proc: subprocess.CompletedProcess[str]) -> str:
+    """Última línea útil de oemer, saltando los avisos de Python; -9 es el OOM killer."""
+    if proc.returncode in (-9, 137):
+        return "el proceso se quedó sin memoria; sube OMR_MEMORY o baja OMR_DPI"
+    lines = [l.strip() for l in (proc.stderr + "\n" + proc.stdout).splitlines()]
+    lines = [l for l in lines if l and "warnings.warn" not in l and "UserWarning" not in l and "cpuid_info" not in l]
+    return lines[-1] if lines else f"código {proc.returncode}"
 
 
 def merge_musicxml(files: list[Path]) -> str:
@@ -109,7 +120,17 @@ def merge_musicxml(files: list[Path]) -> str:
     return ET.tostring(root, encoding="unicode")
 
 
+def queue_position(job: Job) -> int:
+    """Trabajos en cola creados antes que este (0 = es el siguiente)."""
+    with jobs_lock:
+        return sum(1 for j in jobs.values() if j.status == "queued" and j.created_at < job.created_at)
+
+
 def process(job: Job) -> None:
+    while run_lock.locked():
+        ahead = queue_position(job)
+        job.message = "En cola: es el siguiente" if ahead == 0 else f"En cola: {ahead} por delante"
+        time.sleep(2)
     with run_lock:
         try:
             job.status = "running"
@@ -159,6 +180,10 @@ async def create_job(file: UploadFile) -> dict:
         raise HTTPException(413, "El PDF supera el tamaño máximo")
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "El archivo no es un PDF")
+    with jobs_lock:
+        waiting = sum(1 for j in jobs.values() if j.status in ("queued", "running"))
+    if waiting >= MAX_QUEUE:
+        raise HTTPException(429, f"Hay {waiting} transcripciones en cola; inténtalo más tarde")
     workdir = Path(tempfile.mkdtemp(prefix="omr-"))
     pdf = workdir / "in.pdf"
     pdf.write_bytes(data)

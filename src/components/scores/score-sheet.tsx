@@ -58,7 +58,7 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
   const grand = parsed.clefs.length > 1;
 
   return (
-    <div className="space-y-2">
+    <div className="card p-4 md:p-6 overflow-x-auto space-y-1">
       {systems.map((sys, si) => {
         const slice = parsed.measures.slice(sys.from, sys.to);
         const perStaff = parsed.clefs.map((clef, staff) => {
@@ -76,7 +76,7 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
           };
         });
         return (
-          <div key={si} ref={(el) => { systemRefs.current[si] = el; }} className="card p-3 overflow-x-auto">
+          <div key={si} ref={(el) => { systemRefs.current[si] = el; }} className="flex justify-center">
             <Score
               clef={parsed.clefs[0]}
               bassClef={parsed.clefs[1]}

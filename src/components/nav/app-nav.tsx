@@ -87,13 +87,13 @@ export function AppNav() {
             <li key={it.href} className="flex-1">
               <Link
                 href={it.href}
+                aria-label={it.label}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 py-1.5 rounded-2xl transition-colors ${
+                className={`flex items-center justify-center py-2.5 rounded-2xl transition-colors ${
                   active ? "bg-ink text-bg" : "text-ink-3 active:bg-surface-2"
                 }`}
               >
-                <span className="w-5 h-5">{it.icon}</span>
-                <span className="text-[10px] font-medium leading-none">{it.label}</span>
+                <span className="w-6 h-6">{it.icon}</span>
               </Link>
             </li>
           );

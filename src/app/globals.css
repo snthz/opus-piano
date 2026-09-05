@@ -199,8 +199,10 @@ body {
   color: var(--bg);
 }
 
+/* Suma (no max): en Android el gesto del sistema a veces se solapa aunque
+   env() informe un valor pequeño, así que siempre queda un colchón mínimo. */
 @utility safe-bottom {
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 @keyframes pulse-key {

@@ -145,9 +145,12 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
   }, [parsed, guideOn, layout, record.file, record.pageCount]);
 
   // Mientras suena, la guía sigue el reloj de audio y pasa de página sola.
+  // Con requestAnimationFrame en vez de un intervalo fijo, queda al mismo ritmo
+  // que el resaltado de notas y no se nota un desfase entre el sonido y la guía.
   useEffect(() => {
     if (!player.playing || !map || !guideOn) return;
-    const id = window.setInterval(() => {
+    let raf = 0;
+    const tick = () => {
       const pos = playerRef.current.position();
       const loc = pos === null ? null : locate(map, pos);
       setCursor(loc);
@@ -155,9 +158,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
         const target = map.boxes[loc.measure].page;
         if (target !== pageRef.current) goTo(target);
       }
-    }, 80);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
     return () => {
-      window.clearInterval(id);
+      cancelAnimationFrame(raf);
       setCursor(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,7 +267,12 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
           : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-surface-2 flex flex-col" role="dialog" aria-label={name}>
+    <div
+      className="fixed inset-0 z-50 bg-surface-2 flex flex-col"
+      role="dialog"
+      aria-label={name}
+      style={{ "--safe-t": "env(safe-area-inset-top, 0px)", "--safe-b": "env(safe-area-inset-bottom, 0px)" } as React.CSSProperties}
+    >
       {/* ---- Contenido ---- */}
       {view === "pdf" ? (
         pager ? (
@@ -326,36 +336,52 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
       )}
 
       {!chrome && (
-        <button type="button" onClick={() => setChrome(true)} className={`${circle} fixed top-3 right-3`} aria-label="Mostrar controles">
+        <button
+          type="button"
+          onClick={() => setChrome(true)}
+          className={`${circle} fixed right-3`}
+          style={{ top: "calc(0.75rem + var(--safe-t))" }}
+          aria-label="Mostrar controles"
+        >
           {Eye}
         </button>
       )}
 
       {chrome && (
         <>
-          {/* ---- Barra superior ---- */}
-          <div className="fixed top-3 left-3 right-3 flex items-center gap-2">
-            <button type="button" onClick={onClose} className={circle} aria-label="Volver">
-              <ChevronIcon dir="left" className="w-5 h-5" />
-            </button>
-            <div className="card flex-1 min-w-0 px-4 py-2 shadow-md">
-              <p className="font-semibold text-sm truncate">{name}</p>
-              <p className="text-[11px] text-ink-2 truncate">
-                {view === "pdf" ? `Página ${page} de ${record.pageCount}` : "Partitura MusicXML vinculada"}
-                {linkedXml && parsed && view === "pdf" ? " · se puede escuchar" : ""}
-              </p>
+          {/* ---- Barra superior: un único menú centrado, no una franja completa ---- */}
+          <div className="fixed inset-x-3 flex justify-center pointer-events-none" style={{ top: "calc(0.75rem + var(--safe-t))" }}>
+            <div className="pointer-events-auto card shadow-md flex items-center gap-1 p-1.5 w-full max-w-sm">
+              <button type="button" onClick={onClose} className="btn-circle w-9 h-9 shrink-0" aria-label="Volver">
+                <ChevronIcon dir="left" className="w-4 h-4" />
+              </button>
+              <div className="min-w-0 flex-1 px-1.5">
+                <p className="font-semibold text-sm truncate">{name}</p>
+                <p className="text-[11px] text-ink-2 truncate">
+                  {view === "pdf" ? `Página ${page} de ${record.pageCount}` : "Partitura MusicXML vinculada"}
+                  {linkedXml && parsed && view === "pdf" ? " · se puede escuchar" : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotesOpen((v) => !v)}
+                className={`btn-circle w-9 h-9 shrink-0 ${notesOpen ? "" : "!bg-surface !text-ink"}`}
+                aria-label="Notas y opciones"
+              >
+                <span className="text-sm leading-none">✎</span>
+              </button>
+              <button type="button" onClick={() => { setChrome(false); setNotesOpen(false); }} className="btn-circle w-9 h-9 shrink-0 !bg-surface !text-ink" aria-label="Ocultar controles">
+                {EyeOff}
+              </button>
             </div>
-            <button type="button" onClick={() => setNotesOpen((v) => !v)} className={`${circle} ${notesOpen ? "" : "!bg-surface !text-ink"}`} aria-label="Notas y opciones">
-              <span className="text-base leading-none">✎</span>
-            </button>
-            <button type="button" onClick={() => { setChrome(false); setNotesOpen(false); }} className={`${circle} !bg-surface !text-ink`} aria-label="Ocultar controles">
-              {EyeOff}
-            </button>
           </div>
 
           {/* ---- Panel de notas y opciones ---- */}
           {notesOpen && (
-            <div className="fixed top-16 left-3 right-3 card p-3 shadow-md space-y-3 max-w-lg ml-auto">
+            <div
+              className="fixed inset-x-3 card p-3 shadow-md space-y-3 max-w-sm mx-auto"
+              style={{ top: "calc(4.25rem + var(--safe-t))" }}
+            >
               <label className="block">
                 <span className="text-xs text-ink-2">Nombre</span>
                 <input
@@ -396,13 +422,13 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
 
           {/* ---- Estado ---- */}
           {statusLine && (
-            <div className="fixed bottom-[8.5rem] inset-x-3 flex justify-center pointer-events-none">
+            <div className="fixed inset-x-3 flex justify-center pointer-events-none" style={{ bottom: "calc(8.5rem + var(--safe-b))" }}>
               <p className="card px-3 py-1.5 text-[11px] text-ink-2 shadow-md max-w-md text-center">{statusLine}</p>
             </div>
           )}
 
           {/* ---- Barra inferior ---- */}
-          <div className="fixed bottom-3 inset-x-3 flex justify-center pointer-events-none">
+          <div className="fixed inset-x-3 flex justify-center pointer-events-none" style={{ bottom: "calc(0.75rem + var(--safe-b))" }}>
             <div className="pointer-events-auto card shadow-md p-2 flex flex-wrap items-center justify-center gap-1.5 max-w-2xl">
               {view === "pdf" && (
                 <>

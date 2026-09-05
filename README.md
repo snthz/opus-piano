@@ -62,4 +62,4 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d omr  # oeme
 3. En **Domains** asigna tu dominio al servicio `web`, puerto `3000`, con HTTPS (Let's Encrypt). Los servicios `omr` y `db` no se exponen.
 4. Despliega. Al arrancar, `web` aplica las migraciones de Prisma (`prisma migrate deploy`) y luego sirve la app.
 
-La primera build de `omr` descarga los modelos de oemer (~100 MB) y las dependencias de Python; tarda unos minutos. oemer es exigente en CPU: en un VPS pequeño, una página tarda entre 3 y 10 minutos. El volumen `pgdata` conserva la base de datos entre despliegues.
+La primera build de `omr` descarga los modelos de oemer (~100 MB) y las dependencias de Python; tarda unos minutos. oemer es exigente: necesita **unos 4–6 GB de RAM libres** por página a 200 dpi (el compose le reserva `OMR_MEMORY`, 6 GB por defecto; con menos, el proceso muere y la app avisa) y en CPU una página tarda varios minutos. En un VPS con poca RAM, baja `OMR_DPI` a 150 en el servicio `omr`. El volumen `pgdata` conserva la base de datos entre despliegues.

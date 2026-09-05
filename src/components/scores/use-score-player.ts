@@ -46,6 +46,13 @@ export function useScorePlayer(parsed: ParsedScore | null) {
     handle.current?.stop();
   }, [parsed]);
 
+  /** Negras transcurridas desde el inicio, según el reloj de audio; null si no suena. */
+  const position = () => {
+    const h = handle.current;
+    if (!playing || !h) return null;
+    return Math.max(0, (getAudioContext().currentTime - h.startTime) * (tempo / 60));
+  };
+
   const toggle = async () => {
     if (playing) {
       handle.current?.stop();
@@ -54,31 +61,54 @@ export function useScorePlayer(parsed: ParsedScore | null) {
     if (!parsed) return;
     await unlockAudio();
     setPlaying(true);
+    // El resaltado no se agenda nota a nota (con setTimeout se desincroniza si el
+    // hilo principal se atasca); en su lugar sigue el reloj de audio cada frame,
+    // igual que la guía sobre el PDF, así ambos se ven siempre en el mismo punto.
     handle.current = playTimeline(timeline, tempo, {
       onNote: (i) => {
         if (i < 0) {
           setActive([]);
           setPlaying(false);
-          return;
         }
-        // Todo lo que empieza en el mismo instante (las dos manos) se resalta a la vez.
-        const start = timeline[i].start;
-        const next: ActiveNotes = parsed.clefs.map(() => []);
-        for (const n of timeline) {
-          if (n.start !== start) continue;
-          for (const r of n.refs) next[r.staff].push(r.index);
-        }
-        setActive(next);
       },
     });
   };
 
-  /** Negras transcurridas desde el inicio, según el reloj de audio; null si no suena. */
-  const position = () => {
-    const h = handle.current;
-    if (!playing || !h) return null;
-    return Math.max(0, (getAudioContext().currentTime - h.startTime) * (tempo / 60));
-  };
+  useEffect(() => {
+    if (!playing || !parsed || !timeline.length) return;
+    let raf = 0;
+    const tick = () => {
+      const pos = position();
+      if (pos !== null) {
+        // Último evento cuyo inicio ya pasó (búsqueda binaria: timeline está ordenado por start).
+        let lo = 0;
+        let hi = timeline.length - 1;
+        let idx = -1;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (timeline[mid].start <= pos) {
+            idx = mid;
+            lo = mid + 1;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        const next: ActiveNotes = parsed.clefs.map(() => []);
+        if (idx >= 0) {
+          // Todo lo que empieza en el mismo instante (las dos manos) se resalta a la vez.
+          const start = timeline[idx].start;
+          let k = idx;
+          while (k > 0 && timeline[k - 1].start === start) k--;
+          for (; k <= idx; k++) for (const r of timeline[k].refs) next[r.staff].push(r.index);
+        }
+        setActive(next);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, parsed, timeline]);
 
   return {
     playing,
