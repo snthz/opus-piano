@@ -11,6 +11,7 @@ interface Props {
   onClose: () => void;
   onDelete: () => void;
   onNotesChange: (notes: string) => void;
+  onRename: (name: string) => void;
 }
 
 /** PDF: lector a pantalla completa. MusicXML: partitura dibujada dentro de la página. */

@@ -76,6 +76,38 @@ export function SettingsPanel() {
       </section>
 
       <section className="card p-5 space-y-4">
+        <h2 className="font-bold">Transcripción con IA</h2>
+        <p className="text-sm text-ink-2">
+          Con una clave de la API de OpenAI, Etude puede convertir un PDF en MusicXML para escucharlo y ver el
+          nombre de cada nota. La clave se guarda solo en este dispositivo y se envía únicamente a api.openai.com.
+          Cada transcripción consume crédito de tu cuenta y el resultado es un borrador: revísalo.
+        </p>
+        <label className="block">
+          <span className="text-sm font-medium">Clave de API</span>
+          <input
+            type="password"
+            value={settings.openaiKey}
+            onChange={(e) => update({ openaiKey: e.target.value.trim() })}
+            placeholder="sk-…"
+            autoComplete="off"
+            spellCheck={false}
+            className="mt-1 w-full rounded-2xl px-4 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">Modelo</span>
+          <span className="block text-xs text-ink-2">Debe admitir imágenes (gpt-4o, gpt-4.1, gpt-5…).</span>
+          <input
+            type="text"
+            value={settings.openaiModel}
+            onChange={(e) => update({ openaiModel: e.target.value.trim() })}
+            spellCheck={false}
+            className="mt-1 w-full rounded-2xl px-4 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </label>
+      </section>
+
+      <section className="card p-5 space-y-4">
         <h2 className="font-bold">Datos guardados</h2>
         <p className="text-sm text-ink-2">
           Todo se guarda solo en este dispositivo. Nada se envía a ningún servidor.

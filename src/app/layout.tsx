@@ -51,8 +51,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* Abajo deja sitio a la barra móvil; a la izquierda, al panel lateral de escritorio. */}
-      <body className="min-h-full flex flex-col pb-28 md:pb-0 md:pl-76">
+      {/* Abajo deja sitio a la barra móvil; en escritorio la navegación va arriba. */}
+      <body className="min-h-full flex flex-col pb-28 md:pb-0">
         <AppHeader />
         <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-8 pb-10">
           {children}

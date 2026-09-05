@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { playTimeline, unlockAudio, type PlaybackHandle } from "@/lib/audio/synth";
+import { getAudioContext, playTimeline, unlockAudio, type PlaybackHandle } from "@/lib/audio/synth";
 import { buildTimeline, parseMusicXml, type ParsedScore } from "@/lib/music/musicxml";
 
 /** Lee y analiza un MusicXML. El resultado se asocia al Blob: si cambia, vuelve a ser null. */
@@ -73,6 +73,13 @@ export function useScorePlayer(parsed: ParsedScore | null) {
     });
   };
 
+  /** Negras transcurridas desde el inicio, según el reloj de audio; null si no suena. */
+  const position = () => {
+    const h = handle.current;
+    if (!playing || !h) return null;
+    return Math.max(0, (getAudioContext().currentTime - h.startTime) * (tempo / 60));
+  };
+
   return {
     playing,
     active,
@@ -80,5 +87,6 @@ export function useScorePlayer(parsed: ParsedScore | null) {
     setTempo: (t: number) => parsed && setOverride({ of: parsed, tempo: t }),
     toggle,
     stop: () => handle.current?.stop(),
+    position,
   };
 }

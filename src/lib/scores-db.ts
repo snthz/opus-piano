@@ -86,6 +86,12 @@ export async function updateScoreAnnotations(id: string, annotations: Annotation
   if (rec) await db.put("scores", { ...rec, annotations });
 }
 
+export async function updateScoreName(id: string, name: string): Promise<void> {
+  const db = await getDB();
+  const rec = await db.get("scores", id);
+  if (rec) await db.put("scores", { ...rec, name });
+}
+
 export async function updateScoreLinkedXml(id: string, linkedXml: Blob | undefined): Promise<void> {
   const db = await getDB();
   const rec = await db.get("scores", id);

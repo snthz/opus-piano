@@ -1,19 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ClaudeCodeEditorTabs">
-    <option name="activeSessionId" value="d2a5af6f-b2b3-435b-859c-e568278cb049" />
+    <option name="activeSessionId" value="0de31050-661e-4a8c-8344-fb8c2e8c8c35" />
     <option name="openSessionIds">
       <list>
         <option value="d2a5af6f-b2b3-435b-859c-e568278cb049" />
+        <option value="0de31050-661e-4a8c-8344-fb8c2e8c8c35" />
       </list>
     </option>
     <option name="sessionPaths">
       <map>
+        <entry key="0de31050-661e-4a8c-8344-fb8c2e8c8c35" value="/sessions/de5266a2-ac05-40e5-b42c-1d6186b2da23" />
         <entry key="d2a5af6f-b2b3-435b-859c-e568278cb049" value="/sessions/21b4afdb-f122-4392-8da7-ffeae961bd56" />
       </map>
     </option>
     <option name="sessionTitles">
       <map>
+        <entry key="0de31050-661e-4a8c-8344-fb8c2e8c8c35" value="esa es la partitura Y eso transcribio, tengo que u" />
         <entry key="d2a5af6f-b2b3-435b-859c-e568278cb049" value="Necesito crear una app personal, para aprender pia" />
       </map>
     </option>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listScores, deleteScore, type ScoreRecord } from "@/lib/scores-db";
+import { listScores, deleteScore, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
 import { ScoreUpload } from "./score-upload";
 import { ScoreViewer } from "./score-viewer";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
@@ -23,19 +23,25 @@ export function ScoreLibrary() {
     if (viewing?.id === id) setViewing(null);
   };
 
-  const onNotesChange = (id: string, notes: string) => {
-    setScores((prev) => prev.map((s) => (s.id === id ? { ...s, notes } : s)));
-    if (viewing?.id === id) setViewing((v) => (v ? { ...v, notes } : v));
+  const patch = (id: string, changes: Partial<ScoreRecord>) => {
+    setScores((prev) => prev.map((s) => (s.id === id ? { ...s, ...changes } : s)));
+    if (viewing?.id === id) setViewing((v) => (v ? { ...v, ...changes } : v));
+  };
+
+  const rename = (id: string, name: string) => {
+    patch(id, { name });
+    void updateScoreName(id, name);
   };
 
   if (viewing) {
     return (
       <ScoreViewer
         record={viewing}
-        // Al volver se relee la biblioteca: notas y trazos guardados mientras se veía la partitura.
+        // Al volver se relee la biblioteca: notas, trazos y vínculos guardados mientras se veía.
         onClose={() => { setViewing(null); void reload(); }}
         onDelete={() => void onDelete(viewing.id)}
-        onNotesChange={(notes) => onNotesChange(viewing.id, notes)}
+        onNotesChange={(notes) => patch(viewing.id, { notes })}
+        onRename={(name) => patch(viewing.id, { name })}
       />
     );
   }
@@ -47,13 +53,16 @@ export function ScoreLibrary() {
       <ScoreUpload onAdded={onAdded} />
 
       {scores.length > 0 && (
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar partitura…"
-          className="w-full rounded-2xl px-4 py-2 bg-surface border border-surface-3 text-sm focus:outline-none focus:border-accent"
-        />
+        <div className="flex items-center gap-3">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar partitura…"
+            className="flex-1 rounded-2xl px-4 py-2 bg-surface border border-surface-3 text-sm focus:outline-none focus:border-accent"
+          />
+          <span className="text-xs text-ink-3 shrink-0">{scores.length} {scores.length === 1 ? "partitura" : "partituras"}</span>
+        </div>
       )}
 
       {!loaded && <p className="text-sm text-ink-2 text-center">Cargando…</p>}
@@ -65,9 +74,15 @@ export function ScoreLibrary() {
       )}
 
       {filtered.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((s) => (
-            <ScoreCard key={s.id} record={s} onOpen={() => setViewing(s)} onDelete={() => void onDelete(s.id)} />
+            <ScoreCard
+              key={s.id}
+              record={s}
+              onOpen={() => setViewing(s)}
+              onDelete={() => void onDelete(s.id)}
+              onRename={(name) => rename(s.id, name)}
+            />
           ))}
         </div>
       )}
@@ -79,52 +94,120 @@ export function ScoreLibrary() {
   );
 }
 
-function ScoreCard({ record, onOpen, onDelete }: { record: ScoreRecord; onOpen: () => void; onDelete: () => void }) {
+function formatDate(ms: number): string {
+  return new Date(ms).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function ScoreCard({
+  record,
+  onOpen,
+  onDelete,
+  onRename,
+}: {
+  record: ScoreRecord;
+  onOpen: () => void;
+  onDelete: () => void;
+  onRename: (name: string) => void;
+}) {
+  const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(record.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const isXml = record.kind === "musicxml";
+  const playable = isXml || !!record.linkedXml;
+  const annotated = Object.values(record.annotations ?? {}).some((s) => s.length > 0);
+
+  const commit = () => {
+    const clean = draft.trim();
+    setEditing(false);
+    if (clean && clean !== record.name) onRename(clean);
+    else setDraft(record.name);
+  };
+
   return (
-    <div className="card p-0 overflow-hidden group cursor-pointer" onClick={onOpen}>
-      <div className="relative bg-surface-2 aspect-[3/4]">
-        {record.thumbnail ? (
-          // La miniatura es un data URL generado en el dispositivo: next/image no puede optimizarla.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={record.thumbnail} alt={record.name} className="w-full h-full object-cover" />
-        ) : (
-          // MusicXML no tiene páginas que miniaturizar: una tarjeta con las dos claves.
-          <div className="w-full h-full bg-lavender flex items-center justify-center gap-3 text-ink">
-            <GlyphIcon name="gClef" size={44} fit="em" />
-            <GlyphIcon name="fClef" size={44} fit="em" />
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-          className="absolute top-2 right-2 btn-circle w-7 h-7 text-xs opacity-60 group-hover:opacity-100 transition-opacity"
-          aria-label="Eliminar"
-        >
-          ✕
-        </button>
-        {confirmDelete && (
-          <div
-            className="absolute inset-0 bg-ink/70 flex flex-col items-center justify-center gap-2 p-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-bg text-xs font-semibold text-center">¿Eliminar esta partitura?</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={onDelete} className="pill pill-active text-xs py-1 px-3 !bg-bad">Sí, borrar</button>
-              <button type="button" onClick={() => setConfirmDelete(false)} className="pill text-xs py-1 px-3 bg-surface text-ink">Cancelar</button>
+    <div className="card p-0 overflow-hidden group relative flex flex-col">
+      <button type="button" onClick={onOpen} className="block text-left" aria-label={`Abrir ${record.name}`}>
+        <div className="relative aspect-[3/4] bg-surface-2 overflow-hidden">
+          {record.thumbnail ? (
+            // La miniatura es un data URL generado en el dispositivo: next/image no puede optimizarla.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={record.thumbnail} alt="" className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            // MusicXML no tiene páginas que miniaturizar: una tarjeta con las dos claves.
+            <div className="w-full h-full bg-lavender flex items-center justify-center gap-3 text-ink">
+              <GlyphIcon name="gClef" size={44} fit="em" />
+              <GlyphIcon name="fClef" size={44} fit="em" />
             </div>
+          )}
+          {/* Insignias: formato y capacidades */}
+          <div className="absolute left-2 bottom-2 flex gap-1">
+            <span className="rounded-full bg-ink/80 text-bg text-[10px] font-semibold px-2 py-0.5 backdrop-blur">{isXml ? "MusicXML" : "PDF"}</span>
+            {playable && <span className="rounded-full bg-accent text-white text-[10px] font-semibold px-2 py-0.5" title="Se puede escuchar">▶</span>}
+            {annotated && <span className="rounded-full bg-yellow text-ink text-[10px] font-semibold px-2 py-0.5" title="Con anotaciones">✎</span>}
           </div>
+        </div>
+      </button>
+
+      <div className="p-3 flex-1 flex flex-col gap-1">
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") { setDraft(record.name); setEditing(false); }
+            }}
+            className="w-full rounded-xl px-2 py-1 text-sm font-semibold bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+            aria-label="Nombre de la partitura"
+          />
+        ) : (
+          <p className="text-sm font-semibold leading-snug line-clamp-2">{record.name}</p>
         )}
-      </div>
-      <div className="p-2">
-        <p className="text-xs font-semibold truncate">{record.name}</p>
         <p className="text-xs text-ink-2">
-          {record.kind === "musicxml"
-            ? `${record.pageCount} ${record.pageCount === 1 ? "compás" : "compases"} · se puede escuchar`
+          {isXml
+            ? `${record.pageCount} ${record.pageCount === 1 ? "compás" : "compases"}`
             : `${record.pageCount} ${record.pageCount === 1 ? "página" : "páginas"}`}
+          <span className="text-ink-3"> · {formatDate(record.addedAt)}</span>
         </p>
       </div>
+
+      {/* Menú ⋯ */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setMenu((v) => !v); setConfirmDelete(false); }}
+        className="absolute top-2 right-2 w-8 h-8 rounded-full bg-surface/90 text-ink shadow grid place-items-center text-lg leading-none backdrop-blur"
+        aria-label="Opciones"
+        aria-expanded={menu}
+      >
+        ⋯
+      </button>
+      {menu && (
+        <div className="absolute top-11 right-2 z-10 card p-1.5 shadow-lg min-w-36 text-sm" onMouseLeave={() => setMenu(false)}>
+          <button
+            type="button"
+            onClick={() => { setMenu(false); setDraft(record.name); setEditing(true); }}
+            className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-surface-2"
+          >
+            Renombrar
+          </button>
+          {!confirmDelete ? (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="w-full text-left px-3 py-1.5 rounded-xl text-bad hover:bg-bad-soft">
+              Eliminar
+            </button>
+          ) : (
+            <div className="px-3 py-1.5 space-y-1.5">
+              <p className="text-xs text-ink-2">¿Eliminar «{record.name}»?</p>
+              <div className="flex gap-1.5">
+                <button type="button" onClick={onDelete} className="pill text-xs py-1 px-3 bg-bad text-white">Sí, borrar</button>
+                <button type="button" onClick={() => { setConfirmDelete(false); setMenu(false); }} className="pill text-xs py-1 px-3">No</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

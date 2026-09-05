@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GlyphIcon } from "@/components/notation/glyph-icon";
 
 type Item = { href: string; label: string; icon: React.ReactNode };
 
@@ -71,32 +70,13 @@ const items: Item[] = [
   },
 ];
 
-const settingsIcon = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-    <circle cx="12" cy="12" r="3" />
-    <path
-      d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 export function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/** Móvil: píldora flotante abajo. Escritorio: panel lateral con nombres. */
+/** Barra inferior flotante, solo en móvil. En escritorio la navegación está en AppHeader. */
 export function AppNav() {
-  return (
-    <>
-      <MobileNav />
-      <SideNav />
-    </>
-  );
-}
-
-function MobileNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Navegación principal" className="fixed bottom-0 inset-x-0 z-40 md:hidden pointer-events-none safe-bottom px-3">
@@ -119,58 +99,6 @@ function MobileNav() {
           );
         })}
       </ul>
-    </nav>
-  );
-}
-
-function SideNav() {
-  const pathname = usePathname();
-  const settingsActive = isActive(pathname, "/ajustes");
-  return (
-    <nav
-      aria-label="Navegación principal"
-      className="hidden md:flex fixed left-4 top-4 bottom-4 z-40 w-64 card flex-col p-4"
-    >
-      <Link href="/" className="flex items-center gap-3 px-2 py-2 font-semibold tracking-tight">
-        <span className="btn-circle w-10 h-10">
-          <GlyphIcon name="gClef" size={22} />
-        </span>
-        <span className="text-xl">Etude</span>
-      </Link>
-
-      {/* El menú va pegado a la marca; el espacio sobrante queda abajo, antes de Ajustes. */}
-      <p className="px-4 mt-6 mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Aprender</p>
-      <ul className="flex flex-col gap-1">
-        {items.map((it) => {
-          const active = isActive(pathname, it.href);
-          return (
-            <li key={it.href}>
-              <Link
-                href={it.href}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-3 px-4 py-3 rounded-full text-[15px] font-medium transition-colors ${
-                  active ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-                }`}
-              >
-                <span className="w-5 h-5 shrink-0">{it.icon}</span>
-                {it.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="flex-1" />
-      <Link
-        href="/ajustes"
-        aria-current={settingsActive ? "page" : undefined}
-        className={`flex items-center gap-3 px-4 py-3 rounded-full text-sm font-medium transition-colors ${
-          settingsActive ? "bg-ink text-bg" : "text-ink-3 hover:bg-surface-2 hover:text-ink"
-        }`}
-      >
-        <span className="w-5 h-5 shrink-0">{settingsIcon}</span>
-        Ajustes
-      </Link>
     </nav>
   );
 }

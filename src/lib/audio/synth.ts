@@ -223,6 +223,8 @@ export interface PlaybackHandle {
   stop: () => void;
   /** Promesa que se resuelve al terminar (o al detener) */
   done: Promise<void>;
+  /** Instante (reloj del AudioContext) en que empieza la primera nota */
+  startTime: number;
 }
 
 /**
@@ -278,6 +280,7 @@ export function playSequence(
 
   return {
     done,
+    startTime: start,
     stop: () => {
       stopped = true;
       timeouts.forEach((id) => window.clearTimeout(id));
@@ -340,6 +343,7 @@ export function playTimeline(
 
   return {
     done,
+    startTime: start,
     stop: () => {
       stopped = true;
       timeouts.forEach((id) => window.clearTimeout(id));
