@@ -119,7 +119,7 @@ minutos. Un PR o una rama solo ejecutan **CI**, sin desplegar.
 El estado vive en dos volúmenes: `pgdata` (base de datos) y `scores` (archivos de las partituras).
 
 ```bash
-docker exec $(docker ps -qf name=db) pg_dump -U etude etude | gzip > opus-$(date +%F).sql.gz
+docker exec $(docker ps -qf name=db) pg_dump -U opus opus | gzip > opus-$(date +%F).sql.gz
 docker run --rm -v $(docker volume ls -qf name=scores):/data -v $PWD:/out alpine tar czf /out/scores-$(date +%F).tgz -C /data .
 ```
 
