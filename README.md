@@ -15,6 +15,10 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
   qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
   con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
   Funciona con la clave de API del propio usuario (ChatGPT / OpenAI o Claude / Anthropic).
+- **Transcripción de un PDF a MusicXML con IA**: un modelo de visión lee las páginas y la app monta el
+  MusicXML, para poder escuchar una partitura escaneada y ver los nombres de las notas. Es un borrador —el
+  ritmo es donde estos modelos fallan— así que se comprueba compás a compás que las figuras sumen lo que
+  pide el compás y se señalan los que no.
 
 ## Arquitectura
 
@@ -131,8 +135,9 @@ El coste lo paga el usuario al proveedor: un plan suele costar céntimos (se mue
 Cómo funciona (todo en [`src/lib/ai/`](src/lib/ai/) y [`src/lib/study-plan.ts`](src/lib/study-plan.ts)):
 
 - **Qué ve el modelo**: si la partitura es MusicXML (o un PDF con MusicXML vinculado), un resumen textual
-  nota a nota compás por compás (`summarizeScore`). Si es PDF, las primeras 12 páginas dibujadas a 1400 px
-  como imágenes JPEG. Además, nivel, tiempo disponible y objetivo personal del alumno y sus notas.
+  nota a nota compás por compás (`summarizeScore`). Si es PDF, las primeras 12 páginas dibujadas en PNG al
+  lado largo que cada modelo procesa sin reescalar (`maxImageEdge`). Además, nivel, tiempo disponible y
+  objetivo personal del alumno y sus notas.
 - **Salida estructurada**: el plan se pide como JSON con un esquema (`STUDY_PLAN_SCHEMA`, descrito una sola
   vez y emitido en la variante que exige cada proveedor) y se valida con zod antes de guardarlo.
 - **Dónde se guarda**: con la partitura, en IndexedDB y, con cuenta, en la columna `Score.plan` del servidor,
@@ -142,6 +147,25 @@ Cómo funciona (todo en [`src/lib/ai/`](src/lib/ai/) y [`src/lib/study-plan.ts`]
   respuesta llega en streaming. El historial del chat no se guarda.
 - **Modelos**: el catálogo con estrellas (rapidez, precisión, economía), precios y el «recomendado» de cada
   proveedor está en [`src/lib/ai/models.ts`](src/lib/ai/models.ts). También se puede escribir cualquier otro id.
+
+### Transcribir un PDF a MusicXML
+
+Un PDF es solo una imagen: sin MusicXML no se puede tocar la pieza ni mostrar los nombres. Desde el lector,
+«Transcribir con IA» manda cada página al modelo y monta el archivo ([`src/lib/ai/transcribe.ts`](src/lib/ai/transcribe.ts)
+y [`src/lib/music/musicxml-build.ts`](src/lib/music/musicxml-build.ts)).
+
+- **El modelo no escribe XML.** Devuelve JSON con esquema estricto donde cada pentagrama de cada compás es una
+  línea en la notación compacta de la app (`C4/q (D4 G4)/h~ r/8`), la misma que `summarizeScore` usa para
+  contarle al modelo lo que hay en un MusicXML. Ocupa una fracción de los tokens del XML equivalente, el
+  archivo sale siempre bien formado porque lo escribe la app, y se puede comprobar antes de guardarlo.
+- **Lo que se comprueba**: que las figuras de cada compás sumen lo que pide el compás (`checkDurations`; la
+  anacrusa y el compás final pueden ser cortos). Los que no cuadran se listan en el panel: casi siempre son
+  una figura mal leída, y descolocan la reproducción a partir de ahí.
+- **Qué sale**: una parte de piano con uno o dos pentagramas y una voz por pentagrama —lo que Opus Piano sabe
+  dibujar y tocar—, con acordes, silencios, puntillos, ligaduras de unión y las alteraciones impresas
+  calculadas a partir de la armadura. Se puede vincular a la partitura o descargar para arreglarlo en MuseScore.
+- **Límites**: 6 páginas por transcripción, una petición por página, y cuesta bastante más que un plan de
+  estudio (se muestra la estimación). Para una transcripción fiable, el MusicXML de MuseScore sigue siendo mejor.
 
 ## SEO
 

@@ -1,0 +1,249 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { activeTarget, isAiReady, useAiConfig } from "@/lib/ai/config";
+import { AiError, isAbort } from "@/lib/ai/errors";
+import { estimateTranscriptionCost, formatCost, modelById } from "@/lib/ai/models";
+import { transcribeScore, type TranscribeOutcome } from "@/lib/ai/transcribe-client";
+import { MAX_TRANSCRIBE_PAGES } from "@/lib/ai/transcribe";
+import { AiSettings } from "@/components/settings/ai-settings";
+import { ChevronIcon } from "@/components/ui/arrow-icon";
+
+interface Props {
+  scoreName: string;
+  pdf: Blob;
+  pageCount: number;
+  /** Ya hay un MusicXML vinculado: usarlo lo sustituye */
+  hasXml: boolean;
+  onClose: () => void;
+  onUse: (xml: string) => void | Promise<void>;
+}
+
+const XML_TYPE = "application/vnd.recordare.musicxml+xml";
+
+/**
+ * Transcribe las páginas de un PDF a MusicXML con el modelo de visión del
+ * usuario. El resultado es un borrador y el panel no lo disimula: enseña
+ * cuántos compases han salido, qué compases no cuadran y deja descargar el
+ * archivo para arreglarlo en MuseScore antes de darlo por bueno.
+ */
+export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, onUse }: Props) {
+  const config = useAiConfig();
+  const [from, setFrom] = useState(1);
+  const [to, setTo] = useState(Math.min(pageCount, MAX_TRANSCRIBE_PAGES));
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<TranscribeOutcome | null>(null);
+  const [saved, setSaved] = useState(false);
+  const abort = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abort.current?.abort(), []);
+
+  const ready = isAiReady(config);
+  const target = activeTarget(config);
+  const model = modelById(target.provider, target.model);
+  const pages = Math.max(0, to - from + 1);
+
+  const clampFrom = (v: number) => {
+    const next = Math.max(1, Math.min(pageCount, v || 1));
+    setFrom(next);
+    setTo((t) => Math.max(next, Math.min(t, next + MAX_TRANSCRIBE_PAGES - 1)));
+  };
+  const clampTo = (v: number) => setTo(Math.max(from, Math.min(pageCount, from + MAX_TRANSCRIBE_PAGES - 1, v || 1)));
+
+  const run = async () => {
+    if (!ready || !pages) return;
+    setError(null);
+    setResult(null);
+    setSaved(false);
+    setStatus("Empezando…");
+    abort.current?.abort();
+    const ac = new AbortController();
+    abort.current = ac;
+    try {
+      setResult(await transcribeScore({ target, scoreName, pdf, from, to, onStatus: setStatus, signal: ac.signal }));
+    } catch (e) {
+      if (!isAbort(e)) setError(e instanceof AiError ? e.message : "No se pudo transcribir la partitura. Vuelve a intentarlo.");
+    } finally {
+      if (abort.current === ac) abort.current = null;
+      setStatus(null);
+    }
+  };
+
+  const use = async () => {
+    if (!result) return;
+    try {
+      await onUse(result.xml);
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo vincular la transcripción.");
+    }
+  };
+
+  const download = () => {
+    if (!result) return;
+    const url = URL.createObjectURL(new Blob([result.xml], { type: XML_TYPE }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${scoreName.replace(/[/\\?%*:|"<>]/g, "-").slice(0, 80) || "partitura"}.musicxml`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={onClose} className="btn-circle w-10 h-10 shrink-0" aria-label="Cerrar la transcripción">
+          <ChevronIcon dir="left" className="w-5 h-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold truncate">Transcribir con IA</h2>
+          <p className="text-xs text-ink-2 truncate">{scoreName}</p>
+        </div>
+      </div>
+
+      <section className="card p-5 space-y-4">
+        <p className="text-sm text-ink-2">
+          Un modelo de visión lee las páginas del PDF y escribe el <strong>MusicXML</strong> de la pieza, para poder escucharla y ver
+          los nombres de las notas sin buscar el archivo por internet.
+        </p>
+        <p className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2">
+          <strong className="text-ink">Es un borrador.</strong> Estos modelos se equivocan sobre todo en las duraciones, y un compás
+          que no cuadra descoloca la reproducción a partir de ahí. Opus Piano comprueba compás a compás que las figuras sumen lo que
+          pide el compás y te dice cuáles no. Para una transcripción fiable, el MusicXML de MuseScore sigue siendo mejor.
+        </p>
+
+        {!ready ? (
+          <div className="space-y-4">
+            <p className="text-sm">
+              Hace falta la clave de API de <strong>ChatGPT (OpenAI)</strong> o de <strong>Claude (Anthropic)</strong>. Se guarda solo
+              en este dispositivo y el coste lo pagas tú al proveedor. También puedes cambiarla en{" "}
+              <Link href="/settings" className="underline">Ajustes</Link>.
+            </p>
+            <AiSettings compact />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Desde la página</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={pageCount}
+                  value={from}
+                  onChange={(e) => clampFrom(Number(e.target.value))}
+                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Hasta la página</span>
+                <input
+                  type="number"
+                  min={from}
+                  max={pageCount}
+                  value={to}
+                  onChange={(e) => clampTo(Number(e.target.value))}
+                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2 space-y-1">
+              <p className="font-medium text-ink">Qué se va a hacer</p>
+              <p>
+                {pages === 1 ? "Una página" : `${pages} páginas`} de las {pageCount} del PDF, una petición por página.
+                {pageCount > MAX_TRANSCRIBE_PAGES ? ` Se transcriben ${MAX_TRANSCRIBE_PAGES} como mucho de una vez.` : ""}
+              </p>
+              {model ? (
+                <p>
+                  Modelo: {model.name}{model.recommended ? " (recomendado)" : ""} · {formatCost(estimateTranscriptionCost(model, pages))}.{" "}
+                  <Link href="/settings" className="underline">Cambiar</Link>
+                </p>
+              ) : (
+                <p>Modelo: {target.model}</p>
+              )}
+              <p>Cuanto mejor lee el modelo, mejor sale la transcripción: aquí el modelo más preciso compensa más que en el plan de estudio.</p>
+            </div>
+
+            {error && <p className="text-sm text-bad">{error}</p>}
+
+            {status ? (
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-ink-2 flex-1 animate-pulse">{status}</p>
+                <button type="button" onClick={() => abort.current?.abort()} className="pill text-xs py-1.5">
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => void run()} disabled={!pages} className="btn-primary text-sm disabled:opacity-50">
+                {result ? "Transcribir otra vez" : "Transcribir"}
+              </button>
+            )}
+          </>
+        )}
+      </section>
+
+      {result && <Result result={result} hasXml={hasXml} saved={saved} onUse={() => void use()} onDownload={download} />}
+    </div>
+  );
+}
+
+function Result({
+  result,
+  hasXml,
+  saved,
+  onUse,
+  onDownload,
+}: {
+  result: TranscribeOutcome;
+  hasXml: boolean;
+  saved: boolean;
+  onUse: () => void;
+  onDownload: () => void;
+}) {
+  const measures = result.score.measures.length;
+  return (
+    <section className="card p-5 space-y-4">
+      <div>
+        <h3 className="font-bold text-sm">Transcripción lista</h3>
+        <p className="text-xs text-ink-2 mt-1">
+          {measures} {measures === 1 ? "compás" : "compases"} en {result.pages === 1 ? "una página" : `${result.pages} páginas`} ·{" "}
+          {result.score.clefs.length === 1 ? "un pentagrama" : `${result.score.clefs.length} pentagramas`} · compás{" "}
+          {result.score.time.num}/{result.score.time.den}
+          {result.score.tempo ? ` · ♩ = ${result.score.tempo}` : ""}
+        </p>
+      </div>
+
+      {result.warnings.length ? (
+        <div className="rounded-2xl bg-surface-2 px-4 py-3 space-y-1">
+          <p className="text-xs font-medium text-ink">
+            {result.warnings.length === 1 ? "Hay 1 compás que revisar" : `Hay ${result.warnings.length} avisos que revisar`}
+          </p>
+          <ul className="text-xs text-ink-2 space-y-0.5 max-h-48 overflow-y-auto">
+            {result.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-ink-3 pt-1">
+            Un compás que no suma casi siempre es una figura mal leída. Se puede usar igualmente, pero esos compases sonarán
+            descolocados hasta que los arregles.
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs text-ink-2">Todos los compases suman lo que pide el compás. Aun así, comprueba las notas antes de fiarte del todo.</p>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={onUse} className="btn-primary text-sm">
+          {hasXml ? "Sustituir el MusicXML vinculado" : "Vincular a esta partitura"}
+        </button>
+        <button type="button" onClick={onDownload} className="pill text-xs py-1.5">
+          Descargar .musicxml
+        </button>
+        {saved && <span className="text-xs text-ink-2">Vinculado. Ya puedes cerrar y darle a reproducir.</span>}
+      </div>
+    </section>
+  );
+}

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ParsedScore } from "@/lib/music/musicxml";
 import { readSse, splitDataUrl } from "@/lib/ai/errors";
 import { AI_MODELS, defaultModel, estimatePlanCost, modelsOf } from "@/lib/ai/models";
+import { toJsonSchema } from "@/lib/ai/schema";
 import {
   goalRange,
   planStateSchema,
@@ -9,7 +10,6 @@ import {
   studyPlanSchema,
   summarizeScore,
   STUDY_PLAN_SCHEMA,
-  toJsonSchema,
   SUMMARY_MAX_CHARS,
 } from "@/lib/study-plan";
 

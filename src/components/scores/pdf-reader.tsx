@@ -19,6 +19,7 @@ import { PdfPage } from "./pdf-page";
 import { PEN_COLORS, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { StudyPlanPanel } from "./study-plan";
+import { TranscribePanel } from "./transcribe-panel";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 
 interface Props {
@@ -110,6 +111,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [linkedXml, setLinkedXml] = useState<Blob | undefined>(record.linkedXml);
   const [askXml, setAskXml] = useState(false);
+  const [transcribeOpen, setTranscribeOpen] = useState(false);
   const [issue, setIssue] = useState<string | null>(null);
   const [view, setView] = useState<"pdf" | "xml">("pdf");
   const [showNames, setShowNames] = useState(true);
@@ -474,6 +476,13 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     setAskXml(false);
   };
 
+  const openTranscribe = () => {
+    player.stop();
+    setAskXml(false);
+    setNotesOpen(false);
+    setTranscribeOpen(true);
+  };
+
   const linkXml = async (file: File) => {
     try {
       await applyXml(/\.mxl$/i.test(file.name) ? unpackMxl(new Uint8Array(await file.arrayBuffer())) : await file.text());
@@ -647,6 +656,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                 ) : (
                   <button type="button" onClick={() => { setAskXml(true); setNotesOpen(false); }} className="pill py-1">Vincular MusicXML</button>
                 )}
+                <button type="button" onClick={openTranscribe} className="pill py-1">Transcribir con IA</button>
                 <span className="ml-auto">
                   {!confirmDelete ? (
                     <button type="button" onClick={() => setConfirmDelete(true)} className="text-bad hover:underline">Eliminar partitura</button>
@@ -753,6 +763,22 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         </div>
       )}
 
+      {/* ---- Transcripción del PDF con IA ---- */}
+      {transcribeOpen && (
+        <div className="fixed inset-0 z-20 bg-surface-2 overflow-y-auto">
+          <div className="max-w-2xl mx-auto px-3" style={{ paddingTop: "calc(0.75rem + var(--safe-t))", paddingBottom: "calc(2.5rem + var(--safe-b))" }}>
+            <TranscribePanel
+              scoreName={record.name}
+              pdf={record.file}
+              pageCount={record.pageCount}
+              hasXml={!!linkedXml}
+              onClose={() => setTranscribeOpen(false)}
+              onUse={applyXml}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ---- Cómo conseguir la reproducción ---- */}
       {askXml && (
         <div className="fixed inset-0 z-10 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => setAskXml(false)}>
@@ -776,6 +802,16 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
               />
               <button type="button" onClick={() => xmlInput.current?.click()} className="pill pill-active text-xs py-1.5">
                 Elegir archivo
+              </button>
+            </div>
+            <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
+              <p className="text-sm font-semibold">O transcribirla con IA</p>
+              <p className="text-xs text-ink-2">
+                Un modelo de visión lee las páginas y escribe el MusicXML. Sale un borrador con fallos de ritmo, así que Opus Piano
+                te señala los compases que no cuadran; con tu clave de API y unos céntimos por página.
+              </p>
+              <button type="button" onClick={openTranscribe} className="pill text-xs py-1.5">
+                Transcribir con IA
               </button>
             </div>
             {issue && <p className="text-xs text-bad">{issue}</p>}

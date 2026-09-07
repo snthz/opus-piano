@@ -97,6 +97,15 @@ export function estimatePlanCost(model: AiModel): number {
   return (25_000 * model.input + 6_000 * model.output) / 1_000_000;
 }
 
+/**
+ * Coste aproximado de transcribir un PDF, en dólares: por página, la imagen y
+ * las instrucciones rondan los 4 000 tokens de entrada, y una página densa de
+ * piano en notación compacta unos 6 000 de salida contando el razonamiento.
+ */
+export function estimateTranscriptionCost(model: AiModel, pages: number): number {
+  return (pages * (4_000 * model.input + 6_000 * model.output)) / 1_000_000;
+}
+
 export function formatCost(dollars: number): string {
   return dollars < 0.01 ? "menos de 1 ¢" : dollars < 1 ? `unos ${Math.round(dollars * 100)} ¢` : `unos ${dollars.toFixed(2)} $`;
 }
