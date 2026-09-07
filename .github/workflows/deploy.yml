@@ -20,12 +20,11 @@ env:
   WEB_IMAGE: ghcr.io/${{ github.repository }}-web
 
 jobs:
-  test:
+  verify:
     uses: ./.github/workflows/ci.yml
 
-  web:
-    name: Imagen web
-    needs: [test]
+  build:
+    needs: [verify]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -58,11 +57,10 @@ jobs:
           cache-to: type=gha,scope=web,mode=max
 
   deploy:
-    name: Desplegar en Dokploy
-    needs: [web]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
-      - name: Avisar a Dokploy (webhook del servicio Compose)
+      - name: Webhook de Dokploy
         env:
           URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
         run: |

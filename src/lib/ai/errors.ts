@@ -34,7 +34,7 @@ export interface JsonRequest {
   content: InputPart[];
   schemaName: string;
   /** Esquema neutro; cada proveedor lo emite en su variante */
-  schema: import("@/lib/study-plan").SchemaNode;
+  schema: import("./schema").SchemaNode;
   effort: Effort;
   maxOutputTokens: number;
 }

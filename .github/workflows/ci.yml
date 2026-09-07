@@ -1,6 +1,6 @@
-# Pruebas y verificación de build. Se ejecuta en cada PR y push, y también
-# como primer paso de deploy.yml (workflow_call).
-name: CI
+# Lint, tipos, tests y build. Se ejecuta en cada PR y push, y también como
+# primer paso de deploy.yml (workflow_call).
+name: Verify
 
 on:
   pull_request:
@@ -13,8 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Lint, tests y build
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -38,7 +37,7 @@ jobs:
         with:
           bun-version: "1.3.4"
 
-      - name: Instalar dependencias
+      - name: Dependencias
         run: bun install --frozen-lockfile
 
       - name: Cliente de Prisma
@@ -50,21 +49,21 @@ jobs:
       - name: Tipos
         run: bun run typecheck
 
-      - name: Tests unitarios
+      - name: Tests
         run: bun run test
 
-      - name: Migraciones en la base de datos de pruebas
+      - name: Migraciones
         run: bunx prisma migrate deploy
 
-      - name: Tests de integración (auth + progreso contra Postgres)
+      - name: Tests de integración
         run: bun run test:integration
 
-      - name: Caché de Next.js
+      - name: Caché de Next
         uses: actions/cache@v4
         with:
           path: .next/cache
           key: next-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts') }}
           restore-keys: next-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
 
-      - name: Build de Next.js
+      - name: Build
         run: bun run build

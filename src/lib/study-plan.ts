@@ -2,8 +2,10 @@ import { z } from "zod";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
 import { keyByVex, keyName } from "@/lib/music/keys";
-import type { ParsedScore, XmlEvent } from "@/lib/music/musicxml";
-import type { NamingSystem, Pitch } from "@/lib/music/pitch";
+import { eventCode } from "@/lib/music/musicxml-build";
+import type { ParsedScore } from "@/lib/music/musicxml";
+import type { NamingSystem } from "@/lib/music/pitch";
+import { arr, en, int, nullable, obj, str, type SchemaNode } from "@/lib/ai/schema";
 
 /**
  * Plan de estudio de una partitura, generado con IA (ChatGPT o Claude) en el
@@ -98,26 +100,6 @@ export const planStateSchema = z.object({
 });
 export type PlanState = z.infer<typeof planStateSchema>;
 
-/**
- * El mismo esquema para pedirle el JSON al modelo. Cada proveedor exige una
- * variante distinta de JSON Schema (OpenAI en modo estricto no admite `anyOf`;
- * Anthropic no admite tipos en array como ["string","null"]), así que se
- * describe una sola vez de forma neutra y `toJsonSchema` emite la que toque.
- */
-export type SchemaNode =
-  | { kind: "string"; description?: string; enum?: string[] }
-  | { kind: "integer"; description?: string }
-  | { kind: "array"; items: SchemaNode; description?: string }
-  | { kind: "object"; properties: Record<string, SchemaNode> }
-  | { kind: "nullable"; inner: SchemaNode; description?: string };
-
-const str = (description?: string): SchemaNode => ({ kind: "string", description });
-const en = (values: readonly string[], description?: string): SchemaNode => ({ kind: "string", enum: [...values], description });
-const int = (description?: string): SchemaNode => ({ kind: "integer", description });
-const arr = (items: SchemaNode, description?: string): SchemaNode => ({ kind: "array", items, description });
-const obj = (properties: Record<string, SchemaNode>): SchemaNode => ({ kind: "object", properties });
-const nullable = (inner: SchemaNode, description?: string): SchemaNode => ({ kind: "nullable", inner, description });
-
 export const STUDY_PLAN_SCHEMA: SchemaNode = obj({
   title: str("Nombre de la pieza tal como aparece en la partitura"),
   composer: str("Compositor; cadena vacía si no consta"),
@@ -164,46 +146,7 @@ export const STUDY_PLAN_SCHEMA: SchemaNode = obj({
   }),
 });
 
-/** Cómo expresar «o null»: OpenAI estricto quiere `"type": [..., "null"]`; Anthropic quiere `anyOf`. */
-export type NullableStyle = "typeArray" | "anyOf";
-
-export function toJsonSchema(node: SchemaNode, style: NullableStyle): Record<string, unknown> {
-  const desc = (d?: string) => (d ? { description: d } : {});
-  switch (node.kind) {
-    case "string":
-      return { type: "string", ...(node.enum ? { enum: node.enum } : {}), ...desc(node.description) };
-    case "integer":
-      return { type: "integer", ...desc(node.description) };
-    case "array":
-      return { type: "array", items: toJsonSchema(node.items, style), ...desc(node.description) };
-    case "object": {
-      const properties: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(node.properties)) properties[k] = toJsonSchema(v, style);
-      return { type: "object", additionalProperties: false, properties, required: Object.keys(node.properties) };
-    }
-    case "nullable": {
-      const inner = toJsonSchema(node.inner, style);
-      if (style === "anyOf") return { anyOf: [inner, { type: "null" }], ...desc(node.description) };
-      const { type, enum: values, ...rest } = inner as { type: string; enum?: string[] };
-      return { ...rest, type: [type, "null"], ...(values ? { enum: [...values, null] } : {}), ...desc(node.description) };
-    }
-  }
-}
-
 /* ---------- Resumen de la partitura para el modelo ---------- */
-
-/** Nombre anglosajón con octava científica y alteración real (no la impresa): «F#4», «Bb3». */
-function pitchCode(p: Pitch): string {
-  const acc = p.accidental === 0 ? "" : p.accidental > 0 ? "#".repeat(p.accidental) : "b".repeat(-p.accidental);
-  return `${p.letter}${acc}${p.octave}`;
-}
-
-function eventCode(ev: XmlEvent): string {
-  if (ev.rest || !ev.pitches.length) return `r/${ev.vex}`;
-  const notes = ev.pitches.map(pitchCode);
-  const body = notes.length === 1 ? notes[0] : `(${notes.join(" ")})`;
-  return `${body}/${ev.vex}${ev.tieStart ? "~" : ""}`;
-}
 
 export const SUMMARY_MAX_CHARS = 100_000;
 

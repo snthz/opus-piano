@@ -1,6 +1,6 @@
 "use client";
 
-import { toJsonSchema } from "@/lib/study-plan";
+import { toJsonSchema } from "./schema";
 import { AiError, errorBody, readSse, safeFetch, splitDataUrl, type JsonRequest, type StreamRequest } from "./errors";
 import { modelById } from "./models";
 

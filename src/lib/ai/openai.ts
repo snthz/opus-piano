@@ -1,6 +1,6 @@
 "use client";
 
-import { toJsonSchema } from "@/lib/study-plan";
+import { toJsonSchema } from "./schema";
 import { AiError, errorBody, readSse, safeFetch, type JsonRequest, type StreamRequest } from "./errors";
 
 /** API de OpenAI (Responses) llamada desde el navegador con la clave del usuario. */

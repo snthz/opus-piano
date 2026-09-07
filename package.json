@@ -13,7 +13,7 @@
     "db:studio": "prisma studio",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.test.json",
     "test": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
     "db:reset": "prisma migrate reset --force"
