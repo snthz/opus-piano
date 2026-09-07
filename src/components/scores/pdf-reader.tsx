@@ -13,10 +13,12 @@ import {
   type Stroke,
 } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
+import type { PlanState } from "@/lib/study-plan";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { PdfPage } from "./pdf-page";
 import { PEN_COLORS, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
+import { StudyPlanPanel } from "./study-plan";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 
 interface Props {
@@ -25,6 +27,7 @@ interface Props {
   onDelete: () => void;
   onNotesChange: (notes: string) => void;
   onRename: (name: string) => void;
+  onPlanChange: (plan: PlanState | undefined) => void;
 }
 
 const EyeOff = (
@@ -92,7 +95,7 @@ const sameLive = (a: Live, b: Live) => Math.abs(a.k - b.k) < 0.002 && Math.abs(a
  * de página deslizando (o con flechas); al ampliar, la página se desplaza
  * libremente. Con un MusicXML vinculado, una guía sigue el sonido sobre el PDF.
  */
-export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }: Props) {
+export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, onPlanChange }: Props) {
   const { settings } = useSettings();
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -101,6 +104,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
   const [annotations, setAnnotations] = useState<Annotations>(record.annotations ?? {});
   const [chrome, setChrome] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [notes, setNotes] = useState(record.notes);
   const [name, setName] = useState(record.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -702,6 +706,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
                 </>
               )}
 
+              <button type="button" onClick={() => { player.stop(); setPlanOpen(true); }} className={`pill text-xs py-1.5 ${record.plan ? "pill-active" : ""}`}>
+                Plan
+              </button>
               <button
                 type="button"
                 onClick={onPlay}
@@ -735,6 +742,15 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename }
             </div>
           </div>
         </>
+      )}
+
+      {/* ---- Plan de estudio con IA ---- */}
+      {planOpen && (
+        <div className="fixed inset-0 z-20 bg-surface-2 overflow-y-auto">
+          <div className="max-w-2xl mx-auto px-3 pb-10" style={{ paddingTop: "calc(0.75rem + var(--safe-t))", paddingBottom: "calc(2.5rem + var(--safe-b))" }}>
+            <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onClose={() => setPlanOpen(false)} onPlanChange={onPlanChange} />
+          </div>
+        </div>
       )}
 
       {/* ---- Cómo conseguir la reproducción ---- */}

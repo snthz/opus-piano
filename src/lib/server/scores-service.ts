@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { isScoreId } from "@/lib/server/score-files";
+import { planStateSchema } from "@/lib/study-plan";
 
 /** Lo que el cliente ve de cada partitura (sin archivos). */
 export interface ScoreMeta {
@@ -11,6 +12,8 @@ export interface ScoreMeta {
   pageCount: number;
   thumbnail: string;
   annotations: unknown;
+  /** Plan de estudio (planStateSchema) o undefined */
+  plan: unknown;
   size: number;
   uploaded: boolean;
   hasXml: boolean;
@@ -36,6 +39,7 @@ export const scoreCreateSchema = z.object({
   // Miniatura: data URL de hasta ~200 KB.
   thumbnail: z.string().max(200_000).default(""),
   annotations: annotationsSchema.optional(),
+  plan: planStateSchema.nullable().optional(),
   createdAt: z.number().int().positive().optional(),
   updatedAt: z.number().int().positive(),
 });
@@ -44,6 +48,7 @@ export const scorePatchSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   notes: z.string().max(20_000).optional(),
   annotations: annotationsSchema.nullable().optional(),
+  plan: planStateSchema.nullable().optional(),
   updatedAt: z.number().int().positive(),
 });
 
@@ -58,6 +63,7 @@ export function toMeta(r: Row): ScoreMeta {
     pageCount: r.pageCount,
     thumbnail: r.thumbnail,
     annotations: r.annotations ?? undefined,
+    plan: r.plan ?? undefined,
     size: r.size,
     uploaded: r.uploaded,
     hasXml: r.xmlSize > 0,

@@ -8,7 +8,7 @@ function redirect(to: string, cookies: string[]): Response {
   return new Response(null, { status: 303, headers });
 }
 
-const failed = (reason: string) => redirect(`/account?error=${encodeURIComponent(reason)}`, [clearedStateCookie()]);
+const failed = (reason: string) => redirect(`/login?error=${encodeURIComponent(reason)}`, [clearedStateCookie()]);
 
 /** Google vuelve aquí con `code` y `state`; se comprueba el estado, se canjea el código y se abre sesión. */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: string }> }) {

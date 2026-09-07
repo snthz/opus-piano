@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     pageCount: d.pageCount,
     thumbnail: d.thumbnail,
     annotations: d.annotations ?? undefined,
+    plan: d.plan ?? undefined,
     updatedAt: BigInt(d.updatedAt),
   };
   const row = existing

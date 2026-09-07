@@ -1,9 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { deleteAccount, logout, useAuth } from "@/lib/auth";
 import { useProgress, useSyncState, summarize, dayStreak, syncProgress } from "@/lib/progress";
-import { openAuthModal } from "@/lib/auth-modal";
 
 /** Página «Cuenta»: formulario si no hay sesión; datos, sincronización y cierre si la hay. */
 export function AccountPanel() {
@@ -13,36 +13,19 @@ export function AccountPanel() {
   return <SignedIn />;
 }
 
-const OAUTH_ERRORS: Record<string, string> = {
-  cancelado: "Has cancelado el acceso.",
-  estado: "La sesión de acceso caducó. Vuelve a intentarlo.",
-  "correo-existente": "Ese correo ya tiene cuenta con contraseña: entra con ella.",
-  proveedor: "No se pudo completar el acceso con Google.",
-};
-
 function Anonymous() {
-  // Al volver de Google con error, el servidor redirige aquí con ?error=…
-  const [oauthError] = useState(() => {
-    const code = new URLSearchParams(window.location.search).get("error");
-    return code ? (OAUTH_ERRORS[code] ?? OAUTH_ERRORS.proveedor) : null;
-  });
   return (
     <div className="card p-5 space-y-4">
-      {oauthError && (
-        <p role="alert" className="text-sm rounded-2xl bg-bad-soft px-4 py-2.5">
-          {oauthError}
-        </p>
-      )}
       <p className="text-sm text-ink-2">
         Todavía no has iniciado sesión. Lo que practiques se guarda en este dispositivo y, al entrar, se suma a tu cuenta.
       </p>
       <div className="flex gap-2 flex-wrap">
-        <button type="button" onClick={() => openAuthModal("login")} className="pill pill-active text-sm">
+        <Link href="/login" className="btn-primary h-11 px-5 rounded-[0.875rem] text-sm">
           Iniciar sesión
-        </button>
-        <button type="button" onClick={() => openAuthModal("register")} className="pill text-sm">
+        </Link>
+        <Link href="/register" className="btn-outline h-11 text-sm">
           Crear cuenta
-        </button>
+        </Link>
       </div>
     </div>
   );

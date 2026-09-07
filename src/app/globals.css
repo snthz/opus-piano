@@ -45,31 +45,32 @@
   --radius: 28px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121215;
-    --surface: #1c1c21;
-    --surface-2: #232329;
-    --surface-3: #2c2c34;
-    --ink: #f2f2f5;
-    --ink-2: #b3b3bd;
-    --ink-3: #7c7c88;
-    --line: #2e2e36;
-    --staff: #6e6e7b;
-    --accent: #9d93f0;
-    --accent-soft: #2d2850;
-    --ok: #5fc48f;
-    --ok-soft: #1f3a2c;
-    --bad: #f07f7a;
-    --bad-soft: #43242a;
-    --yellow: #4d4218;
-    --mint: #1f3a2d;
-    --lavender: #2e2750;
-    --pink: #4a2535;
-    --blue: #232b48;
-    --peach: #4a3223;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.6);
-  }
+/* Paleta oscura. `data-theme` lo marca el script de arranque del layout a
+   partir de la preferencia guardada ("system" resuelve con matchMedia), así
+   que aquí no hace falta repetir la consulta de medios. */
+:root[data-theme="dark"] {
+  --bg: #121215;
+  --surface: #1c1c21;
+  --surface-2: #232329;
+  --surface-3: #2c2c34;
+  --ink: #f2f2f5;
+  --ink-2: #b3b3bd;
+  --ink-3: #7c7c88;
+  --line: #2e2e36;
+  --staff: #6e6e7b;
+  --accent: #9d93f0;
+  --accent-soft: #2d2850;
+  --ok: #5fc48f;
+  --ok-soft: #1f3a2c;
+  --bad: #f07f7a;
+  --bad-soft: #43242a;
+  --yellow: #4d4218;
+  --mint: #1f3a2d;
+  --lavender: #2e2750;
+  --pink: #4a2535;
+  --blue: #232b48;
+  --peach: #4a3223;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.6);
 }
 
 @theme inline {
@@ -102,7 +103,8 @@
 }
 
 html {
-  color-scheme: light dark;
+  /* El script de arranque lo ajusta al tema resuelto; sin JavaScript, claro. */
+  color-scheme: light;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -290,4 +292,48 @@ body {
     opacity: 1;
     transform: none;
   }
+}
+
+/* Botón con borde de la marca (cabecera y accesos sociales del login). */
+@utility btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  height: 2.75rem;
+  padding: 0 1.1rem;
+  border-radius: 0.875rem;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.btn-outline:hover {
+  background: var(--surface-2);
+}
+.btn-outline:active {
+  transform: translateY(1px);
+}
+
+/* Campo de formulario: borde fino que se vuelve negro al enfocar. */
+@utility field {
+  width: 100%;
+  height: 3.5rem;
+  padding: 0 1rem;
+  border-radius: 0.875rem;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  color: var(--ink);
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field::placeholder {
+  color: var(--ink-3);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 10%, transparent);
 }

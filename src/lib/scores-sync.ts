@@ -11,6 +11,7 @@ import {
   type Annotations,
   type ScoreRecord,
 } from "@/lib/scores-db";
+import type { PlanState } from "@/lib/study-plan";
 
 /**
  * Sincroniza la biblioteca (IndexedDB) con la cuenta. Sin cuenta no hace nada.
@@ -29,6 +30,7 @@ interface ServerScore {
   pageCount: number;
   thumbnail: string;
   annotations?: Annotations;
+  plan?: PlanState;
   size: number;
   uploaded: boolean;
   hasXml: boolean;
@@ -104,6 +106,7 @@ async function upload(rec: ScoreRecord): Promise<void> {
     pageCount: rec.pageCount,
     thumbnail: rec.thumbnail,
     annotations: rec.annotations,
+    plan: rec.plan ?? null,
     createdAt: rec.addedAt,
     updatedAt: rec.updatedAt ?? rec.addedAt,
   });
@@ -136,6 +139,7 @@ async function pushMeta(rec: ScoreRecord, server: ServerScore): Promise<void> {
     name: rec.name,
     notes: rec.notes,
     annotations: rec.annotations ?? null,
+    plan: rec.plan ?? null,
     updatedAt: rec.updatedAt ?? rec.addedAt,
   });
   if (!res.ok) throw new Error(await errorOf(res, "No se pudo guardar"));
@@ -168,6 +172,7 @@ async function download(s: ServerScore, local?: ScoreRecord): Promise<void> {
     notes: s.notes,
     pageCount: s.pageCount,
     annotations: s.annotations,
+    plan: s.plan,
     linkedXml,
     addedAt: s.createdAt,
     updatedAt: s.updatedAt,

@@ -11,6 +11,10 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 - Las partituras (PDF / MusicXML), con sus anotaciones y notas, se guardan en el dispositivo (IndexedDB)
   y, con cuenta, también en el servidor: se abren desde cualquier dispositivo y se sincronizan al entrar.
 - Símbolos musicales con las fuentes originales del estándar SMuFL (Bravura) y notación con VexFlow.
+- **Plan de estudio con IA** para cada partitura: análisis (tonalidad, escala que dominar, tempo, forma),
+  qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
+  con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
+  Funciona con la clave de API del propio usuario (ChatGPT / OpenAI o Claude / Anthropic).
 
 ## Arquitectura
 
@@ -116,6 +120,28 @@ docker run --rm -v $(docker volume ls -qf name=scores):/data -v $PWD:/out alpine
 ```
 
 Dokploy también ofrece copias programadas a S3 en el servicio `db`.
+
+## Plan de estudio con IA
+
+No hay ninguna clave de IA en el servidor: cada usuario pone la suya en **Ajustes → Plan de estudio con IA**
+(proveedor, clave y modelo). La clave se guarda solo en su navegador (`localStorage`) y las peticiones salen
+directamente del navegador a `api.openai.com` o `api.anthropic.com`; el servidor de Opus Piano nunca la ve.
+El coste lo paga el usuario al proveedor: un plan suele costar céntimos (se muestra una estimación por modelo).
+
+Cómo funciona (todo en [`src/lib/ai/`](src/lib/ai/) y [`src/lib/study-plan.ts`](src/lib/study-plan.ts)):
+
+- **Qué ve el modelo**: si la partitura es MusicXML (o un PDF con MusicXML vinculado), un resumen textual
+  nota a nota compás por compás (`summarizeScore`). Si es PDF, las primeras 12 páginas dibujadas a 1400 px
+  como imágenes JPEG. Además, nivel, tiempo disponible y objetivo personal del alumno y sus notas.
+- **Salida estructurada**: el plan se pide como JSON con un esquema (`STUDY_PLAN_SCHEMA`, descrito una sola
+  vez y emitido en la variante que exige cada proveedor) y se valida con zod antes de guardarlo.
+- **Dónde se guarda**: con la partitura, en IndexedDB y, con cuenta, en la columna `Score.plan` del servidor,
+  sincronizado igual que las notas y los trazos (gana el `updatedAt` más reciente). El servidor solo valida su
+  forma (`planStateSchema`).
+- **Chat**: «Pregunta al profesor» envía el plan, el resumen de la partitura y los últimos 12 turnos; la
+  respuesta llega en streaming. El historial del chat no se guarda.
+- **Modelos**: el catálogo con estrellas (rapidez, precisión, economía), precios y el «recomendado» de cada
+  proveedor está en [`src/lib/ai/models.ts`](src/lib/ai/models.ts). También se puede escribir cualquier otro id.
 
 ## SEO
 

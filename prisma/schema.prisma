@@ -102,6 +102,8 @@ model Score {
   createdAt   DateTime @default(now())
   /// Última modificación de metadatos, la pone el dispositivo (ms desde época)
   updatedAt   BigInt
+  /// Plan de estudio generado con IA (esquema `planStateSchema`); se sincroniza como las notas
+  plan        Json?
 
   @@index([userId, createdAt])
 }

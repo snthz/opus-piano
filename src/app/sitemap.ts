@@ -24,7 +24,7 @@ const entry = (path: string, priority: number, changeFrequency: Entry["changeFre
 });
 
 /**
- * Solo páginas indexables: quedan fuera /scores, /settings, /account y /offline,
+ * Solo páginas indexables: quedan fuera /scores, /settings, /account, /login, /register y /offline,
  * que también están bloqueadas en robots.txt.
  */
 export default function sitemap(): MetadataRoute.Sitemap {

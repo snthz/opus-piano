@@ -4,106 +4,144 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
+import { Logo } from "@/components/ui/logo";
 import { ALL_LESSONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
 import { exercisePath, lessonPath } from "@/lib/routes";
 import { isActive } from "./app-nav";
 import { useAuth } from "@/lib/auth";
-import { openAuthModal } from "@/lib/auth-modal";
+import { dayStreak, useProgress } from "@/lib/progress";
 
-const LEARN_PREFIXES = ["/theory", "/practice", "/glossary"];
+const TABS = [
+  { href: "/", label: "Inicio" },
+  { href: "/theory", label: "Teoría" },
+  { href: "/practice", label: "Práctica" },
+  { href: "/scores", label: "Partituras" },
+  { href: "/glossary", label: "Glosario" },
+  { href: "/settings", label: "Ajustes" },
+];
+
+const AUTH_PATHS = ["/login", "/register"];
 
 /**
- * Cabecera fija. En escritorio lleva la navegación con un desplegable «Aprender»
- * que agrupa teoría, práctica y glosario, para que la barra no se llene de opciones.
- * En móvil solo muestra la marca: la navegación está abajo (AppNav).
+ * Cabecera fija en dos filas. Arriba, la marca y la cuenta (racha, ayuda y
+ * avatar o «Iniciar sesión»); debajo, en escritorio, las pestañas de las
+ * secciones con el desplegable «Explorar» que lista lecciones y ejercicios.
+ * En móvil solo se ve la fila de arriba: la navegación está abajo (AppNav).
+ * En /login y /register la fila de pestañas se oculta para no distraer.
  */
 export function AppHeader() {
   const pathname = usePathname();
-  const learnActive = LEARN_PREFIXES.some((p) => isActive(pathname, p));
   const { user } = useAuth();
+  const authPage = AUTH_PATHS.includes(pathname);
 
   return (
-    <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
-      <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center gap-2 md:gap-6">
-        <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight shrink-0">
-          <span className="btn-circle w-9 h-9">
-            <GlyphIcon name="gClef" size={20} />
-          </span>
-          <span className="text-lg">Opus Piano</span>
-        </Link>
+    <header className="sticky top-0 z-40 bg-surface border-b border-line">
+      <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 md:h-[72px] flex items-center gap-2 md:gap-3">
+        <Logo />
+        <div className="flex-1" />
 
-        <nav aria-label="Navegación principal" className="hidden md:flex items-center gap-1 flex-1">
-          <TopLink href="/" active={pathname === "/"}>Inicio</TopLink>
-          {/* key={pathname}: al navegar se desmonta y el desplegable se cierra solo. */}
-          <LearnMenu key={pathname} active={learnActive} pathname={pathname} />
-          <TopLink href="/scores" active={isActive(pathname, "/scores")}>Partituras</TopLink>
-          <TopLink href="/more" active={isActive(pathname, "/more")}>Más</TopLink>
-        </nav>
+        {user && <StreakPill />}
+
+        <IconLink href="/faq" label="Ayuda y preguntas frecuentes" active={isActive(pathname, "/faq")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6" aria-hidden>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.6 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8" strokeLinecap="round" />
+            <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+          </svg>
+        </IconLink>
 
         {user ? (
           <Link
             href="/account"
             aria-label={`Cuenta de ${user.name}`}
             title={user.name}
-            className={`hidden md:grid place-items-center w-10 h-10 rounded-full text-sm font-bold transition-colors ${
+            className={`grid place-items-center w-10 h-10 rounded-xl text-sm font-bold transition-colors ${
               isActive(pathname, "/account") ? "bg-ink text-bg" : "bg-lavender text-ink hover:opacity-80"
             }`}
           >
             {user.name.trim()[0]?.toUpperCase()}
           </Link>
         ) : (
-          <button
-            type="button"
-            onClick={() => openAuthModal("login")}
-            className="hidden md:inline-flex items-center gap-2 rounded-full bg-accent text-white text-sm font-semibold px-4 py-2 transition hover:brightness-110 active:translate-y-px"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>
-              <circle cx="12" cy="8" r="3.5" />
-              <path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" strokeLinecap="round" />
+          <Link href="/login" className="btn-outline h-10 px-3.5 md:h-11 md:px-4 text-sm md:text-[15px]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden>
+              <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" strokeLinecap="round" />
+              <path d="M4 12h10M10 8l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Entrar
-          </button>
+            Iniciar sesión
+          </Link>
         )}
-
-        <Link
-          href="/settings"
-          aria-label="Ajustes"
-          className={`hidden md:grid place-items-center w-10 h-10 rounded-full transition-colors ${
-            isActive(pathname, "/settings") ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-          }`}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="w-5 h-5">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </Link>
       </div>
+
+      {!authPage && (
+        <div className="hidden md:block border-t border-line">
+          <nav aria-label="Navegación principal" className="max-w-5xl mx-auto px-8 h-12 flex items-center">
+            {/* key={pathname}: al navegar se desmonta y el desplegable se cierra solo. */}
+            <ExploreMenu key={pathname} pathname={pathname} />
+            <span aria-hidden className="w-px h-6 bg-line mx-3" />
+            {TABS.map((t) => (
+              <Tab key={t.href} href={t.href} active={isActive(pathname, t.href)}>
+                {t.label}
+              </Tab>
+            ))}
+            <span className="flex-1" />
+            <Tab href="/more" active={isActive(pathname, "/more")}>
+              Más
+            </Tab>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
 
-/** Texto plano, sin fondo ni sombra; el activo se marca con una línea corta debajo. */
-const topLinkClass = (active: boolean) =>
-  `relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-    active ? "text-ink" : "text-ink-2 hover:text-ink"
-  }`;
-
-const Indicator = () => <span aria-hidden className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-accent" />;
-
-function TopLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+/** Racha de días seguidos con práctica, al estilo del saldo de la cabecera de Preply. */
+function StreakPill() {
+  const streak = dayStreak(useProgress());
   return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={topLinkClass(active)}>
-      {children}
-      {active && <Indicator />}
+    <Link
+      href="/account"
+      title="Días seguidos practicando"
+      className="hidden md:inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border-2 border-ink text-sm font-bold hover:bg-surface-2 transition-colors"
+    >
+      Racha: {streak}
     </Link>
   );
 }
 
-function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) {
+function IconLink({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      className={`hidden md:grid place-items-center w-10 h-10 rounded-xl transition-colors ${
+        active ? "bg-ink text-bg" : "text-ink hover:bg-surface-2"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** Pestaña: texto plano; la activa va en negrita con una línea gruesa de acento debajo. */
+const tabClass = (active: boolean) =>
+  `relative inline-flex items-center h-12 px-3.5 text-[15px] transition-colors ${
+    active ? "text-ink font-semibold" : "text-ink-2 font-medium hover:text-ink"
+  }`;
+
+const Underline = () => <span aria-hidden className="absolute inset-x-1 bottom-0 h-[3px] rounded-t-full bg-ink" />;
+
+function Tab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link href={href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
+      {children}
+      {active && <Underline />}
+    </Link>
+  );
+}
+
+function ExploreMenu({ pathname }: { pathname: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -121,17 +159,20 @@ function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) 
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`${topLinkClass(active)} gap-1.5`}
+        className={`${tabClass(false)} gap-2 pl-0 text-ink`}
       >
-        Aprender
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden>
+          <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v14H6.5A2.5 2.5 0 0 0 4 20.5z" strokeLinejoin="round" />
+          <path d="M4 20.5V6.5M8 8.5h8M8 12h6" strokeLinecap="round" />
+        </svg>
+        Explorar lecciones
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden>
           <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        {active && <Indicator />}
       </button>
 
       {open && (
-        <div role="menu" className="absolute left-0 top-full pt-2 w-[620px]">
+        <div role="menu" className="absolute left-0 top-full pt-1 w-[620px]">
           <div className="card p-5 grid grid-cols-[1.1fr_1fr] gap-6 shadow-lg">
             <section>
               <MenuHeading href="/theory" active={isActive(pathname, "/theory")}>Teoría</MenuHeading>
@@ -164,8 +205,8 @@ function LearnMenu({ active, pathname }: { active: boolean; pathname: string }) 
                 </ul>
               </div>
               <div>
-                <MenuHeading href="/glossary" active={isActive(pathname, "/glossary")}>Glosario</MenuHeading>
-                <p className="mt-1 text-xs text-ink-2 px-2">Términos musicales de la A a la Z.</p>
+                <MenuHeading href="/guide" active={isActive(pathname, "/guide")}>Guía</MenuHeading>
+                <p className="mt-1 text-xs text-ink-2 px-2">Cómo leer partituras, del pentagrama a los símbolos.</p>
               </div>
             </section>
           </div>
@@ -181,7 +222,7 @@ function MenuHeading({ href, active, children }: { href: string; active: boolean
       href={href}
       role="menuitem"
       className={`inline-flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wider rounded-full ${
-        active ? "text-accent" : "text-ink-3 hover:text-ink"
+        active ? "text-ink" : "text-ink-3 hover:text-ink"
       }`}
     >
       {children} →

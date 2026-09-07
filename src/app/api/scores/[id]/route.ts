@@ -23,7 +23,7 @@ export async function GET(req: Request, ctx: Ctx) {
   return Response.json(toMeta(row), { headers: { "Cache-Control": "no-store" } });
 }
 
-/** Nombre, notas y trazos. `updatedAt` lo pone el dispositivo; gana el más reciente. */
+/** Nombre, notas, trazos y plan de estudio. `updatedAt` lo pone el dispositivo; gana el más reciente. */
 export async function PATCH(req: Request, ctx: Ctx) {
   if (!sameOrigin(req)) return Response.json({ error: "Origen no permitido" }, { status: 403 });
   const { id } = await ctx.params;
@@ -41,6 +41,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       notes: d.notes,
       // null = borrar trazos; undefined = no tocar
       annotations: d.annotations === null ? { set: null } : d.annotations,
+      plan: d.plan === null ? { set: null } : d.plan,
       updatedAt: BigInt(d.updatedAt),
     },
   });

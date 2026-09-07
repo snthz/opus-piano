@@ -54,6 +54,7 @@ export function ScoreLibrary() {
         onDelete={() => void onDelete(viewing.id)}
         onNotesChange={(notes) => patch(viewing.id, { notes })}
         onRename={(name) => patch(viewing.id, { name })}
+        onPlanChange={(plan) => patch(viewing.id, { plan })}
       />
     );
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import type { PlanState } from "@/lib/study-plan";
 
 /** Un trazo dibujado sobre una página, en coordenadas relativas (0–1) al tamaño de la página. */
 export interface Stroke {
@@ -32,6 +33,8 @@ export interface ScoreRecord {
   annotations?: Annotations;
   /** Solo PDF: MusicXML de la misma pieza, para poder escucharla y ver los nombres */
   linkedXml?: Blob;
+  /** Plan de estudio generado con IA; se sincroniza como las notas */
+  plan?: PlanState;
   /** Última modificación local de nombre, notas o trazos (ms). */
   updatedAt?: number;
   /** Momento en que el servidor confirmó tener esta versión (metadatos y archivos). */
@@ -108,6 +111,7 @@ async function patchLocal(id: string, changes: Partial<ScoreRecord>) {
 export const updateScoreNotes = (id: string, notes: string) => patchLocal(id, { notes });
 export const updateScoreAnnotations = (id: string, annotations: Annotations) => patchLocal(id, { annotations });
 export const updateScoreName = (id: string, name: string) => patchLocal(id, { name });
+export const updateScorePlan = (id: string, plan: PlanState | undefined) => patchLocal(id, { plan });
 export const updateScoreLinkedXml = (id: string, linkedXml: Blob | undefined) => patchLocal(id, { linkedXml, xmlDirty: true });
 
 export async function deleteScore(id: string): Promise<void> {

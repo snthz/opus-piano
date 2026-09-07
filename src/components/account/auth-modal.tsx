@@ -43,7 +43,7 @@ export function AuthModal() {
               <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
             </svg>
           </button>
-          <AuthForm key={mode} initialMode={mode} onDone={closeAuthModal} />
+          <AuthForm key={mode} initialMode={mode} onDone={closeAuthModal} className="p-6 md:p-8" />
         </>
       )}
     </dialog>

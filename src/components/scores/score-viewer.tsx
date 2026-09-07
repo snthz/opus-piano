@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import { updateScoreNotes, type ScoreRecord } from "@/lib/scores-db";
+import type { PlanState } from "@/lib/study-plan";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { MusicXmlViewer } from "./musicxml-viewer";
 import { PdfReader } from "./pdf-reader";
+import { StudyPlanPanel } from "./study-plan";
 
 interface Props {
   record: ScoreRecord;
@@ -12,6 +14,7 @@ interface Props {
   onDelete: () => void;
   onNotesChange: (notes: string) => void;
   onRename: (name: string) => void;
+  onPlanChange: (plan: PlanState | undefined) => void;
 }
 
 /** PDF: lector a pantalla completa. MusicXML: partitura dibujada dentro de la página. */
@@ -20,9 +23,10 @@ export function ScoreViewer(props: Props) {
   return <XmlPage {...props} />;
 }
 
-function XmlPage({ record, onClose, onDelete, onNotesChange }: Props) {
+function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Props) {
   const [notes, setNotes] = useState(record.notes);
   const [showNotes, setShowNotes] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -40,6 +44,9 @@ function XmlPage({ record, onClose, onDelete, onNotesChange }: Props) {
           <ChevronIcon dir="left" className="w-5 h-5" />
         </button>
         <h1 className="font-bold truncate flex-1 min-w-0">{record.name}</h1>
+        <button type="button" onClick={() => setShowPlan((v) => !v)} className={`pill text-xs py-1.5 ${showPlan ? "pill-active" : ""}`}>
+          Plan{record.plan ? " ✓" : ""}
+        </button>
         <button type="button" onClick={() => setShowNotes((v) => !v)} className={`pill text-xs py-1.5 ${showNotes ? "pill-active" : ""}`}>
           Notas
         </button>
@@ -64,7 +71,11 @@ function XmlPage({ record, onClose, onDelete, onNotesChange }: Props) {
         />
       )}
 
-      <MusicXmlViewer file={record.file} />
+      {showPlan ? (
+        <StudyPlanPanel record={record} xml={record.file} onClose={() => setShowPlan(false)} onPlanChange={onPlanChange} />
+      ) : (
+        <MusicXmlViewer file={record.file} />
+      )}
     </div>
   );
 }

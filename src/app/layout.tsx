@@ -6,6 +6,8 @@ import { AppHeader } from "@/components/nav/app-header";
 import { ServiceWorkerInit, InstallBanner } from "@/components/ui/service-worker-init";
 import { ProgressSync } from "@/components/ui/progress-sync";
 import { AuthModal } from "@/components/account/auth-modal";
+import { ThemeEffect } from "@/components/ui/theme-effect";
+import { THEME_COLORS, THEME_INIT_SCRIPT } from "@/lib/theme";
 import { JsonLd } from "@/components/seo/json-ld";
 import {
   SITE_DESCRIPTION,
@@ -85,8 +87,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f3f3f6" },
-    { media: "(prefers-color-scheme: dark)", color: "#121215" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
   width: "device-width",
   initialScale: 1,
@@ -98,9 +100,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // El script de tema marca data-theme y color-scheme antes de hidratar.
+      suppressHydrationWarning
     >
       {/* Abajo deja sitio a la barra móvil; en escritorio la navegación va arriba. */}
       <body className="min-h-full flex flex-col pb-28 md:pb-0">
+        {/* Antes de pintar nada: evita el destello claro con el tema oscuro. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <AppHeader />
         <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-8 pb-10">
           {children}
@@ -110,6 +116,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ProgressSync />
         <InstallBanner />
         <AuthModal />
+        <ThemeEffect />
         {/* Identidad del sitio para Google: se declara una vez, en el layout. */}
         <JsonLd data={siteJsonLd()} />
       </body>

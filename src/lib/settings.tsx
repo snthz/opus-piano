@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { NamingSystem } from "@/lib/music/pitch";
+import type { Theme } from "@/lib/theme";
 
 export interface Settings {
   /** Sistema de nombres de notas */
@@ -12,6 +13,8 @@ export interface Settings {
   volume: number;
   /** Mostrar nombres de las teclas en el piano virtual */
   keyLabels: boolean;
+  /** Tema de la interfaz; "system" sigue al sistema operativo */
+  theme: Theme;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -19,6 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
   volume: 0.7,
   keyLabels: true,
+  theme: "system",
 };
 
 const STORAGE_KEY = "etude:settings";
