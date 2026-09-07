@@ -1,11 +1,18 @@
-# Solo para desarrollo local: construye la imagen aquí (en vez de bajarla de ghcr.io)
-# y publica el puerto de Postgres.
+# Solo para desarrollo local: construye la imagen aquí (en vez de bajarla de ghcr.io),
+# publica los puertos (en el VPS eso lo hace Traefik) y crea dokploy-network en vez
+# de esperar la que ya existe en el servidor.
 # Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 #      docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build web   # probar la imagen final
 services:
   web:
     build: .
     pull_policy: build
+    ports:
+      - "${WEB_PORT:-3000}:3000"
   db:
     ports:
       - "5432:5432"
+
+networks:
+  dokploy-network:
+    external: false
