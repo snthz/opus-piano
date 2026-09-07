@@ -21,7 +21,25 @@ env:
 
 jobs:
   verify:
-    uses: ./.github/workflows/ci.yml
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: opus
+          POSTGRES_PASSWORD: opus
+          POSTGRES_DB: opus_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U opus -d opus_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://opus:opus@localhost:5432/opus_test
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/verify
 
   build:
     needs: [verify]
@@ -56,7 +74,7 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
-  deploy:
+  dokploy:
     needs: [build]
     runs-on: ubuntu-latest
     steps:

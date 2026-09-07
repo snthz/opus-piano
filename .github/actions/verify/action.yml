@@ -1,0 +1,53 @@
+# Lint, tipos, tests y build. Se usa desde verify.yml (PRs) y desde deploy.yml
+# (push a main). Es una composite action y no un workflow reutilizable para que
+# el check aparezca como "Deploy / verify" y no como "Deploy / verify / verify".
+# El servicio de Postgres lo declara el job que la usa: las composite actions no
+# pueden definir `services`.
+name: Verify
+description: Lint, tipos, tests unitarios y de integración, y build de Next.
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: "1.3.4"
+
+    - name: Dependencias
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    - name: Cliente de Prisma
+      shell: bash
+      run: bunx prisma generate
+
+    - name: Lint
+      shell: bash
+      run: bun run lint
+
+    - name: Tipos
+      shell: bash
+      run: bun run typecheck
+
+    - name: Tests
+      shell: bash
+      run: bun run test
+
+    - name: Migraciones
+      shell: bash
+      run: bunx prisma migrate deploy
+
+    - name: Tests de integración
+      shell: bash
+      run: bun run test:integration
+
+    - name: Caché de Next
+      uses: actions/cache@v4
+      with:
+        path: .next/cache
+        key: next-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts') }}
+        restore-keys: next-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+
+    - name: Build
+      shell: bash
+      run: bun run build

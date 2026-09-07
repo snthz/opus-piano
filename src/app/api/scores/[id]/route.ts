@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
 import { isScoreId, removeFiles } from "@/lib/server/score-files";
@@ -39,9 +40,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     data: {
       name: d.name,
       notes: d.notes,
-      // null = borrar trazos; undefined = no tocar
-      annotations: d.annotations === null ? { set: null } : d.annotations,
-      plan: d.plan === null ? { set: null } : d.plan,
+      // Los campos Json no admiten `set`: para vaciarlos hay que pasar Prisma.DbNull
+      // (un `null` a secas se guardaría como el valor JSON `null`).
+      // null = borrar; undefined = no tocar.
+      annotations: d.annotations === null ? Prisma.DbNull : d.annotations,
+      plan: d.plan === null ? Prisma.DbNull : d.plan,
       updatedAt: BigInt(d.updatedAt),
     },
   });
