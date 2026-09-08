@@ -44,16 +44,20 @@
   --peach: #fde1cf;
   --shadow: 0 1px 2px rgb(17 17 20 / 0.04), 0 10px 30px -14px rgb(17 17 20 / 0.18);
   --radius: 28px;
-  /* Alto de la cabecera fija (fila de marca + su borde). Lo usan las vistas a
-     pantalla completa —el lector de partituras— para no taparla. Si cambia el
-     alto en app-header.tsx, hay que cambiarlo aquí. */
-  --header-h: calc(4rem + 1px);
+  /* Franja que el sistema se reserva arriba (barra de estado, muesca). Fuera
+     de la PWA vale 0, así que se puede sumar sin condicionar por medio. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  /* Alto de la cabecera fija (fila de marca + su borde) más la barra de estado,
+     porque la cabecera se pinta debajo de ella. Lo usan las vistas a pantalla
+     completa —el lector de partituras— para no taparla. Si cambia el alto en
+     app-header.tsx, hay que cambiarlo aquí. */
+  --header-h: calc(4rem + 1px + var(--safe-t));
 }
 
 /* En escritorio la cabecera suma la fila de pestañas: 72 + 1 + 48 + 1. */
 @media (min-width: 48rem) {
   :root {
-    --header-h: 122px;
+    --header-h: calc(122px + var(--safe-t));
   }
 }
 
@@ -64,6 +68,28 @@
 }
 :root[data-immersive] [data-app-header] {
   display: none;
+}
+
+/* El lector es fijo y tapa la página entera: detrás no queda nada que leer, así
+   que se le quita el desplazamiento al documento —si no, el pie y el hueco de la
+   barra inferior se arrastran bajo la partitura—. */
+:root[data-reader],
+:root[data-reader] body {
+  overflow: hidden;
+}
+
+/* Lector abierto en móvil: ahí ocupa la pantalla entera y manda con sus propios
+   controles, así que la cabecera y la barra inferior del sitio se quitan de en
+   medio —la cabecera, si no, taparía la fila del nombre—. En escritorio el
+   lector arranca bajo la cabecera y las dos conviven. */
+@media (max-width: 47.99rem) {
+  :root[data-reader] {
+    --header-h: 0px;
+  }
+  :root[data-reader] [data-app-header],
+  :root[data-reader] [data-app-nav] {
+    display: none;
+  }
 }
 
 /* Paleta oscura. `data-theme` lo marca el script de arranque del layout a
@@ -239,6 +265,18 @@ body {
    env() informe un valor pequeño, así que siempre queda un colchón mínimo. */
 @utility safe-bottom {
   padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Barra de estado del teléfono: en la PWA la ventana llega hasta arriba del
+   todo, así que la cabecera se rellena para que el reloj no tape la marca. */
+@utility safe-top {
+  padding-top: var(--safe-t);
+}
+
+/* Hueco que deja el cuerpo para la barra inferior flotante: lo que ocupa
+   (3.5rem de alto + 0.75rem de aire) más el gesto del sistema. */
+@utility safe-nav {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
 }
 
 @keyframes pulse-key {

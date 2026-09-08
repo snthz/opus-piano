@@ -75,25 +75,32 @@ export function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/** Barra inferior flotante, solo en móvil. En escritorio la navegación está en AppHeader. */
+/**
+ * Barra inferior flotante, solo en móvil. En escritorio la navegación está en
+ * AppHeader. `safe-bottom` la levanta por encima del gesto del sistema para que
+ * la franja inferior del teléfono no se coma la fila de iconos.
+ * La pestaña activa se ensancha y muestra su nombre; las demás quedan en icono.
+ */
 export function AppNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Navegación principal" className="fixed bottom-0 inset-x-0 z-40 md:hidden pointer-events-none safe-bottom px-3">
-      <ul className="pointer-events-auto mx-auto max-w-md card flex items-center justify-between px-1.5 py-1.5">
+    // data-app-nav: el lector de partituras la esconde mientras está abierto.
+    <nav data-app-nav aria-label="Navegación principal" className="fixed bottom-0 inset-x-0 z-40 md:hidden pointer-events-none safe-bottom px-3">
+      <ul className="pointer-events-auto mx-auto max-w-md card flex items-center gap-0.5 px-1.5 py-1.5">
         {items.map((it) => {
           const active = isActive(pathname, it.href);
           return (
-            <li key={it.href} className="flex-1">
+            <li key={it.href} className={active ? "shrink-0" : "flex-1 min-w-0"}>
               <Link
                 href={it.href}
                 aria-label={it.label}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center justify-center py-2.5 rounded-2xl transition-colors ${
-                  active ? "bg-ink text-bg" : "text-ink-3 active:bg-surface-2"
+                className={`flex items-center justify-center gap-1.5 h-11 rounded-2xl transition-colors ${
+                  active ? "bg-ink text-bg px-3" : "text-ink-3 active:bg-surface-2"
                 }`}
               >
-                <span className="w-6 h-6">{it.icon}</span>
+                <span className="w-6 h-6 shrink-0">{it.icon}</span>
+                {active && <span className="text-[13px] font-semibold whitespace-nowrap">{it.label}</span>}
               </Link>
             </li>
           );

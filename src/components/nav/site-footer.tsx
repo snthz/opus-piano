@@ -70,7 +70,7 @@ const BADGES = ["Gratis", "Funciona sin conexión", "En español"];
  * internos. Es un componente de servidor —no tiene estado— para que su
  * contenido viaje en el HTML que lee el buscador.
  *
- * En móvil queda por encima de la barra flotante gracias al `pb-28` del
+ * En móvil queda por encima de la barra flotante gracias al `safe-nav` del
  * `body` en el layout.
  */
 export function SiteFooter() {

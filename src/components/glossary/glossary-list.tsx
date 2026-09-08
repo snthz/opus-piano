@@ -56,7 +56,7 @@ export function GlossaryList() {
 
       {groups.map(([letter, entries]) => (
         <section key={letter} id={`letra-${letter}`} className="scroll-mt-20">
-          <h2 className="text-sm font-bold text-ink-2 mb-2 sticky top-16 bg-bg/90 backdrop-blur py-1">{letter}</h2>
+          <h2 className="text-sm font-bold text-ink-2 mb-2 sticky top-[var(--header-h)] bg-bg/90 backdrop-blur py-1">{letter}</h2>
           <ul className="space-y-2">
             {entries.map((e) => (
               <li key={e.term} className="card p-4 flex gap-3 items-start">

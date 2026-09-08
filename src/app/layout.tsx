@@ -85,7 +85,10 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    // "default" (no "black-translucent"): con la traslúcida iOS pinta el reloj
+    // siempre en blanco, ilegible sobre la cabecera clara. Así toma el color de
+    // `themeColor` y el texto contrasta en ambos temas.
+    statusBarStyle: "default",
     title: SITE_NAME,
   },
   formatDetection: { telephone: false },
@@ -118,8 +121,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       // El script de tema marca data-theme y color-scheme antes de hidratar.
       suppressHydrationWarning
     >
-      {/* Abajo deja sitio a la barra móvil; en escritorio la navegación va arriba. */}
-      <body className="min-h-full flex flex-col pb-28 md:pb-0">
+      {/* Abajo deja sitio a la barra móvil —y al gesto del sistema—; en escritorio
+          la navegación va arriba. */}
+      <body className="min-h-full flex flex-col safe-nav md:pb-0">
         {/* Antes de pintar nada: evita el destello claro con el tema oscuro. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <AppHeader />

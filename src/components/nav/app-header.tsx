@@ -50,9 +50,12 @@ export function AppHeader() {
   const authPage = AUTH_PATHS.includes(pathname);
 
   return (
-    // data-app-header: el lector de partituras la esconde al ocultar sus controles.
+    // data-app-header: el lector de partituras la esconde al ocultar sus
+    // controles, y en móvil mientras esté abierto (globals.css).
     // z-60: por encima del lector (fixed, z-50) para que los desplegables no queden tapados.
-    <header data-app-header className="sticky top-0 z-60 bg-surface border-b border-line">
+    // safe-top: instalada como PWA la ventana empieza en el borde de la pantalla,
+    // así que sin este relleno la barra de estado del teléfono tapa la fila de marca.
+    <header data-app-header className="sticky top-0 z-60 bg-surface border-b border-line safe-top">
       <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 md:h-[72px] flex items-center gap-2 md:gap-3">
         <Logo />
         <div className="flex-1" />
