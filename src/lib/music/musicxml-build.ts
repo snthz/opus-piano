@@ -4,17 +4,16 @@ import type { ParsedScore, XmlEvent, XmlMeasure } from "./musicxml";
 import type { ClefName } from "@/components/notation/score";
 
 /**
- * Contrapartida de `musicxml.ts` (el lector): aquí se escribe MusicXML, no se
- * lee. Y con él, el códec de la notación compacta con la que Opus Piano
- * describe una partitura en texto —«C4/q», «(G4 B4)/h~», «r/8»—, que se usa en
- * las dos direcciones: para contarle al modelo lo que hay en un MusicXML
- * (`summarizeScore`) y para que el modelo devuelva lo que ve en una imagen
- * (`transcribe.ts`). Un solo vocabulario, un solo sitio donde entenderlo.
+ * Counterpart to `musicxml.ts` (the reader): writes MusicXML instead of
+ * reading it. Also the codec for Opus Piano's compact text notation
+ * ("C4/q", "(G4 B4)/h~", "r/8"), used both ways: to tell the model what's in
+ * a MusicXML (`summarizeScore`) and for the model to report what it sees in
+ * an image (`transcribe.ts`). One vocabulary, one place that understands it.
  */
 
-/* ---------- Notación compacta ---------- */
+/* ---------- Compact notation ---------- */
 
-/** Nombre anglosajón con octava científica y alteración real (no la impresa): «F#4», «Bb3». */
+/** English name with scientific octave and real accidental (not the printed one): "F#4", "Bb3". */
 export function pitchCode(p: Pitch): string {
   const acc = p.accidental === 0 ? "" : p.accidental > 0 ? "#".repeat(p.accidental) : "b".repeat(-p.accidental);
   return `${p.letter}${acc}${p.octave}`;
@@ -29,18 +28,18 @@ export function eventCode(ev: XmlEvent): string {
 
 const FIGURE_BEATS: Record<string, number> = { w: 4, h: 2, q: 1, "8": 0.5, "16": 0.25, "32": 0.125, "64": 0.0625 };
 
-/** Duración en negras de una figura con sus puntillos: «h.» = 3, «q..» = 1,75. */
+/** Duration in quarter notes of a figure with dots: "h." = 3, "q.." = 1.75. */
 export function beatsOfVex(vex: string): number {
   const m = /^(w|h|q|8|16|32|64)(\.{0,3})$/.exec(vex);
   if (!m) throw new Error(`Figura desconocida: «${vex}».`);
   const base = FIGURE_BEATS[m[1]];
-  // Cada puntillo añade la mitad de lo que añadió el anterior.
+  // each dot adds half of what the previous one added
   let total = 0;
   for (let i = 0; i <= m[2].length; i++) total += base / 2 ** i;
   return total;
 }
 
-/** Un evento: «C4/q», «(C4 E4 G4)/h», «r/8», «F#4/h~». Inverso de `eventCode`. */
+/** One event: "C4/q", "(C4 E4 G4)/h", "r/8", "F#4/h~". Inverse of `eventCode`. */
 export function parseEventCode(code: string): XmlEvent {
   const m = /^(?:\(([^()]*)\)|([^/()\s]+))\/(w|h|q|8|16|32|64)(\.{0,3})(~?)$/.exec(code.trim());
   if (!m) throw new Error(`No se entiende «${code}».`);
@@ -56,10 +55,10 @@ export function parseEventCode(code: string): XmlEvent {
   return { pitches, rest: false, beats, vex, shown: pitches.map(() => ""), tieStart: tie === "~", tieStop: false };
 }
 
-// Un acorde lleva espacios dentro de los paréntesis, así que no vale partir por espacios a secas.
+// a chord has spaces inside parens, so a plain space-split won't work
 const TOKEN = /\([^()]*\)\/\S+|\S+/g;
 
-/** Una línea de pentagrama: «C4/q (G4 B4)/h~ r/q». «-» o vacío = ese compás no tiene notas. */
+/** One staff line: "C4/q (G4 B4)/h~ r/q". "-" or empty = that measure has no notes. */
 export function parseStaffCode(line: string): XmlEvent[] {
   const t = line.trim();
   if (!t || t === "-") return [];
@@ -67,9 +66,8 @@ export function parseStaffCode(line: string): XmlEvent[] {
 }
 
 /**
- * El «~» solo dice dónde empieza una ligadura de unión; el final es la nota
- * siguiente del mismo pentagrama, que puede estar en el compás de al lado. Se
- * marca aquí, con los compases ya completos.
+ * "~" only marks where a tie starts; the end is the next note on the same
+ * staff, possibly in the next measure. Marked here once measures are complete.
  */
 export function linkTies(measures: XmlMeasure[], staffCount: number): void {
   for (let staff = 0; staff < staffCount; staff++) {
@@ -83,25 +81,24 @@ export function linkTies(measures: XmlMeasure[], staffCount: number): void {
   }
 }
 
-/* ---------- Comprobación de duraciones ---------- */
+/* ---------- Duration checking ---------- */
 
-/** Negras que dura un compás de num/den. */
+/** Quarter notes in a num/den measure. */
 export const measureBeats = (time: { num: number; den: number }) => (time.num * 4) / time.den;
 
 export interface DurationIssue {
   measure: string;
-  /** 0 = pentagrama superior */
+  /** 0 = top staff. */
   staff: number;
   beats: number;
 }
 
 /**
- * Compases cuyas figuras no suman lo que pide el compás. Es la comprobación que
- * importa cuando la partitura la ha leído un modelo: el ritmo es donde más se
- * equivoca, y un compás que no cuadra descoloca la reproducción a partir de ahí.
- *
- * La anacrusa y el último compás pueden ser legítimamente cortos, así que solo
- * se señalan si se pasan.
+ * Measures whose figures don't add up to what the time signature asks for.
+ * The check that matters when a score was read by a model — rhythm is where
+ * it errs most, and one mismatched measure throws off playback from there on.
+ * The pickup and last measure can legitimately be short, so they're only
+ * flagged if they run over.
  */
 export function checkDurations(score: ParsedScore): DurationIssue[] {
   const expected = measureBeats(score.time);
@@ -109,7 +106,7 @@ export function checkDurations(score: ParsedScore): DurationIssue[] {
   score.measures.forEach((m, i) => {
     const edge = i === 0 || i === score.measures.length - 1;
     m.staves.forEach((events, staff) => {
-      if (!events.length) return; // pentagrama en silencio: no hay nada que juzgar
+      if (!events.length) return; // silent staff: nothing to check
       const total = events.reduce((sum, e) => sum + e.beats, 0);
       const off = total - expected;
       if (Math.abs(off) > 1e-6 && !(edge && off < 0)) out.push({ measure: m.number, staff, beats: total });
@@ -119,9 +116,8 @@ export function checkDurations(score: ParsedScore): DurationIssue[] {
 }
 
 /**
- * Los mismos compases descuadrados, ya en frases para el usuario. Lo usan las
- * dos formas de transcribir —el modelo de visión y el OMR—, que enseñan la
- * misma lista de avisos.
+ * Same mismatched measures, as user-facing sentences. Used by both
+ * transcription paths (vision model and OMR), so they show the same warnings.
  */
 export function durationWarnings(score: ParsedScore): string[] {
   const expected = measureBeats(score.time);
@@ -132,9 +128,9 @@ export function durationWarnings(score: ParsedScore): string[] {
 
 const round = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
-/* ---------- Escritura de MusicXML ---------- */
+/* ---------- MusicXML writing ---------- */
 
-/** Negra = 48: entran puntillos, semifusas y tresillos de corchea sin decimales. */
+/** Quarter note = 48: fits dots, 64th notes and eighth-note triplets without decimals. */
 const DIVISIONS = 48;
 
 const TYPE_OF_FIGURE: Record<string, string> = {
@@ -155,7 +151,7 @@ const CLEF_SIGN: Record<ClefName, { sign: string; line: number }> = {
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** Alteración que la armadura impone a cada letra. */
+/** Accidental the key signature imposes on each letter. */
 function keyAlters(fifths: number): Partial<Record<Letter, number>> {
   const out: Partial<Record<Letter, number>> = {};
   const order = fifths > 0 ? SHARP_ORDER : FLAT_ORDER;
@@ -164,10 +160,9 @@ function keyAlters(fifths: number): Partial<Record<Letter, number>> {
 }
 
 /**
- * Qué alteración hay que imprimir ante esta nota, si es que hay alguna: la que
- * no coincide con lo que ya está vigente en el compás, sea por la armadura o
- * por una alteración accidental anterior. `state` es la memoria de ese compás
- * en ese pentagrama.
+ * The accidental to print before this note, if any: whatever doesn't match
+ * what's already active in the measure (from the key signature or an earlier
+ * accidental). `state` is that measure's memory for this staff.
  */
 function accidentalOf(state: Map<string, number>, key: Partial<Record<Letter, number>>, p: Pitch): string | null {
   const id = `${p.letter}${p.octave}`;
@@ -177,7 +172,7 @@ function accidentalOf(state: Map<string, number>, key: Partial<Record<Letter, nu
   return ACCIDENTAL_OF_ALTER[p.accidental] ?? null;
 }
 
-/** El orden de los hijos de `<note>` lo fija el DTD; respetarlo es lo que hace que MuseScore lo abra. */
+/** The DTD fixes the order of `<note>`'s children; following it is what lets MuseScore open the file. */
 function noteXml(ev: XmlEvent, staff: number, voice: number, state: Map<string, number>, key: Partial<Record<Letter, number>>): string {
   const duration = Math.round(ev.beats * DIVISIONS);
   const figure = ev.vex.replace(/\./g, "");
@@ -203,9 +198,9 @@ function noteXml(ev: XmlEvent, staff: number, voice: number, state: Map<string, 
 }
 
 /**
- * Barras de repetición y casillas del compás. La casilla se abre en la barra
- * izquierda del primer compás que la lleva y se cierra en la derecha del
- * último; entre medias no se repite. `prev` y `next` son los compases vecinos.
+ * Repeat barlines and measure endings. An ending opens on the left barline
+ * of its first measure and closes on the right barline of its last; nothing
+ * repeats in between. `prev` and `next` are the neighboring measures.
  */
 function barlinesXml(m: XmlMeasure, prev: XmlMeasure | undefined, next: XmlMeasure | undefined): { left: string; right: string } {
   const ending = m.ending ?? 0;
@@ -222,7 +217,7 @@ function barlinesXml(m: XmlMeasure, prev: XmlMeasure | undefined, next: XmlMeasu
   }
   let right = "";
   if (m.repeatEnd || closes) {
-    // La casilla que no vuelve atrás (la última) se dibuja abierta por la derecha.
+    // the last ending (no repeat back) draws open on the right
     const type = m.repeatEnd ? "stop" : "discontinue";
     right =
       '<barline location="right">' +
@@ -241,7 +236,7 @@ function measureXml(m: XmlMeasure, score: ParsedScore, fifths: number, head: str
   score.clefs.forEach((_, si) => {
     const events = m.staves[si] ?? [];
     if (si > 0) {
-      // Volver al principio del compás para escribir la mano izquierda encima del mismo tiempo.
+      // back up to the start of the measure to write the left hand at the same beat
       const previous = (m.staves[si - 1] ?? []).reduce((sum, e) => sum + e.beats, 0);
       if (previous > 0) parts.push(`<backup><duration>${Math.round(previous * DIVISIONS)}</duration></backup>`);
     }
@@ -254,15 +249,14 @@ function measureXml(m: XmlMeasure, score: ParsedScore, fifths: number, head: str
 
 export interface BuildOptions {
   composer?: string;
-  /** Se anota en el archivo para que se sepa de dónde salió */
+  /** Recorded in the file so its origin is known. */
   software?: string;
 }
 
 /**
- * MusicXML 4.0 partwise a partir de una partitura ya leída: una parte de piano
- * con uno o dos pentagramas, una voz por pentagrama. Es lo que Opus Piano sabe
- * dibujar y tocar, así que lo que sale de aquí lo vuelve a leer `parseMusicXml`
- * sin perder nada.
+ * MusicXML 4.0 partwise from an already-parsed score: a piano part with one
+ * or two staves, one voice per staff. Whatever comes out of here is what
+ * `parseMusicXml` reads back without losing anything.
  */
 export function buildMusicXml(score: ParsedScore, options: BuildOptions = {}): string {
   const key = keyByVex(score.keyVex);

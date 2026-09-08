@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 
-/** Recorrido (px) o velocidad (px/ms) de arrastre hacia abajo a partir de los que la hoja se cierra. */
+/** Drag distance (px) or speed (px/ms) downward past which the sheet closes. */
 const DISMISS_DISTANCE = 120;
 const DISMISS_SPEED = 0.6;
 
 /**
- * Hoja que sube desde el borde inferior y deja ver, atenuado, lo que hay debajo.
- * Es un `<dialog>`, así que el foco, Escape y el fondo los gestiona el navegador;
- * además se cierra tocando el fondo o arrastrando la cabecera hacia abajo. El
- * contenido se desplaza dentro de la hoja, con la cabecera siempre a la vista.
+ * Sheet that slides up from the bottom edge, dimming what's underneath. A
+ * `<dialog>`, so focus, Escape and the backdrop are handled by the browser;
+ * also closes on backdrop tap or dragging the header down. Content scrolls
+ * inside the sheet, with the header always visible.
  */
 export function Sheet({
   open,
@@ -18,14 +18,20 @@ export function Sheet({
   title,
   subtitle,
   actions,
+  maxHeight,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: ReactNode;
-  /** Botones a la derecha de la cabecera, antes del de cerrar */
+  /** Buttons to the right of the header, before the close button. */
   actions?: ReactNode;
+  /**
+   * Max height (any CSS value). Defaults to nearly full screen; with a long
+   * list it helps to keep it lower so what triggered it stays visible.
+   */
+  maxHeight?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -38,12 +44,12 @@ export function Sheet({
     if (!open && d.open) d.close();
   }, [open]);
 
-  /* Arrastre de la cabecera: la hoja sigue al dedo (solo hacia abajo) y al
-     soltar, o vuelve a su sitio o se cierra si se ha bajado bastante o rápido. */
+  /* header drag: the sheet follows the finger (downward only), and on
+     release either snaps back or closes if dragged far or fast enough */
   const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    // Sobre un botón (la X, las acciones) no hay gesto: capturar el puntero
-    // aquí se quedaría con el `click` y el botón nunca lo recibiría.
+    // no gesture over a button (X, actions): capturing the pointer here
+    // would swallow the `click` and the button would never get it
     if ((e.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
     drag.current = { y: e.clientY, t: performance.now(), id: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -68,8 +74,19 @@ export function Sheet({
   };
 
   return (
-    <dialog ref={ref} onClose={onClose} onClick={(e) => e.target === e.currentTarget && onClose()} aria-label={title} className="sheet">
-      {/* Un único hijo en columna: la cabecera fija y el contenido que se desplaza. */}
+    // `e.target === e.currentTarget` in onClose: `close` doesn't bubble in the
+    // DOM, but React propagates it through its tree, so a modal nested inside
+    // the sheet would close it too when it closes itself
+    <dialog
+      ref={ref}
+      onClose={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      aria-label={title}
+      // inline because `.sheet > *` inherits max-height so content scrolls inside it
+      style={maxHeight ? { maxHeight } : undefined}
+      className="sheet"
+    >
+      {/* single column child: fixed header, scrolling content */}
       {open && (
         <div>
           <header

@@ -60,31 +60,25 @@ const Eye = (
   </svg>
 );
 
-/** Alto que ocupan las barras flotantes, para que la página quepa entre ellas
- *  dejando un respiro visible entre el menú y la partitura. */
+/** Height of the floating toolbars, so the page fits between them with visible breathing room. */
 const TOP_BAR = 88;
 const BOTTOM_BAR = 88;
 const MAX_ZOOM = 4;
-/** Zoom de partida en escritorio: sobra ancho y la partitura se lee mejor grande. */
+/** Starting zoom on desktop: there's width to spare, and bigger reads better. */
 const DESKTOP_ZOOM = 1.5;
-/** Escritorio de verdad: ancho y con ratón. En un móvil o una tableta —aunque el
- *  ancho dé de sí— se empieza con la página entera, que es como se ojea. */
+/** True desktop: wide and mouse-driven. Mobile/tablet start at the full page, however wide the screen. */
 const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches;
-/** Separación entre páginas del carrusel: casi pegadas, para que se lean como
- *  hojas distintas y asomen las vecinas sin robarle el sitio a la centrada. */
+/** Gap between carousel pages: nearly touching, so neighbors peek in without stealing space from the centered one. */
 const PAGE_GAP = 24;
 
-/* ---------- Piezas del panel de herramientas ---------- */
+/* ---------- Toolbar pieces ---------- */
 
-/** Grupo de controles afines, hundido sobre la barra para separarlos sin rayas. */
+/** Group of related controls, recessed over the bar to separate them without dividers. */
 const Group = ({ children }: { children: React.ReactNode }) => (
   <div className="shrink-0 flex items-center gap-0.5 rounded-full bg-surface-2 p-1">{children}</div>
 );
 
-/**
- * Botón redondo de icono. El nombre no se ve —no cabe—, así que va en el
- * título y en la etiqueta accesible; `active` es para los que se quedan puestos.
- */
+/** Round icon button. The label doesn't fit visually, so it goes in `title`/aria-label; `active` marks toggled-on tools. */
 function ToolButton({
   label,
   onClick,
@@ -115,7 +109,7 @@ function ToolButton({
   );
 }
 
-/** Lo mismo, con texto: para lo que ningún icono explica mejor que una palabra. */
+/** Same, with text: for what no icon explains better than a word. */
 function ToolChip({ label, onClick, active, children }: { label: string; onClick: () => void; active?: boolean; children: React.ReactNode }) {
   return (
     <button
@@ -139,9 +133,9 @@ const touchGap = (t: Pair) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clien
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
- * Referencia de un zoom: el punto (u, v) de la página (fracciones de su ancho y
- * alto) que hay bajo el punto (fx, fy) del contenedor, el tamaño de la página al
- * 100 % y dónde está su esquina en el contenido desplazable.
+ * Zoom anchor: the page point (u, v) — as fractions of its width/height —
+ * under the container point (fx, fy), the page's size at 100%, and its
+ * corner's position in the scrollable content.
  */
 interface Anchor {
   u: number;
@@ -154,7 +148,7 @@ interface Anchor {
   py: number;
 }
 
-/** Transform que se ve en pantalla mientras se pellizca o se anima. */
+/** Transform shown on screen while pinching or animating. */
 interface Live {
   k: number;
   tx: number;
@@ -176,15 +170,15 @@ const clearLive = (pg: HTMLElement) => {
 const sameLive = (a: Live, b: Live) => Math.abs(a.k - b.k) < 0.002 && Math.abs(a.tx - b.tx) < 0.5 && Math.abs(a.ty - b.ty) < 0.5;
 
 /**
- * Lector a pantalla completa (en escritorio, bajo la cabecera). Al 100 % cada
- * página llena el hueco y se pasa de página deslizando (o con flechas); al
- * ampliar —como se abre en escritorio— la página se desplaza libremente. Con un
- * MusicXML vinculado, una guía sigue el sonido sobre el PDF.
+ * Fullscreen reader (below the header on desktop). At 100% each page fills
+ * the space and pages turn by swiping or arrows; zoomed in — the desktop
+ * default — the page pans freely. With a linked MusicXML, a guide follows
+ * playback over the PDF.
  */
 export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, onPlanChange }: Props) {
   const { settings } = useSettings();
   const [page, setPage] = useState(1);
-  // En móvil se empieza con la página entera (carrusel); en escritorio, ampliada.
+  // mobile starts at the full page (carousel); desktop starts zoomed in
   const [zoom, setZoom] = useState(() => (isDesktop() ? DESKTOP_ZOOM : 1));
   const [tool, setTool] = useState<Tool | null>(null);
   const [color, setColor] = useState(PEN_COLORS[0].value);
@@ -198,7 +192,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [linkedXml, setLinkedXml] = useState<Blob | undefined>(record.linkedXml);
   const [askXml, setAskXml] = useState(false);
   const [transcribeOpen, setTranscribeOpen] = useState(false);
-  // Tareas largas de esta partitura: siguen en marcha con los paneles cerrados.
+  // long-running tasks for this score: keep going even with panels closed
   const omrJob = useJob("omr", record.id);
   const planJob = useJob("plan", record.id);
   const [issue, setIssue] = useState<string | null>(null);
@@ -216,7 +210,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const zoomRef = useRef(zoom);
   const viewRef = useRef(view);
   const chromeRef = useRef(chrome);
-  /** Ancho de celda del carrusel, para los gestos que viven fuera del render */
+  /** Carousel cell width, for gestures that live outside the render. */
   const cellRef = useRef(1);
   const gesture = useRef<
     | ({ kind: "pinch"; el: HTMLElement; gap: number; zoom: number; ratio: number } & Anchor & Live)
@@ -224,9 +218,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     | null
   >(null);
   const pending = useRef<{ x: number; y: number } | null>(null);
-  /** Página con un transform que hay que limpiar al fijar la escala real */
+  /** Page with a transform that needs clearing once the real scale is committed. */
   const live = useRef<HTMLElement | null>(null);
-  /** Animación de asentamiento en curso (se puede acabar de golpe) */
+  /** Settle animation in progress (can be finished instantly). */
   const settling = useRef<(() => void) | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const xmlInput = useRef<HTMLInputElement>(null);
@@ -245,9 +239,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const map = layout && layout.of === parsed ? layout.map : null;
   const pager = zoom === 1;
 
-  /* ---------- Geometría del carrusel ---------- */
+  /* ---------- Carousel geometry ---------- */
 
-  // La proporción de la primera página basta para saber cuánto ocupará de ancho.
+  // the first page's aspect ratio is enough to know how wide it'll be
   useEffect(() => {
     let cancelled = false;
     getPageSize(record.file, 1)
@@ -259,18 +253,17 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   }, [record.file]);
 
   const fit = { w: Math.max(0, area.w - 16), h: Math.max(0, area.h - (chrome ? TOP_BAR + BOTTOM_BAR : 16)) };
-  /** Ancho de la página al 100 %: en pantallas anchas manda el alto. */
+  /** Page width at 100%: on wide screens, height is the limiting factor. */
   const pageW = ratio ? Math.min(fit.w, fit.h * ratio) : fit.w;
-  /** Celda del carrusel. Cuando sobra ancho —escritorio— es apenas más ancha que
-   *  la página, así que las vecinas asoman a los lados y solo hay una centrada;
-   *  en móvil la página ya llena la pantalla y la celda vuelve a ser el ancho. */
+  /** Carousel cell. On desktop, barely wider than the page so neighbors peek in on
+   *  the sides with just one centered; on mobile the page already fills the screen. */
   const cell = Math.max(1, Math.min(area.w, pageW + PAGE_GAP));
-  /** Relleno para que la primera y la última también puedan quedar centradas. */
+  /** Padding so the first and last pages can also center. */
   const side = Math.max(0, (area.w - cell) / 2);
-  /** Páginas a cada lado que llegan a verse, y por tanto hay que dibujar. */
+  /** Pages visible on each side, and thus needing to be drawn. */
   const near = Math.max(1, Math.ceil((area.w / cell + 1) / 2));
 
-  /* ---------- Tamaño del área y navegación ---------- */
+  /* ---------- Area size and navigation ---------- */
 
   useEffect(() => {
     const el = areaRef.current;
@@ -286,7 +279,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     if (zoomRef.current === 1) areaRef.current?.scrollTo({ left: (target - 1) * cellRef.current, behavior: "smooth" });
   };
 
-  // Al deslizar, la página es la celda que ha quedado centrada.
+  // when swiping, the page is whichever cell ends up centered
   const onPagerScroll = () => {
     const el = areaRef.current;
     if (!el || !area.w || zoomRef.current !== 1) return;
@@ -294,19 +287,18 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     if (p !== pageRef.current && p >= 1 && p <= record.pageCount) setPage(p);
   };
 
-  // Al volver al modo de deslizamiento, el carrusel debe estar en la página actual.
+  // returning to swipe mode, the carousel must be at the current page
   useEffect(() => {
     cellRef.current = cell;
     if (pager && areaRef.current && area.w) areaRef.current.scrollLeft = (page - 1) * cell;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pager, cell, area.w, view]);
 
-  /* ---------- Zoom con los dedos ---------- */
+  /* ---------- Pinch zoom ---------- */
 
-  // Mientras dura el pellizco la página solo se escala con un transform CSS (lo
-  // compone la GPU, sin re-render ni retrazado). Al soltar se fija la escala real
-  // y el desplazamiento en el mismo fotograma en que se quita el transform, para
-  // que la partitura no salte ni tiemble.
+  // during a pinch, the page only scales via a CSS transform (GPU-composited,
+  // no re-render); on release, the real scale and scroll offset commit in the
+  // same frame the transform is removed, so the score doesn't jump or flicker
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (el && pending.current) {
@@ -320,7 +312,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   const pageEl = (el: HTMLElement) => el.querySelector<HTMLElement>(`[data-page="${pageRef.current}"]`);
 
-  /** Referencia de la página bajo el punto (fx, fy) del contenedor. */
+  /** Anchor for the page under the container point (fx, fy). */
   const anchorAt = (el: HTMLElement, pg: HTMLElement, fx: number, fy: number): Anchor => {
     const r = el.getBoundingClientRect();
     const p = pg.getBoundingClientRect();
@@ -338,9 +330,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   };
 
   /**
-   * Con la escala z y la referencia a: desplazamiento que hay que fijar y esquina
-   * de la página respecto al contenedor una vez fijado. Al 100 % la página va
-   * centrada en su celda del carrusel; ampliada, en el contenedor con márgenes.
+   * Given scale z and anchor a: the scroll offset to commit and the page's
+   * corner relative to the container once committed. At 100% the page
+   * centers in its carousel cell; zoomed in, it centers in the container with margins.
    */
   const target = (el: HTMLElement, z: number, a: Anchor) => {
     const w = a.baseW * z;
@@ -362,10 +354,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   };
 
   /**
-   * Lleva la página a la escala z dejando la referencia bajo el dedo. Si lo que
-   * se ve (cur) no coincide con la posición final, primero se anima el transform
-   * hasta ella y solo entonces se fija la escala real: así el cambio de
-   * disposición pasa desapercibido.
+   * Brings the page to scale z, keeping the anchor under the finger. If what's
+   * shown (cur) doesn't match the final position, animates the transform there
+   * first and only then commits the real scale, so the layout change goes unnoticed.
    */
   const settle = (el: HTMLElement, pg: HTMLElement, a: Anchor, to: number, cur: Live, animate: boolean) => {
     const z = +clamp(to, 1, MAX_ZOOM).toFixed(3);
@@ -404,7 +395,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     settling.current = end;
   };
 
-  /** Zoom con los botones: se anima alrededor del centro de la pantalla. */
+  /** Button zoom: animates around the screen's center. */
   const zoomTo = (z: number) => {
     const el = areaRef.current;
     const pg = el && pageEl(el);
@@ -412,8 +403,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     settle(el, pg, anchorAt(el, pg, el.clientWidth / 2, el.clientHeight / 2), z, { k: 1, tx: 0, ty: 0 }, true);
   };
 
-  // Al ampliar, el contenedor deja de desplazarse solo (touch-action: none) y el
-  // arrastre de un dedo se traduce aquí; con dos dedos se pellizca para ampliar.
+  // when zoomed in, the container stops auto-scrolling (touch-action: none) and
+  // one-finger drag is handled here; two fingers pinch to zoom
   const onTouchStart = (e: React.TouchEvent) => {
     const el = areaRef.current;
     if (!el || settling.current) return;
@@ -442,8 +433,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     }
   };
 
-  // Los oyentes van en window para que el gesto siga vivo aunque el dedo salga
-  // del contenedor.
+  // listeners live on window so the gesture keeps tracking even if the finger leaves the container
   useEffect(() => {
     const finishPinch = (g: NonNullable<typeof gesture.current> & { kind: "pinch" }) => {
       gesture.current = null;
@@ -470,7 +460,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       g.fy = m.y - r.top;
       g.ratio = touchGap(e.touches) / g.gap;
       const raw = g.zoom * g.ratio;
-      // Fuera del rango la escala cede solo un poco, como una goma, y al soltar vuelve.
+      // outside the range, scale gives only a little, like a rubber band, and snaps back on release
       const z = raw < 1 ? 1 - (1 - raw) * 0.3 : raw > MAX_ZOOM ? MAX_ZOOM + (raw - MAX_ZOOM) * 0.3 : raw;
       g.k = z / g.zoom;
       g.tx = g.fx - (g.px - el.scrollLeft) - g.u * g.baseW * z;
@@ -486,7 +476,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         gesture.current = null;
       }
     };
-    // En el trackpad y con Ctrl + rueda se amplía igual que con los dedos.
+    // trackpad pinch or Ctrl+wheel zooms the same as touch
     const onWheel = (e: WheelEvent) => {
       const el = areaRef.current;
       if (!el || viewRef.current !== "pdf" || !(e.ctrlKey || e.metaKey) || !el.contains(e.target as Node)) return;
@@ -510,17 +500,16 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // En móvil el lector es la pantalla entera: mientras esté abierto, la cabecera
-  // y la barra inferior del sitio se esconden (globals.css) para no taparle la
-  // fila del nombre ni repetir una navegación que aquí no se usa.
+  // on mobile the reader is fullscreen: while open, the site header and bottom
+  // bar hide (globals.css) so they don't cover the name row or duplicate nav
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute("data-reader", "");
     return () => root.removeAttribute("data-reader");
   }, []);
 
-  // Ocultar los controles esconde también la cabecera del sitio (globals.css):
-  // en escritorio el lector pasa entonces a ocupar toda la pantalla.
+  // hiding the controls also hides the site header (globals.css), so on
+  // desktop the reader then takes up the full screen
   useEffect(() => {
     const root = document.documentElement;
     if (chrome) root.removeAttribute("data-immersive");
@@ -530,8 +519,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Con un panel encima, Escape es suyo: cerrar el lector desde aquí
-      // interrumpiría lo que se esté haciendo dentro.
+      // with a panel open, Escape belongs to it; closing the reader here would interrupt it
       if (planOpen || transcribeOpen || askXml) return;
       if (e.key === "Escape") {
         if (notesOpen) setNotesOpen(false);
@@ -547,9 +535,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose, view, area.w, planOpen, transcribeOpen, askXml, notesOpen]);
 
-  /* ---------- Guía de reproducción ---------- */
+  /* ---------- Playback guide ---------- */
 
-  // Con MusicXML vinculado se analizan las páginas una vez para situar los compases.
+  // with a linked MusicXML, pages are analyzed once to locate the measures
   useEffect(() => {
     if (!parsed || !guideOn || (layout && layout.of === parsed)) return;
     let cancelled = false;
@@ -561,11 +549,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     };
   }, [parsed, guideOn, layout, record.file, record.pageCount]);
 
-  // Mientras suena, la guía sigue el reloj de audio y pasa de página sola.
-  // Con requestAnimationFrame en vez de un intervalo fijo, queda al mismo ritmo
-  // que el resaltado de notas y no se nota un desfase entre el sonido y la guía.
+  // while playing, the guide follows the audio clock and turns pages on its own;
+  // requestAnimationFrame (not a fixed interval) keeps it in step with note
+  // highlighting so there's no visible lag between sound and guide
   useEffect(() => {
-    // Con un mapa aproximado ni la guía ni el paso de página son de fiar.
+    // an approximate map makes neither the guide nor page turns reliable
     if (!player.playing || !map || map.approximate || !guideOn) return;
     let raf = 0;
     const tick = () => {
@@ -586,7 +574,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.playing, map, guideOn]);
 
-  /* ---------- Persistencia ---------- */
+  /* ---------- Persistence ---------- */
 
   const strokesOf = (p: number) => annotations[p] ?? [];
   const setStrokes = (p: number, next: Stroke[]) => {
@@ -613,7 +601,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   };
 
   const applyXml = async (xml: string) => {
-    parseMusicXml(xml); // valida antes de guardar
+    parseMusicXml(xml); // validate before saving
     const blob = new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" });
     await updateScoreLinkedXml(record.id, blob);
     setLinkedXml(blob);
@@ -651,7 +639,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     void player.toggle();
   };
 
-  /* ---------- Vista ---------- */
+  /* ---------- View ---------- */
 
   const circle = "btn-circle w-10 h-10 shadow-md";
   const pickTool = (t: Tool) => setTool((cur) => (cur === t ? null : t));
@@ -660,10 +648,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     setPlanOpen(true);
   };
 
-  /**
-   * Plan y Escuchar. Con `floating` son dos círculos sueltos (móvil); si no,
-   * píldoras con texto dentro de la barra de herramientas.
-   */
+  /** Plan and Play buttons. `floating`: two loose circles (mobile); otherwise pills with text in the toolbar. */
   const renderActions = (floating: boolean) => {
     const planTitle = record.plan ? "Plan de estudio guardado en esta partitura" : "Preparar un plan de estudio con IA";
     const playLabel = player.playing ? "Detener" : "Escuchar";
@@ -698,8 +683,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     );
   };
 
-  // Si las barras de compás no cuadraron con la partitura, la guía iría por
-  // donde no toca: mejor no dibujarla y decirlo.
+  // if barlines didn't match the score, the guide would point at the wrong spot; better to skip it and say so
   const guideFor = (p: number) => {
     if (!cursor || !map || map.approximate) return null;
     const box = map.boxes[cursor.measure];
@@ -712,24 +696,24 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       : map?.approximate && guideOn && view === "pdf"
         ? "Sin guía: no se pudieron cuadrar los compases con la página. Puedes seguir la pieza con los nombres de las notas."
         : null;
-  // Con su panel cerrado, la tarea en marcha se resume abajo, además del anillo de arriba.
+  // with its panel closed, the running task is summarized below, in addition to the ring above
   const backgroundJob = !transcribeOpen && !planOpen ? [omrJob, planJob].find((j) => j?.status === "running") : undefined;
   const footnote = statusLine ?? (backgroundJob ? `${jobLabel(backgroundJob.kind)} · ${backgroundJob.label}` : null);
 
-  // El lector ocupa toda la pantalla en móvil; en escritorio arranca bajo la
-  // cabecera para no tapar la navegación. Sus controles van dentro (absolute).
+  // the reader fills the screen on mobile; on desktop it starts below the
+  // header so it doesn't cover navigation. Its controls are inside (absolute).
   return (
     <div
-      // z-50: por debajo de la cabecera (z-60), cuyos desplegables caen sobre el lector.
+      // z-50: below the header (z-60), whose dropdowns fall over the reader
       className="fixed inset-0 md:top-[var(--header-h)] z-50 bg-surface-2 flex flex-col"
       role="dialog"
       aria-label={name}
       style={{ "--safe-t": "env(safe-area-inset-top, 0px)", "--safe-b": "env(safe-area-inset-bottom, 0px)" } as React.CSSProperties}
     >
-      {/* ---- Contenido ---- */}
+      {/* ---- Content ---- */}
       {view === "pdf" ? (
-        // Un solo contenedor para el carrusel y la vista ampliada: la página
-        // actual conserva su nodo (y su lienzo) al cambiar de escala.
+        // a single container for both the carousel and the zoomed view: the
+        // current page keeps its node (and canvas) across scale changes
         <div
           ref={areaRef}
           onScroll={onPagerScroll}
@@ -754,14 +738,14 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                         width: cell,
                         paddingTop: chrome ? TOP_BAR : 8,
                         paddingBottom: chrome ? BOTTOM_BAR : 8,
-                        // Solo la centrada va entera: las vecinas se insinúan.
+                        // only the centered one is fully opaque; neighbors are just hinted at
                         opacity: p === page ? 1 : 0.45,
                       }
                     : { paddingTop: chrome ? TOP_BAR : 12, paddingBottom: chrome ? BOTTOM_BAR : 12 }
                 }
               >
                 {Math.abs(p - page) <= near && area.w > 0 ? (
-                  // Una vecina solo se deja mirar y pulsar: los trazos son de la centrada.
+                  // a neighbor is only for looking and tapping: strokes belong to the centered page
                   <div className={pager && p !== page ? "pointer-events-none" : undefined}>
                     <PdfPage
                       file={record.file}

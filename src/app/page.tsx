@@ -1,108 +1,91 @@
 import Link from "next/link";
+import { ProgressSummary } from "@/components/home/progress-summary";
+import { TodayRoutine } from "@/components/home/today-routine";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { ALL_LESSONS } from "@/data/lessons";
 import { lessonPath } from "@/lib/routes";
 
+/**
+ * The four ways out of the home page. No pastel here: white with a hairline and
+ * the glyph on a black circle, like a white key with its black one — what tells
+ * one card from another is the musical symbol, not the colour.
+ *
+ * Title only: a line of copy under each card turned four buttons into four
+ * paragraphs, and every section already explains itself on its own page.
+ */
 const modules = [
-  { href: "/theory", title: "Teoría", text: "Leer partituras paso a paso", glyph: "gClef", color: "bg-yellow" },
-  { href: "/practice", title: "Práctica", text: "Notas, ritmo, solfeo y símbolos", glyph: "noteQuarterUp", color: "bg-mint" },
-  { href: "/scores", title: "Partituras", text: "Tus PDF y MusicXML, en todos tus dispositivos", glyph: "fClef", color: "bg-ash" },
-  { href: "/glossary", title: "Glosario", text: "Términos de la A a la Z", glyph: "dynamicForte", color: "bg-pink" },
+  { href: "/theory", title: "Teoría", glyph: "gClef" },
+  { href: "/practice", title: "Práctica", glyph: "noteQuarterUp" },
+  { href: "/scores", title: "Partituras", glyph: "fClef" },
+  { href: "/glossary", title: "Glosario", glyph: "dynamicForte" },
 ];
 
-/** Enlaces de contenido: son las páginas por las que llega la gente desde Google. */
+/**
+ * Content links: these are the pages people land on from Google. Plain links
+ * rather than cards, because as cards they competed with the summary and the
+ * four sections; the crawler values them the same either way.
+ */
 const guides = [
-  { href: "/guide", title: "Cómo leer partituras", text: "La guía completa, del pentagrama a los símbolos." },
-  { href: "/symbols", title: "Símbolos de la partitura", text: "Diccionario visual de los signos musicales." },
-  { href: "/faq", title: "Preguntas frecuentes", text: "Por dónde empezar y cuánto se tarda." },
+  { href: "/guide", title: "Cómo leer partituras" },
+  { href: "/symbols", title: "Símbolos de la partitura" },
+  { href: "/faq", title: "Preguntas frecuentes" },
 ];
 
 export default function Home() {
-  const firstLessons = ALL_LESSONS.slice(0, 3);
+  const [first] = ALL_LESSONS;
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section className="pt-2">
-        <p className="text-ink-2">¡Hola de nuevo!</p>
-        <h1 className="mt-1 text-3xl md:text-4xl font-bold tracking-tight leading-tight">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight">
           Aprende a leer música
           <br />y a tocar el piano
         </h1>
-        {/* Primer párrafo real de la página: es lo que un buscador (y quien
-            llega por primera vez) usa para saber de qué va esto. */}
-        <p className="mt-3 text-ink-2 leading-relaxed max-w-2xl">
-          Curso gratuito de lenguaje musical y piano en español. Solfeo, claves, notas, figuras,
-          compases, armaduras y todos los símbolos de la partitura, con ejercicios que corrigen
-          solos. Sin cuentas de pago y funciona sin conexión.
+        {/* The only paragraph on the home page: what a search engine (and a
+            first-time visitor) reads to know what this is. */}
+        <p className="mt-2 text-ink-2 leading-relaxed max-w-xl">
+          Curso gratuito de lenguaje musical y piano en español, con ejercicios que se corrigen
+          solos. Sin pagar y sin conexión.
         </p>
       </section>
+
+      <ProgressSummary
+        nextLesson={{ title: first.title, href: lessonPath(first.slug), minutes: first.minutes }}
+      />
+
+      {/* Only shows up with a scheduled score; it comes from IndexedDB. */}
+      <TodayRoutine />
 
       <section className="grid grid-cols-2 gap-3 md:gap-4">
         {modules.map((m) => (
           <Link
             key={m.href}
             href={m.href}
-            className={`card-pastel ${m.color} relative p-4 md:p-5 min-h-44 flex flex-col justify-between overflow-hidden group`}
+            className="card border border-line relative p-4 min-h-28 flex flex-col justify-between overflow-hidden group"
           >
-            <span className="w-10 h-10 rounded-full bg-surface/90 flex items-center justify-center">
+            <span className="w-10 h-10 rounded-full bg-ink text-bg flex items-center justify-center">
               <GlyphIcon name={m.glyph} size={22} />
             </span>
             <GlyphIcon
               name={m.glyph}
-              size={150}
-              className="absolute -right-6 -top-6 opacity-[0.08] pointer-events-none"
+              size={120}
+              className="absolute -right-5 -top-5 opacity-[0.08] pointer-events-none"
             />
-            <span className="pr-10">
-              <span className="block text-xl font-semibold tracking-tight">{m.title}</span>
-              <span className="block text-sm text-ink-2 mt-0.5">{m.text}</span>
-            </span>
-            <span className="btn-circle absolute right-3 bottom-3 w-10 h-10 group-hover:-translate-y-0.5">
-              <ArrowIcon />
+            <span className="mt-3 flex items-center justify-between gap-2">
+              <span className="text-lg font-semibold tracking-tight">{m.title}</span>
+              <ArrowIcon className="w-5 h-5 text-ink-3 group-hover:text-ink transition-colors" />
             </span>
           </Link>
         ))}
       </section>
 
-      <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-xl font-semibold tracking-tight">Empieza por aquí</h2>
-          <Link href="/theory" className="text-sm text-ink-2 hover:text-ink">
-            Ver todo
+      <nav aria-label="Guías y referencia" className="flex flex-wrap gap-2">
+        {guides.map((g) => (
+          <Link key={g.href} href={g.href} className="pill">
+            {g.title}
           </Link>
-        </div>
-        <ul className="space-y-2">
-          {firstLessons.map((l, i) => (
-            <li key={l.slug}>
-              <Link href={lessonPath(l.slug)} className="card p-3 pr-4 flex items-center gap-3">
-                <span className="w-12 h-12 rounded-full bg-blue flex items-center justify-center shrink-0">
-                  <GlyphIcon name={l.glyph} size={24} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-medium truncate">
-                    {i + 1}. {l.title}
-                  </span>
-                  <span className="block text-xs text-ink-3">{l.minutes} min</span>
-                </span>
-                <ArrowIcon className="w-5 h-5 text-ink-3" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold tracking-tight mb-3">Guías y referencia</h2>
-        <ul className="grid sm:grid-cols-3 gap-3">
-          {guides.map((g) => (
-            <li key={g.href}>
-              <Link href={g.href} className="card p-4 h-full block hover:bg-surface-2 transition-colors">
-                <span className="block font-semibold">{g.title}</span>
-                <span className="block text-sm text-ink-2 mt-0.5">{g.text}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
+        ))}
+      </nav>
     </div>
   );
 }

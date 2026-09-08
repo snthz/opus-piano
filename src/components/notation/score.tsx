@@ -23,65 +23,64 @@ export interface ScoreProps {
   clef?: ClefName;
   /** "4/4", "3/4", "6/8", "C", "C|" */
   time?: string;
-  /** Armadura en notación VexFlow: "G", "Bb", "F#m"… */
+  /** Key signature in VexFlow notation: "G", "Bb", "F#m"… */
   keySignature?: string;
   /**
-   * Compases en notación EasyScore, uno por elemento.
-   * Ejemplo: ["C4/q, D4, E4, F4", "G4/h, G4"]. Silencios: "B4/q/r".
+   * Measures in EasyScore notation, one per element.
+   * Example: ["C4/q, D4, E4, F4", "G4/h, G4"]. Rests: "B4/q/r".
    */
   measures?: string[];
-  /** Segundo pentagrama (mano izquierda) para el gran pentagrama. */
+  /** Second staff (left hand) for the grand staff. */
   bassMeasures?: string[];
   bassClef?: ClefName;
-  /** Ancho lógico del dibujo; el SVG se escala al contenedor. */
+  /** Logical drawing width; the SVG scales to its container. */
   width?: number;
   /**
-   * Factor máximo de ampliación cuando sobra espacio. Con 1 (por defecto) el
-   * dibujo nunca crece más allá de `width`. Con un valor mayor ocupa el ancho
-   * disponible hasta `width * scale` y se centra.
+   * Max scale factor when there's extra space. At 1 (default) the drawing
+   * never grows past `width`. Above 1, it fills up to `width * scale` and centers.
    */
   scale?: number;
-  /** Unir corcheas con barras automáticamente */
+  /** Auto-beam eighth notes. */
   beams?: boolean;
-  /** Etiquetas de texto bajo cada nota del pentagrama superior (en orden) */
+  /** Text labels under each top-staff note (in order). */
   labels?: string[];
-  /** Etiquetas para el pentagrama inferior */
+  /** Labels for the bottom staff. */
   bassLabels?: string[];
   labelPosition?: "above" | "below";
-  /** Ligaduras de prolongación entre índices de notas del pentagrama superior: [[0,1],[3,4]] */
+  /** Ties between top-staff note indices: [[0,1],[3,4]]. */
   ties?: [number, number][];
-  /** Ligaduras de expresión (curvas) entre índices de notas */
+  /** Slurs (curves) between note indices. */
   slurs?: [number, number][];
-  /** Tresillos: [índice inicial, número de notas]. Por defecto 3 notas en el tiempo de 2. */
+  /** Tuplets: [start index, note count]. Defaults to 3 notes in the time of 2. */
   tuplets?: [number, number][];
-  /** Índices (entre todas las notas del pentagrama superior) que se resaltan */
+  /** Indices (across all top-staff notes) to highlight. */
   highlight?: number | number[];
-  /** Ídem para el pentagrama inferior */
+  /** Same, for the bottom staff. */
   bassHighlight?: number | number[];
   highlightColor?: string;
   /**
-   * Además del color, una banda de fondo tras la nota resaltada. Con los
-   * nombres puestos el color solo no se distingue: la banda dice de un vistazo
-   * por dónde va la reproducción.
+   * A background band behind the highlighted note, on top of the color.
+   * With note names shown, color alone doesn't stand out; the band shows
+   * playback position at a glance.
    */
   highlightBand?: boolean;
-  /** Ligaduras de prolongación en el pentagrama inferior */
+  /** Ties on the bottom staff. */
   bassTies?: [number, number][];
-  /** Dibujar la indicación de compás en el primer compás (en los sistemas siguientes no se repite) */
+  /** Draw the time signature on the first measure (not repeated on later systems). */
   showTime?: boolean;
-  /** Colores por índice de nota (p. ej. resultados de un ejercicio) */
+  /** Colors by note index (e.g. exercise results). */
   noteStyles?: Record<number, string>;
-  /** Barra final al terminar */
+  /** Final barline. */
   endBar?: "single" | "double" | "end" | "repeat" | "none";
-  /** Por compás: barras de repetición que abren o cierran y casilla («1.», «2.») con el tramo de corchete que le toca */
+  /** Per measure: opening/closing repeat barlines and ending ("1.", "2.") with its bracket segment. */
   repeats?: MeasureRepeat[];
-  /** Texto accesible que describe el ejemplo */
+  /** Accessible text describing the example. */
   title?: string;
   className?: string;
-  /** Modo manual: dibuja lo que quieras con la API de VexFlow */
+  /** Manual mode: draw anything with the VexFlow API. */
   render?: (api: ScoreRenderApi) => void;
   height?: number;
-  /** Se llama con las notas creadas (para animaciones o audio) */
+  /** Called with the notes created (for animation or audio). */
   onNotes?: (notes: StemmableNote[]) => void;
 }
 
@@ -175,10 +174,10 @@ export function Score({
           }
           const svg = el.querySelector("svg");
           if (svg) {
-            // VexFlow deja 40px sobre la primera línea y la clave de sol asoma por
-            // debajo de la última: con alturas ajustadas el SVG recortaba el dibujo.
-            // Medimos el contenido real y ampliamos la vista si se sale (nunca la
-            // encogemos, para no cambiar el tamaño de los ejemplos que ya encajan).
+            // VexFlow leaves 40px above the first line and the treble clef pokes
+            // below the last one, so tight heights clipped the drawing. Measure the
+            // real content and expand the view if it overflows (never shrink it,
+            // to keep already-fitting examples the same size).
             let top = 0;
             let bottom = computedHeight;
             try {
@@ -189,7 +188,7 @@ export function Score({
                 bottom = Math.max(bottom, box.y + box.height + pad);
               }
             } catch {
-              // getBBox falla si el SVG no está en el layout; nos quedamos con la caja pedida.
+              // getBBox fails if the SVG isn't in the layout yet; fall back to the requested box
             }
             svg.setAttribute("viewBox", `0 ${top} ${width} ${bottom - top}`);
             svg.setAttribute("width", String(width));
@@ -266,7 +265,7 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
   const count = Math.max(o.measures.length, o.bassMeasures?.length ?? 0, 1);
   const left = 10;
   const usable = o.width - left - 10;
-  // El primer compás lleva clave/armadura/compás: necesita más espacio.
+  // the first measure carries clef/key/time, so it needs more room
   const firstExtra = Math.min(70, usable * 0.18);
   const base = (usable - firstExtra) / count;
 
@@ -298,7 +297,7 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
         o.endBar === "double" ? types.DOUBLE : o.endBar === "end" ? types.END : o.endBar === "repeat" ? types.REPEAT_END : types.SINGLE,
       );
     }
-    // Las repeticiones mandan sobre la barra final: «:|» ya es una barra gruesa.
+    // repeats override the final barline: ":|" is already a heavy barline
     if (rep?.start) stave.setBegBarType(types.REPEAT_BEGIN);
     if (rep?.end) stave.setEndBarType(types.REPEAT_END);
     if (rep?.ending && collect) {
@@ -314,8 +313,7 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
         notes.forEach((n, i) => {
           const text = labelList[offset + i];
           if (!text) return;
-          // El nombre de la nota que suena va en negrita y del color del
-          // resaltado: es lo que se está mirando al leer con los nombres.
+          // the note currently sounding gets its label bolded in the highlight color
           const on = (collect ? lit.treble : lit.bass).has(offset + i);
           const ann = new vf.Annotation(text);
           ann.setFont("Academico", on ? 15 : 13, on ? "bold" : "normal");
@@ -337,7 +335,7 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
           }
         }
       }
-      // Voz en modo SOFT: permite compases incompletos o ejemplos sin compás estricto.
+      // SOFT mode voice: allows incomplete measures or examples without a strict meter
       const voice = factory.Voice({ time: o.time ?? "4/4" });
       voice.setMode(vf.Voice.Mode.SOFT);
       voice.addTickables(notes);
@@ -425,7 +423,7 @@ interface Box {
   height: number;
 }
 
-/** Caja dibujada de un elemento de VexFlow, o null si aún no está en el layout. */
+/** Drawn box of a VexFlow element, or null if not laid out yet. */
 function boxOf(el: { getSVGElement(suffix?: string): SVGElement | undefined }): Box | null {
   try {
     const g = el.getSVGElement();
@@ -448,15 +446,15 @@ function union(boxes: (Box | null)[]): Box | null {
 }
 
 /**
- * Banda de color tras las notas resaltadas, con su nombre dentro si lo llevan.
- * Se inserta al principio del SVG para que quede por debajo del dibujo (en SVG
- * pinta antes lo que va antes).
+ * Colored band behind the highlighted notes, wrapping their label if any.
+ * Inserted at the start of the SVG so it sits below the drawing (SVG paints
+ * earlier elements first).
  */
 function drawBands(o: DrawOptions, notes: StemmableNote[], labelCategory: string) {
   const svg = document.getElementById(o.elementId)?.querySelector("svg");
   if (!svg) return;
   for (const n of notes) {
-    // El nombre se dibuja fuera del grupo de la nota: se une su caja a mano.
+    // the label draws outside the note's group, so its box is merged in by hand
     const box = union([n, ...n.getModifiersByType(labelCategory)].map(boxOf));
     if (!box) continue;
     const pad = 5;

@@ -35,6 +35,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...ALL_LESSONS.map((lesson) => entry(lessonPath(lesson.slug), 0.8)),
     entry("/practice", 0.8, "weekly"),
     ...EXERCISES.map((exercise) => entry(exercisePath(exercise.id), 0.7)),
+    entry("/metronome", 0.8),
     entry("/symbols", 0.8),
     ...SYMBOL_CATEGORIES.map((category) => entry(symbolCategoryPath(category.id), 0.7)),
     entry("/glossary", 0.7, "weekly"),

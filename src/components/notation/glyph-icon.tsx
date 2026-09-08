@@ -2,11 +2,7 @@ import { SMUFL } from "@/data/smufl-codepoints";
 import { GLYPH_BBOX, GLYPH_ADVANCE } from "@/data/smufl-bbox";
 import { Glyph } from "./glyph";
 
-/**
- * Caja de tinta de uno o varios glifos dibujados seguidos. Cada glifo empieza
- * donde lo dejó el anterior (su avance), así que la caja total va del borde
- * izquierdo del primero al derecho del último, y de la cima más alta a la más baja.
- */
+/** Ink box of several glyphs in a row, each starting after the previous one's advance. */
 function composeBox(names: string[]): [number, number, number, number] | null {
   let pen = 0;
   let left = Infinity;
@@ -27,15 +23,9 @@ function composeBox(names: string[]): [number, number, number, number] | null {
 }
 
 /**
- * Un glifo SMuFL recortado a su dibujo real.
- *
- * Los glifos SMuFL se apoyan en una línea base situada en el centro del
- * pentagrama, y cada uno sobresale de forma muy distinta: la clave de sol mide
- * 1,76 em de alto y un staccato 0,08. Al colocarlos como texto se centra la caja
- * de la línea, no el dibujo, y por eso quedaban descolocados. Aquí el viewBox es
- * la caja de tinta medida en `smufl-bbox.ts`, así que el dibujo queda centrado.
- *
- * Para símbolos dentro de un texto corrido usa `Glyph`, que respeta la línea base.
+ * A SMuFL glyph cropped to its actual drawing (viewBox = ink box measured in
+ * `smufl-bbox.ts`), instead of centered on the text baseline. Use `Glyph` for
+ * inline text.
  */
 export function GlyphIcon({
   name,
@@ -46,26 +36,19 @@ export function GlyphIcon({
   color,
 }: {
   name: string | string[];
-  /** Con fit="box", el lado del cuadro; con fit="em", el tamaño de una em. En píxeles. */
+  /** Box side (fit="box") or size of one em (fit="em"), in pixels. */
   size?: number;
-  /**
-   * `box`: el glifo llena un cuadro de `size`×`size`. Todos los iconos pesan
-   * lo mismo, que es lo que se quiere en insignias y navegación.
-   *
-   * `em`: el elemento mide exactamente lo que el dibujo, a su escala real.
-   * Conserva las proporciones de la notación —una clave de sol es más alta que
-   * una de fa— y es lo correcto al comparar símbolos entre sí.
-   */
+  /** "box": same size for every icon. "em": keeps the glyph's real proportions. */
   fit?: "box" | "em";
   className?: string;
-  /** Texto accesible; si se omite, el icono es decorativo */
+  /** Accessible label; the icon is decorative if omitted. */
   label?: string;
   color?: string;
 }) {
   const names = Array.isArray(name) ? name : [name];
   const char = names.map((n) => SMUFL[n] ?? "").join("");
   const box = composeBox(names);
-  // Glifo aún no medido: se cae al render de texto en lugar de no dibujar nada.
+  // glyph not measured yet: fall back to text rendering
   if (!char || !box) return <Glyph name={name} size={size} className={className} label={label} color={color} />;
 
   const [x, y, w, h] = box;

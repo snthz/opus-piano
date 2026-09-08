@@ -36,7 +36,9 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // `close` no burbujea en el DOM, pero React sí lo propaga por su árbol:
+      // sin comprobar el destino, un diálogo anidado cerraría también a este.
+      onClose={(e) => e.target === e.currentTarget && onClose()}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       aria-label={title}
       className={`modal ${className}`}

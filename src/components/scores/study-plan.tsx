@@ -6,6 +6,17 @@ import { useAuth } from "@/lib/auth";
 import { openAuthModal } from "@/lib/auth-modal";
 import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/jobs";
 import { askTeacher, generatePlan, planService, type PlanService } from "@/lib/plan/client";
+import {
+  dayKey,
+  defaultSchedule,
+  describeSchedule,
+  parseDay,
+  planSessions,
+  scheduleSchema,
+  WEEKDAY_LETTERS,
+  WEEKDAY_NAMES,
+  type Schedule,
+} from "@/lib/agenda";
 import { EXERCISES } from "@/data/exercises";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { exercisePath, lessonPath } from "@/lib/routes";
@@ -22,11 +33,11 @@ import { useParsedXml } from "./use-score-player";
 
 interface Props {
   record: ScoreRecord;
-  /** MusicXML de la pieza (el archivo, o el vinculado a un PDF) */
+  /** MusicXML of the piece (the file itself, or the one linked to a PDF). */
   xml?: Blob;
-  /** PDF de la pieza: sus páginas se envían como imágenes */
+  /** PDF of the piece: its pages are sent as images. */
   pdf?: Blob;
-  /** Avisa al padre para que su copia del registro tenga el plan al día */
+  /** Notifies the parent so its copy of the record has the up-to-date plan. */
   onPlanChange?: (plan: PlanState | undefined) => void;
 }
 
@@ -48,11 +59,10 @@ function readPrefs(): FormPrefs {
 }
 
 /**
- * Plan de estudio de una partitura hecho con IA: análisis, qué saber antes,
- * objetivos por compases con digitaciones, rutina y un chat con el profesor.
- * Lo prepara el servidor con su propia clave de API —el alumno no paga ni
- * configura nada, solo hace falta cuenta— y se guarda con la partitura (y en
- * la cuenta).
+ * AI-made study plan for a score: analysis, prerequisites, measure-by-measure
+ * goals with fingerings, a routine, and a chat with the teacher. The server
+ * prepares it with its own API key — the student pays and configures
+ * nothing, just needs an account — and it's saved with the score (and the account).
  */
 export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
   const { user } = useAuth();
@@ -63,14 +73,14 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
   const running = job?.status === "running" ? job : null;
   const error = job?.status === "error" ? job.error : null;
   const [state, setState] = useState<PlanState | undefined>(record.plan);
-  /** Rehacer un plan que ya existe se pide en un modal; sin plan, el formulario va en el propio panel. */
+  /** Redoing an existing plan is asked in a modal; with no plan, the form lives in the panel itself. */
   const [formOpen, setFormOpen] = useState(false);
-  // El panel solo se monta tras una acción del usuario, así que el almacenamiento ya está disponible.
+  // this panel only mounts after a user action, so storage is already available
   const [prefs, setPrefs] = useState<FormPrefs>(readPrefs);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // El plan generado llega por el registro: lo aplica la biblioteca cuando la
-  // tarea acaba, esté este panel abierto o no. Al cambiar, se enseña.
+  // the generated plan arrives via the record: the library applies it when the
+  // task finishes, whether this panel is open or not; shown here on change
   const [seenPlan, setSeenPlan] = useState(record.plan);
   if (record.plan !== seenPlan) {
     setSeenPlan(record.plan);
@@ -78,7 +88,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
     if (record.plan) setFormOpen(false);
   }
 
-  // Un fallo ya visto deja de reclamar atención en el lector al cerrar el panel.
+  // an already-seen error stops flagging the reader once the panel closes
   useEffect(
     () => () => {
       if (getJob("plan", record.id)?.status === "error") dismissJob("plan", record.id);
@@ -86,7 +96,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
     [record.id],
   );
 
-  // Sin clave de API en el servidor no hay profesor, y eso no se sabe hasta preguntarle.
+  // no server API key means no teacher, and there's no way to know until asking
   useEffect(() => {
     let alive = true;
     void planService().then((s) => {
@@ -98,7 +108,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
   }, []);
 
   const ready = !!service?.enabled && !!user;
-  /** Con un MusicXML a medio leer, el profesor vería la pieza a medias. */
+  /** With a half-parsed MusicXML, the teacher would see half the piece. */
   const waitingXml = !!xml && !parsed;
 
   const save = async (next: PlanState | undefined) => {
@@ -112,10 +122,10 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     } catch {
-      /* sin almacenamiento */
+      /* no storage available */
     }
-    // El formulario solo recoge los datos: el avance se sigue desde el panel,
-    // que es lo que queda si se cierra todo.
+    // the form only collects data; progress is tracked from the panel, which
+    // is what remains if everything else closes
     setFormOpen(false);
     if (job?.status === "error") dismissJob("plan", record.id);
     startJob(
@@ -136,7 +146,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           onProgress: (progress) => report({ progress }),
           signal,
         });
-        // Se guarda aquí y no en el panel, que puede estar cerrado cuando acabe.
+        // saved here, not in the panel, which may be closed when this finishes
         await updateScorePlan(record.id, next);
         return next;
       },
@@ -157,11 +167,15 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
     await save(undefined);
   };
 
+  const setSchedule = (schedule: Schedule | undefined) => {
+    if (!state) return;
+    void save({ ...state, schedule });
+  };
+
   /**
-   * El formulario, igual dentro del panel (primer plan) que en el modal
-   * (rehacer). Antes del formulario hay dos cosas que pueden faltar: que el
-   * servidor tenga configurado el profesor y que haya una cuenta con la que
-   * contar los planes.
+   * The form, the same in the panel (first plan) or the modal (redo).
+   * Before it, two things can be missing: the server having the teacher
+   * configured, and an account to count plans against.
    */
   const form = (inModal: boolean) =>
     service === null ? (
@@ -297,6 +311,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           <PlanView
             state={state}
             onToggle={toggleGoal}
+            onSchedule={setSchedule}
             action={
               !running && (
                 <button type="button" onClick={() => setFormOpen(true)} className="pill text-xs py-1.5 shrink-0">
@@ -354,9 +369,19 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
   );
 }
 
-/* ---------- El plan ---------- */
+/* ---------- The plan ---------- */
 
-function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id: string) => void; action?: React.ReactNode }) {
+function PlanView({
+  state,
+  onToggle,
+  onSchedule,
+  action,
+}: {
+  state: PlanState;
+  onToggle: (id: string) => void;
+  onSchedule: (schedule: Schedule | undefined) => void;
+  action?: React.ReactNode;
+}) {
   const { plan, progress } = state;
   const done = plan.goals.filter((g) => progress[g.id]).length;
   const pct = plan.goals.length ? Math.round((done / plan.goals.length) * 100) : 0;
@@ -364,8 +389,9 @@ function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id
   const exerciseTitle = (id: string) => EXERCISES.find((e) => e.id === id)?.title ?? id;
 
   return (
-    <div className="space-y-4">
-      <section className="card p-5 space-y-3">
+    <div>
+      {/* header: just enough to recognize the piece; the rest folds, too much to read at once */}
+      <header className="px-1 pb-5 space-y-3">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h3 className="font-bold text-lg leading-tight">{plan.title}</h3>
@@ -379,6 +405,21 @@ function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id
           <span className="pill py-1">Nivel: {plan.analysis.difficulty}</span>
         </div>
         <p className="text-sm text-ink-2">{plan.analysis.character}</p>
+      </header>
+
+      {/* what to do each day: the only section that starts open */}
+      <Fold title="Objetivos" meta={`${done} de ${plan.goals.length} · ${pct}%`} defaultOpen>
+        <div className="h-2 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className="h-full bg-ok transition-all" style={{ width: `${pct}%` }} />
+        </div>
+        <ol className="space-y-3">
+          {plan.goals.map((g, i) => (
+            <GoalItem key={g.id} index={i + 1} goal={g} done={!!progress[g.id]} onToggle={() => onToggle(g.id)} />
+          ))}
+        </ol>
+      </Fold>
+
+      <Fold title="Análisis de la pieza">
         <Field label="Tempo">{plan.analysis.tempo}</Field>
         <Field label="Estructura">{plan.analysis.form}</Field>
         <aside className="card-pastel bg-yellow px-4 py-3 text-sm">
@@ -395,11 +436,10 @@ function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id
             </ul>
           </div>
         )}
-      </section>
+      </Fold>
 
       {plan.prerequisites.length > 0 && (
-        <section className="card p-5 space-y-3">
-          <h3 className="font-bold">Antes de empezar (y mientras estudias)</h3>
+        <Fold title="Antes de empezar (y mientras estudias)" meta={String(plan.prerequisites.length)}>
           <ul className="space-y-3">
             {plan.prerequisites.map((p, i) => (
               <li key={i} className="text-sm">
@@ -422,39 +462,20 @@ function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id
               </li>
             ))}
           </ul>
-        </section>
+        </Fold>
       )}
 
       {plan.warmups.length > 0 && (
-        <section className="card p-5 space-y-2">
-          <h3 className="font-bold">Calentamiento</h3>
+        <Fold title="Calentamiento" meta={String(plan.warmups.length)}>
           <ul className="list-disc pl-5 text-sm text-ink-2 space-y-1">
             {plan.warmups.map((w, i) => (
               <li key={i}>{w}</li>
             ))}
           </ul>
-        </section>
+        </Fold>
       )}
 
-      <section className="card p-5 space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="font-bold">Objetivos</h3>
-            <span className="text-xs text-ink-2 tabular-nums">{done} de {plan.goals.length} · {pct}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full bg-ok transition-all" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <ol className="space-y-3">
-          {plan.goals.map((g, i) => (
-            <GoalItem key={g.id} index={i + 1} goal={g} done={!!progress[g.id]} onToggle={() => onToggle(g.id)} />
-          ))}
-        </ol>
-      </section>
-
-      <section className="card p-5 space-y-3">
-        <h3 className="font-bold">Rutina de estudio</h3>
+      <Fold title="Rutina de estudio" meta={`${plan.routine.weeks} ${plan.routine.weeks === 1 ? "semana" : "semanas"}`}>
         <p className="text-sm text-ink-2">
           Sesiones de unos {plan.routine.sessionMinutes} minutos; el plan completo, unas {plan.routine.weeks} semanas.
         </p>
@@ -469,8 +490,239 @@ function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id
           </ul>
         )}
         <p className="text-sm text-ink-2">{plan.routine.advice}</p>
-      </section>
+        <ScheduleSection state={state} onChange={onSchedule} />
+      </Fold>
     </div>
+  );
+}
+
+/* ---------- Adding the routine to the agenda ---------- */
+
+/** Weekdays in the order they're listed here; `Date.getDay()` starts at Sunday. */
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/**
+ * The plan's routine, put on the calendar: days, time, and start date. From
+ * that, the agenda derives one session per day with the right goal on its
+ * own (see `src/lib/agenda.ts`), so no session is saved here, only the schedule.
+ */
+function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (schedule: Schedule | undefined) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Schedule | null>(null);
+  const schedule = state.schedule;
+
+  const start = () => {
+    setDraft(schedule ?? defaultSchedule(readPrefs().daysPerWeek, state.plan.routine.sessionMinutes));
+    setOpen(true);
+  };
+
+  const doneGoals = state.plan.goals.filter((g) => state.progress[g.id]).map((g) => g.id);
+  /** When falling behind, replanning spreads only what's left over from today on. */
+  const replan = () => {
+    if (!schedule) return;
+    onChange({ ...schedule, startDate: dayKey(new Date()), skip: doneGoals.slice(0, 30) });
+  };
+
+  const sessions = schedule ? planSessions(state.plan, schedule, state.progress) : [];
+  const canReplan = !!schedule && doneGoals.length > 0 && doneGoals.length < state.plan.goals.length;
+
+  return (
+    <>
+      {schedule ? (
+        <div className="card-pastel bg-mint px-4 py-3 space-y-2">
+          <p className="text-sm font-medium">{describeSchedule(schedule)}</p>
+          <p className="text-xs text-ink-2">
+            {sessions.length} {sessions.length === 1 ? "sesión" : "sesiones"} de {schedule.minutes} min
+            {sessions.length > 0 && `, del ${shortDay(sessions[0].day)} al ${shortDay(sessions[sessions.length - 1].day)}`}.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            <Link href="/calendar" className="pill text-xs py-1 bg-surface">
+              Ver en la agenda
+            </Link>
+            <button type="button" onClick={start} className="pill text-xs py-1 bg-surface">
+              Cambiar
+            </button>
+            {canReplan && (
+              <button type="button" onClick={replan} className="pill text-xs py-1 bg-surface">
+                Replanificar desde hoy
+              </button>
+            )}
+            <button type="button" onClick={() => onChange(undefined)} className="pill text-xs py-1 bg-surface text-bad">
+              Quitar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="card-pastel bg-mint px-4 py-3 space-y-2">
+          <p className="text-sm">
+            <strong>Ponla en tu agenda.</strong> Eliges los días y la hora, y la agenda te dice cada día qué objetivo toca y cómo repartir la
+            sesión.
+          </p>
+          <button type="button" onClick={start} className="pill text-xs py-1 bg-surface">
+            Añadir a mi agenda
+          </button>
+        </div>
+      )}
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Añadir a la agenda" subtitle={state.plan.title}>
+        {draft && (
+          <ScheduleForm
+            state={state}
+            draft={draft}
+            onDraft={setDraft}
+            onSave={() => {
+              onChange(draft);
+              setOpen(false);
+            }}
+            onCancel={() => setOpen(false)}
+          />
+        )}
+      </Modal>
+    </>
+  );
+}
+
+const shortDay = (key: string) => parseDay(key).toLocaleDateString("es", { day: "numeric", month: "short" });
+
+function ScheduleForm({
+  state,
+  draft,
+  onDraft,
+  onSave,
+  onCancel,
+}: {
+  state: PlanState;
+  draft: Schedule;
+  onDraft: (s: Schedule) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const valid = scheduleSchema.safeParse(draft).success;
+  // a half-filled draft (no days checked, empty time) has no spread to show
+  const sessions = valid ? planSessions(state.plan, draft, state.progress) : [];
+
+  const toggleDay = (d: number) => {
+    const weekdays = draft.weekdays.includes(d) ? draft.weekdays.filter((x) => x !== d) : [...draft.weekdays, d];
+    onDraft({ ...draft, weekdays });
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valid) onSave();
+      }}
+      className="space-y-4"
+    >
+      <fieldset className="space-y-1.5">
+        <legend className="text-sm font-medium mb-1.5">¿Qué días estudias?</legend>
+        <div className="flex gap-1.5">
+          {WEEK_ORDER.map((d) => {
+            const on = draft.weekdays.includes(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                aria-pressed={on}
+                aria-label={WEEKDAY_NAMES[d]}
+                className={`pill flex-1 justify-center py-2 px-0 text-sm ${on ? "pill-active" : ""}`}
+              >
+                {WEEKDAY_LETTERS[d]}
+              </button>
+            );
+          })}
+        </div>
+        {draft.weekdays.length === 0 && <p className="text-xs text-bad">Marca al menos un día.</p>}
+      </fieldset>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">A qué hora</span>
+          <input
+            type="time"
+            value={draft.time}
+            onChange={(e) => onDraft({ ...draft, time: e.target.value })}
+            className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">Minutos por sesión</span>
+          <input
+            type="number"
+            min={5}
+            max={240}
+            value={draft.minutes}
+            onChange={(e) => onDraft({ ...draft, minutes: Math.max(5, Math.min(240, Number(e.target.value) || 0)) })}
+            className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </label>
+      </div>
+
+      <label className="block space-y-1">
+        <span className="text-sm font-medium">Empezar el</span>
+        <input
+          type="date"
+          value={draft.startDate}
+          onChange={(e) => onDraft({ ...draft, startDate: e.target.value })}
+          className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+        />
+      </label>
+
+      <div className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2 space-y-1">
+        <p className="font-medium text-ink">Cómo queda</p>
+        {sessions.length > 0 ? (
+          <>
+            <p>
+              {sessions.length} {sessions.length === 1 ? "sesión" : "sesiones"}, del {shortDay(sessions[0].day)} al{" "}
+              {shortDay(sessions[sessions.length - 1].day)}.
+            </p>
+            <p>Primera: {sessions[0].goal.title}.</p>
+          </>
+        ) : (
+          <p>Elige los días y la hora para ver el reparto.</p>
+        )}
+        <p>Las sesiones salen de los objetivos del plan: si los cambias o los vas cumpliendo, la agenda se pone al día sola.</p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button type="submit" disabled={!valid} className="btn-primary text-sm flex-1 disabled:opacity-50">
+          Guardar en la agenda
+        </button>
+        <button type="button" onClick={onCancel} className="pill text-xs py-1.5 shrink-0">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Collapsible plan section. No card: a white card on the white sheet
+ * wouldn't show, so a thin line separates sections instead.
+ */
+function Fold({
+  title,
+  meta,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  /** Summary to the right of the title: a hint of what's inside without opening it. */
+  meta?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="border-t border-line">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full flex items-center gap-3 px-1 py-4 text-left">
+        <h3 className="font-bold flex-1 min-w-0">{title}</h3>
+        {meta && <span className="text-xs text-ink-2 tabular-nums shrink-0">{meta}</span>}
+        <ChevronIcon dir={open ? "up" : "down"} className="w-4 h-4 text-ink-3 shrink-0" />
+      </button>
+      {open && <div className="px-1 pb-5 space-y-3">{children}</div>}
+    </section>
   );
 }
 
@@ -530,7 +782,7 @@ function GoalItem({ index, goal, done, onToggle }: { index: number; goal: Goal; 
   );
 }
 
-/* ---------- Chat con el profesor ---------- */
+/* ---------- Chat with the teacher ---------- */
 
 function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanState; parsed: ReturnType<typeof useParsedXml>["parsed"] }) {
   const { settings } = useSettings();
@@ -586,7 +838,9 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
   const suggestions = ["¿Cómo digito el pasaje más difícil?", "¿Qué escala y arpegio caliento hoy?", "¿Cómo estudio la mano izquierda sola?"];
 
   return (
-    <section className="card p-5 space-y-3">
+    // this one wants a visible card: the rest of the plan is plain text on the
+    // sheet, so the pastel card separates "reading the plan" from "talking to the teacher"
+    <section className="card-pastel bg-blue p-5 space-y-3">
       <div>
         <h3 className="font-bold">Pregunta al profesor</h3>
         <p className="text-xs text-ink-2">Conoce tu plan y la partitura. Pregunta por un compás, una digitación o cómo organizar la sesión de hoy.</p>
@@ -595,7 +849,7 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
       {turns.length > 0 && (
         <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
           {turns.map((t, i) => (
-            <div key={i} className={`text-sm whitespace-pre-wrap rounded-2xl px-3 py-2 ${t.role === "user" ? "bg-accent text-white ml-8" : "bg-surface-2 mr-4"}`}>
+            <div key={i} className={`text-sm whitespace-pre-wrap rounded-2xl px-3 py-2 ${t.role === "user" ? "bg-accent text-bg ml-8" : "bg-surface mr-4"}`}>
               {t.content || <span className="animate-pulse">…</span>}
             </div>
           ))}
@@ -627,7 +881,7 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
           onChange={(e) => setQuestion(e.target.value.slice(0, 2000))}
           placeholder="Escribe tu pregunta…"
           disabled={busy}
-          className="flex-1 min-w-0 rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
+          className="flex-1 min-w-0 rounded-2xl px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
         />
         {busy ? (
           <button type="button" onClick={() => abort.current?.abort()} className="pill text-xs py-1.5 shrink-0">

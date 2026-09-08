@@ -1,12 +1,7 @@
 /**
- * Lector de un flujo de líneas JSON (NDJSON), que es como `/api/omr` va
- * contando por dónde va el reconocimiento sin dejar la petición muda durante
- * minutos.
- *
- * Los trozos que llegan no coinciden con las líneas: una línea puede venir
- * partida en dos lecturas y dos líneas juntas en una. Por eso se acumula en un
- * buffer y solo se entrega lo que ya tiene su salto de línea, más lo que quede
- * suelto al cerrarse el flujo.
+ * Reads NDJSON from a stream line by line. Chunks don't align with lines (one
+ * line can arrive split across reads), so they're buffered and only handed
+ * off once a newline shows up.
  */
 export async function readNdjson(body: ReadableStream<Uint8Array>, onLine: (value: Record<string, unknown>) => void): Promise<void> {
   const reader = body.getReader();
@@ -19,8 +14,7 @@ export async function readNdjson(body: ReadableStream<Uint8Array>, onLine: (valu
       const value = JSON.parse(line) as unknown;
       if (value && typeof value === "object") onLine(value as Record<string, unknown>);
     } catch {
-      // Una línea a medias o basura por el camino no tira el reconocimiento:
-      // lo que importa es la última, y si nunca llega ya se avisa aparte.
+      // a half line or junk in transit: ignored, reported separately if the last one never arrives
     }
   };
 

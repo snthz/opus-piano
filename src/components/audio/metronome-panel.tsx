@@ -14,9 +14,9 @@ const MAX_BPM = 240;
 const clampBpm = (v: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(v)));
 
 /**
- * Figura del pulso según lo que dura en negras, en glifos de la fuente musical:
- * corchea, negra o negra con puntillo. Dibujada con Bravura y no con el carácter
- * «♩», que cada tipografía resuelve a su manera y sale desvaído.
+ * Beat note value by its duration in quarter notes, as music-font glyphs:
+ * eighth, quarter, or dotted quarter. Drawn with Bravura instead of the "♩"
+ * character, which every typeface renders differently and looks washed out.
  */
 const PULSE_GLYPH: Record<number, { names: string[]; label: string }> = {
   0.5: { names: ["note8thUp"], label: "corchea" },
@@ -27,16 +27,16 @@ const PULSE_GLYPH: Record<number, { names: string[]; label: string }> = {
 interface Meter {
   id: string;
   label: string;
-  /** Pulsos por compás; 0 = sin acento, todos los clics suenan igual. */
+  /** Beats per bar; 0 = no accent, every click sounds the same. */
   beats: number;
-  /** Patrón de acentos, uno por pulso: 1 fuerte, 0.5 semifuerte, 0 débil. */
+  /** Accent pattern, one per beat: 1 strong, 0.5 medium, 0 weak. */
   accents: number[];
-  /** Figura del pulso, para el «negra = 90» de la cabecera. */
+  /** Beat note value, for the header's "quarter = 90". */
   pulse: { names: string[]; label: string };
   hint: string;
 }
 
-/** Compases del selector. Los datos (pulsos y acentos) salen de `meter.ts`. */
+/** Time signatures for the picker. Beat/accent data comes from `meter.ts`. */
 const METERS: Meter[] = [
   {
     id: "free",
@@ -73,11 +73,10 @@ const SUBDIVISIONS = [
 ];
 
 /**
- * Aires italianos, de más lento a más rápido. Los tratados no se ponen de
- * acuerdo en las cifras exactas —y en el siglo XVIII un allegro era más lento
- * que hoy—, así que los tramos van seguidos y sin solaparse: así cualquier
- * tempo cae en un aire y solo en uno, y el nombre acompaña al número mientras
- * se mueve la barra.
+ * Italian tempo marks, slowest to fastest. Treatises don't agree on exact
+ * figures (an 18th-century allegro was slower than today's), so ranges are
+ * contiguous and non-overlapping: any tempo falls in exactly one mark, and
+ * the name follows the number as the slider moves.
  */
 const TEMPO_MARKS: TempoMark[] = [
   { id: "grave", label: "Grave", min: MIN_BPM, max: 44, bpm: 40, hint: "Muy lento y solemne." },
@@ -94,16 +93,16 @@ const TEMPO_MARKS: TempoMark[] = [
   { id: "prestissimo", label: "Prestissimo", min: 200, max: MAX_BPM, bpm: 208, hint: "Lo más rápido posible." },
 ];
 
-/** El aire en el que cae un tempo. Los tramos son continuos, así que siempre hay uno. */
+/** The tempo mark a bpm falls into. Ranges are contiguous, so there's always one. */
 function tempoMark(bpm: number): TempoMark {
   return TEMPO_MARKS.find((m) => bpm <= m.max) ?? TEMPO_MARKS[TEMPO_MARKS.length - 1];
 }
 
 /**
- * Metrónomo completo: tempo, compás y subdivisión, con el pulso a la vista.
- * El motor (`Metronome`) planifica los clics con antelación sobre el reloj del
- * audio, así que el tempo no se desvía aunque la pestaña vaya justa de trabajo.
- * Con el sonido apagado en Ajustes sigue funcionando, pero solo en visual.
+ * Full metronome: tempo, time signature, and subdivision, with the beat on
+ * screen. The `Metronome` engine schedules clicks ahead on the audio clock,
+ * so tempo doesn't drift even if the tab is busy. Still works visually-only
+ * with sound off in Settings.
  */
 export function MetronomePanel() {
   const { settings } = useSettings();
@@ -113,8 +112,8 @@ export function MetronomePanel() {
   const [running, setRunning] = useState(false);
   const [beat, setBeat] = useState(-1);
   const [sub, setSub] = useState(0);
-  // Cambia en cada pulso: reinicia la animación del punto (con `key`), que en
-  // el compás libre siempre es el mismo y si no se quedaría encendido.
+  // changes on every beat: resets the dot's animation (via `key`), since in
+  // free meter it's always the same dot and would otherwise stay lit
   const [pulse, setPulse] = useState(0);
   const [bars, setBars] = useState(0);
   const metro = useRef<Metronome | null>(null);
@@ -126,8 +125,8 @@ export function MetronomePanel() {
 
   useEffect(() => () => metro.current?.stop(), []);
 
-  // El motor sigue vivo entre cambios: se le pasan los ajustes nuevos y los
-  // aplica en el siguiente pulso, sin cortar el que está sonando.
+  // the engine stays alive across changes: new settings apply on the next
+  // beat without cutting off the one currently sounding
   useEffect(() => {
     metro.current?.update({ bpm, beatsPerBar: meter.beats, subdivision, muted });
   }, [bpm, meter.beats, subdivision, muted]);
@@ -140,7 +139,7 @@ export function MetronomePanel() {
   }, []);
 
   const start = useCallback(async () => {
-    // Desde el gesto del usuario: iOS no deja sonar nada hasta que se desbloquea.
+    // from a user gesture: iOS won't play anything until unlocked
     await unlockAudio();
     metro.current?.stop();
     setBars(0);
@@ -166,7 +165,7 @@ export function MetronomePanel() {
     else void start();
   }, [running, start, stop]);
 
-  /** Tempo al toque: la media de los últimos golpes. Más de 2,5 s de pausa empieza de cero. */
+  /** Tap tempo: average of the last taps. A pause over 2.5s starts over. */
   const tapTempo = useCallback(() => {
     const now = performance.now();
     const last = taps.current.at(-1);
@@ -180,8 +179,8 @@ export function MetronomePanel() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Con el foco en un control manda el navegador: si no, la barra
-      // espaciadora pulsaría el botón y además dispararía este atajo.
+      // with focus on a control, let the browser handle it; otherwise Space
+      // would both click the button and trigger this shortcut
       if ((e.target as HTMLElement | null)?.closest("button, input, select, textarea, a")) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.code === "Space") {
@@ -210,14 +209,13 @@ export function MetronomePanel() {
           <span className="text-7xl md:text-8xl font-bold tabular-nums leading-none tracking-tight">{bpm}</span>
         </div>
 
-        {/* El aire va en un selector: se lee el nombre del tempo que hay puesto
-            o se elige uno y el metrónomo salta a su velocidad. */}
+        {/* the tempo mark is a picker: shows the current mark's name, or pick one to jump to its speed */}
         <div className="mt-5 flex flex-col items-center gap-2">
           <TempoPicker marks={TEMPO_MARKS} value={mark.id} onChange={(m) => setBpm(m.bpm)} />
           <p className="text-sm text-ink-2 text-center">{mark.hint}</p>
         </div>
 
-        {/* Pulso a la vista: un punto por tiempo del compás, el fuerte más grande. */}
+        {/* beat on screen: one dot per bar beat, the strong one bigger */}
         <div className="mt-8 flex items-end justify-center gap-3 md:gap-4">
           {meter.accents.map((accent, i) => {
             const active = running && (meter.beats === 0 || beat === i);
@@ -225,8 +223,8 @@ export function MetronomePanel() {
             return (
               <div key={i} className="flex flex-col items-center gap-2">
                 <span
-                  // key={pulse}: reinicia el rebote en cada pulso, también cuando
-                  // el punto activo es siempre el mismo (compás libre).
+                  // key={pulse}: restarts the bounce every beat, even when the
+                  // active dot is always the same one (free meter)
                   key={active ? pulse : "off"}
                   style={{ width: size, height: size, animation: active ? "beat-pop 0.16s ease-out" : undefined }}
                   className={`rounded-full transition-colors duration-75 ${
@@ -373,18 +371,15 @@ export function MetronomePanel() {
   );
 }
 
-/** Espera antes de que el botón empiece a repetir, y ritmo de la repetición. */
+/** Delay before the button starts repeating, and the repeat rate. */
 const HOLD_DELAY = 420;
 const HOLD_STEP = 90;
 
-/**
- * Botón de −/+ que se puede mantener pulsado: llegar de 90 a 144 de uno en uno
- * son cincuenta y cuatro toques, y con el dedo apoyado es uno solo.
- */
+/** A −/+ button that can be held down: going from 90 to 144 one step at a time is 54 taps; holding it is one. */
 function StepButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
   const timers = useRef<{ delay?: number; tick?: number }>({});
-  // El teclado no dispara eventos de puntero: sin esta marca, el `click` que
-  // sigue al toque repetiría el paso una vez de más.
+  // the keyboard doesn't fire pointer events; without this flag, the `click`
+  // that follows a tap would repeat the step once more
   const byPointer = useRef(false);
 
   const clear = () => {

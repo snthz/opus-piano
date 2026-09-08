@@ -6,11 +6,10 @@ import type { OmrOutcome } from "@/lib/omr/client";
 import { isAbort, UserError } from "@/lib/user-error";
 
 /**
- * Tareas largas de una partitura que corren en segundo plano: el plan de
- * estudio y el reconocimiento de la partitura (OMR). Viven fuera de React para
- * que cerrar el panel, o el lector entero, no las interrumpa: el usuario sigue
- * leyendo la partitura y un anillo de progreso le dice por dónde va. Hay como
- * mucho una tarea de cada tipo por partitura; empezar otra cancela la anterior.
+ * Long-running tasks for a score that run in the background: the study plan
+ * and score recognition (OMR). Live outside React so closing the panel, or
+ * the whole reader, doesn't interrupt them. At most one task per type per
+ * score; starting another cancels the previous one.
  */
 export type JobKind = "omr" | "plan";
 
@@ -23,9 +22,9 @@ interface JobBase<K extends JobKind> {
   kind: K;
   scoreId: string;
   scoreName: string;
-  /** Qué está haciendo ahora mismo, para enseñarlo junto al anillo */
+  /** What it's doing right now, shown next to the progress ring. */
   label: string;
-  /** Fracción hecha (0 a 1), o null cuando no se puede saber (esperando al modelo) */
+  /** Fraction done (0-1), or null when unknowable (waiting on the model). */
   progress: number | null;
   startedAt: number;
 }
@@ -35,12 +34,12 @@ type JobOf<K extends JobKind> =
   | (JobBase<K> & { status: "done"; result: JobResult[K] })
   | (JobBase<K> & { status: "error"; error: string });
 
-/** Distributiva: `Job` a secas es la unión de los dos tipos, discriminada por `kind`. */
+/** Distributive: plain `Job` is the union of both types, discriminated by `kind`. */
 export type Job<K extends JobKind = JobKind> = K extends JobKind ? JobOf<K> : never;
 
 export interface JobContext {
   signal: AbortSignal;
-  /** Actualiza el texto y/o el progreso; lo que no se pasa se conserva */
+  /** Updates the text and/or progress; whatever isn't passed stays as-is. */
   report: (update: { label?: string; progress?: number | null }) => void;
 }
 
@@ -48,7 +47,7 @@ const keyOf = (kind: JobKind, scoreId: string) => `${kind}:${scoreId}`;
 
 const jobs = new Map<string, Job>();
 const listeners = new Set<() => void>();
-/** Instantánea inmutable para useSyncExternalStore: se sustituye en cada cambio. */
+/** Immutable snapshot for useSyncExternalStore: replaced on every change. */
 let snapshot: readonly Job[] = [];
 const EMPTY: readonly Job[] = [];
 
@@ -75,10 +74,9 @@ function set<K extends JobKind>(job: JobOf<K>) {
 export const getJob = <K extends JobKind>(kind: K, scoreId: string) => jobs.get(keyOf(kind, scoreId)) as Job<K> | undefined;
 
 /**
- * Lanza una tarea. `run` recibe la señal de cancelación y una función para
- * informar del avance; su resultado queda guardado hasta que se descarta.
- * Cancelarla la quita de la lista sin más; un error se conserva para que el
- * usuario lo vea aunque tuviera el panel cerrado.
+ * Starts a task. `run` gets the cancel signal and a way to report progress;
+ * its result is kept until dismissed. Cancelling just removes it from the
+ * list; an error is kept so the user sees it even with the panel closed.
  */
 export function startJob<K extends JobKind>(
   kind: K,
@@ -91,7 +89,7 @@ export function startJob<K extends JobKind>(
   const base: JobBase<K> = { kind, scoreId: score.id, scoreName: score.name, label: "Empezando…", progress: 0, startedAt: Date.now() };
   const key = keyOf(kind, score.id);
   const current = () => jobs.get(key) as JobOf<K> | undefined;
-  // Solo esta ejecución puede tocar su entrada: si otra la sustituyó, se calla.
+  // only this run may touch its entry; stays quiet if another one replaced it
   const mine = () => {
     const j = current();
     return j?.status === "running" && j.abort === abort;
@@ -116,13 +114,13 @@ export function startJob<K extends JobKind>(
         emit();
         return;
       }
-      // Solo los errores pensados para el usuario se enseñan tal cual.
+      // only errors meant for the user are shown as-is
       const error = e instanceof UserError ? e.message : fallbackError;
       set<K>({ ...base, status: "error", label: "Ha fallado", progress: null, error });
     });
 }
 
-/** Cancela la tarea si sigue en marcha; desaparece de la lista. */
+/** Cancels the task if still running; removes it from the list. */
 export function cancelJob(kind: JobKind, scoreId: string) {
   const j = jobs.get(keyOf(kind, scoreId));
   if (!j) return;
@@ -131,7 +129,7 @@ export function cancelJob(kind: JobKind, scoreId: string) {
   emit();
 }
 
-/** Quita un resultado o un error ya atendidos. No toca una tarea en marcha. */
+/** Removes an already-seen result or error. Doesn't touch a running task. */
 export function dismissJob(kind: JobKind, scoreId: string) {
   const j = jobs.get(keyOf(kind, scoreId));
   if (!j || j.status === "running") return;
@@ -140,8 +138,8 @@ export function dismissJob(kind: JobKind, scoreId: string) {
 }
 
 /**
- * Suscripción fuera de un hook: avisa al momento con lo que hay (por si una
- * tarea acabó mientras quien escucha no estaba montado) y en cada cambio.
+ * Subscription outside a hook: notifies immediately with what's there (in
+ * case a task finished while the listener wasn't mounted) and on every change.
  */
 export function onJobsChange(listener: (all: readonly Job[]) => void): () => void {
   const l = () => listener(snapshot);
@@ -150,18 +148,18 @@ export function onJobsChange(listener: (all: readonly Job[]) => void): () => voi
   return off;
 }
 
-/** Todas las tareas (en marcha, listas o fallidas). */
+/** All tasks (running, done, or failed). */
 export function useJobs(): readonly Job[] {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/** La tarea de un tipo para una partitura, si existe. */
+/** The task of one type for a score, if any. */
 export function useJob<K extends JobKind>(kind: K, scoreId: string): Job<K> | undefined {
   const all = useJobs();
   return all.find((j) => j.kind === kind && j.scoreId === scoreId) as Job<K> | undefined;
 }
 
-// Con una tarea en marcha, cerrar la pestaña la perdería (y el gasto en el proveedor con ella).
+// closing the tab with a task running would lose it (and the provider spend with it)
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", (e) => {
     if (snapshot.some((j) => j.status === "running")) e.preventDefault();

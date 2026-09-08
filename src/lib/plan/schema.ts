@@ -1,10 +1,8 @@
 /**
- * Esquema neutro para pedirle JSON estructurado al modelo.
- *
- * Se describe una vez con estos ayudantes y `toJsonSchema` lo emite en la
- * variante que admite la API de Anthropic (`anyOf` para «o null», objetos
- * cerrados y con todas las propiedades obligatorias, que es lo que exige el
- * modo estricto).
+ * Neutral schema for requesting structured JSON from the model. Described
+ * once with these helpers; `toJsonSchema` emits the variant Anthropic's API
+ * accepts (`anyOf` for "or null", closed objects with every property
+ * required, as strict mode demands).
  */
 
 export type SchemaNode =
@@ -36,7 +34,7 @@ export function toJsonSchema(node: SchemaNode): Record<string, unknown> {
       return { type: "object", additionalProperties: false, properties, required: Object.keys(node.properties) };
     }
     case "nullable":
-      // Anthropic no admite tipos en array como ["string","null"].
+      // Anthropic doesn't accept array types like ["string","null"]
       return { anyOf: [toJsonSchema(node.inner), { type: "null" }], ...desc(node.description) };
   }
 }

@@ -2,9 +2,9 @@ import Link from "next/link";
 import { LOGO_MARK_PATH, LOGO_MARK_VIEWBOX } from "@/lib/brand";
 
 /**
- * Logotipo: la «O» con teclas de `@/lib/brand`. Se dibuja con `currentColor`
- * y los huecos son transparentes, así funciona sobre cualquier fondo y en
- * modo oscuro sin variantes.
+ * Logo mark: the "O" with keys from `@/lib/brand`. Drawn with `currentColor`
+ * and transparent gaps, so it works on any background and in dark mode
+ * without variants.
  */
 export function LogoMark({ className = "w-7 h-7" }: { className?: string }) {
   return (
@@ -14,7 +14,7 @@ export function LogoMark({ className = "w-7 h-7" }: { className?: string }) {
   );
 }
 
-/** Marca completa: nombre en negrita seguido del logotipo. Enlaza a la portada. */
+/** Full wordmark: bold name followed by the logo mark. Links to home. */
 export function Logo({ className = "" }: { className?: string }) {
   return (
     <Link
@@ -23,7 +23,7 @@ export function Logo({ className = "" }: { className?: string }) {
       className={`inline-flex items-center gap-1.5 md:gap-2 text-ink shrink-0 ${className}`}
     >
       <span className="font-bold tracking-tight text-[22px] md:text-2xl leading-none">Opus Piano</span>
-      {/* Un pelín más grande que la altura de las mayúsculas y bajado 1 px: así el disco se ve centrado con el texto. */}
+      {/* slightly taller than cap height and nudged down 1px so the disc looks centered with the text */}
       <LogoMark className="w-6 h-6 md:w-7 md:h-7 translate-y-px" />
     </Link>
   );

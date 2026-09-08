@@ -4,32 +4,32 @@ import { useSyncExternalStore } from "react";
 import { getUser, onAuthChange } from "@/lib/auth";
 
 /**
- * Progreso de los ejercicios.
+ * Exercise progress.
  *
- * El dispositivo lleva una copia en localStorage para responder al instante y
- * funcionar sin conexión. Cada respuesta se guarda en local y se encola; si hay
- * una sesión iniciada, la cola se envía al servidor (Postgres) cuando hay red y
- * lo que devuelve el servidor pasa a ser la copia local. Así todos los
- * dispositivos de la misma cuenta ven lo mismo. Sin cuenta, todo queda en local
- * y se sube en cuanto el usuario inicia sesión.
+ * The device keeps a localStorage copy for instant responses and offline
+ * use. Every answer is saved locally and queued; if signed in, the queue is
+ * sent to the server (Postgres) once there's network, and the server's
+ * response becomes the local copy — so every device on the account sees the
+ * same thing. Without an account, everything stays local and uploads as soon
+ * as the user signs in.
  */
 export interface ExerciseProgress {
   attempts: number;
   correct: number;
   bestStreak: number;
   lastPlayed: string;
-  /** Actividad por día: "2026-09-04" → { attempts, correct } */
+  /** Activity by day: "2026-09-04" → { attempts, correct }. */
   days: Record<string, { attempts: number; correct: number }>;
 }
 
 export type ProgressMap = Record<string, ExerciseProgress>;
 
 export interface SyncState {
-  /** null = nunca; ISO de la última sincronización correcta */
+  /** null = never; ISO timestamp of the last successful sync. */
   lastSync: string | null;
-  /** false = sin cuenta: el progreso solo está en este dispositivo */
+  /** false = no account: progress lives only on this device. */
   account: boolean;
-  /** Respuestas pendientes de enviar */
+  /** Answers pending upload. */
   pending: number;
   error: string | null;
   busy: boolean;
@@ -67,7 +67,7 @@ function writeJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* sin almacenamiento */
+    /* no storage available */
   }
 }
 
@@ -130,12 +130,12 @@ export function recordAnswer(exerciseId: string, correct: boolean, streak: numbe
   writeJson(QUEUE_KEY, q);
   setSync({ pending: q.length });
 
-  // Se agrupan respuestas seguidas en un solo envío.
+  // batches consecutive answers into a single upload
   if (flushTimer) window.clearTimeout(flushTimer);
   flushTimer = window.setTimeout(() => void flushQueue(), 1500);
 }
 
-/** Envía la cola al servidor y adopta lo que devuelve. Silencioso si no hay red o no hay cuenta. */
+/** Sends the queue to the server and adopts its response. Silent if offline or signed out. */
 export async function flushQueue(): Promise<boolean> {
   if (typeof navigator !== "undefined" && !navigator.onLine) return false;
   if (!getUser()) {
@@ -154,7 +154,7 @@ export async function flushQueue(): Promise<boolean> {
     if (res.status === 401) throw new Error("La sesión ha caducado");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const map = (await res.json()) as ProgressMap;
-    // Solo se vacía lo que se envió: lo que llegue mientras tanto sigue en cola.
+    // only clears what was sent; anything queued in the meantime stays
     const remaining = queue().slice(answers.length);
     writeJson(QUEUE_KEY, remaining);
     write(map);
@@ -166,7 +166,7 @@ export async function flushQueue(): Promise<boolean> {
   }
 }
 
-/** Al arrancar: envía lo pendiente y trae el progreso del servidor. */
+/** On startup: sends what's pending and fetches progress from the server. */
 export async function syncProgress(): Promise<void> {
   if (typeof window === "undefined") return;
   const saved = readJson<{ lastSync: string | null }>(SYNC_KEY, { lastSync: null });
@@ -174,7 +174,7 @@ export async function syncProgress(): Promise<void> {
   await flushQueue();
 }
 
-/** Vacía la copia local sin tocar el servidor (al cerrar sesión, para no mezclar cuentas en un mismo dispositivo). */
+/** Clears the local copy without touching the server (on sign out, so accounts don't mix on one device). */
 export function clearLocalProgress() {
   writeJson(QUEUE_KEY, []);
   write({});
@@ -188,8 +188,8 @@ export async function resetProgress() {
   if (getUser()) await fetch("/api/progress", { method: "DELETE" }).catch(() => {});
 }
 
-// Al iniciar sesión se sube lo hecho sin cuenta y se adopta el progreso del servidor;
-// al cerrarla se limpia la copia local.
+// on sign in, uploads what was done without an account and adopts the server's progress;
+// on sign out, clears the local copy
 if (typeof window !== "undefined") {
   onAuthChange((user) => {
     if (user) void flushQueue();
@@ -206,7 +206,24 @@ export function useSyncState(): SyncState {
   return useSyncExternalStore(subscribe, () => syncState, () => SYNC_SERVER);
 }
 
-/** Resumen global: intentos, aciertos y días distintos con actividad. */
+/** Answers in a day that close the "today" ring. */
+export const DAILY_GOAL = 20;
+
+/** Today so far: answers, hits and accuracy (null until the first answer). */
+export function summarizeToday(p: ProgressMap, day = todayKey()) {
+  let attempts = 0;
+  let correct = 0;
+  for (const ex of Object.values(p)) {
+    const d = ex.days[day];
+    if (d) {
+      attempts += d.attempts;
+      correct += d.correct;
+    }
+  }
+  return { attempts, correct, accuracy: attempts ? Math.round((correct / attempts) * 100) : null };
+}
+
+/** Global summary: attempts, correct answers, and distinct days with activity. */
 export function summarize(p: ProgressMap) {
   let attempts = 0;
   let correct = 0;
@@ -219,7 +236,7 @@ export function summarize(p: ProgressMap) {
   return { attempts, correct, days: days.size, accuracy: attempts ? Math.round((correct / attempts) * 100) : 0 };
 }
 
-/** Racha de días consecutivos (incluyendo hoy o ayer). */
+/** Streak of consecutive days (including today or yesterday). */
 export function dayStreak(p: ProgressMap): number {
   const days = new Set<string>();
   for (const ex of Object.values(p)) for (const d of Object.keys(ex.days)) days.add(d);

@@ -4,24 +4,23 @@ import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
 import { expandRepeats, type ParsedScore } from "@/lib/music/musicxml";
 
 /**
- * Dónde está cada compás en las páginas de un PDF, para que una guía pueda
- * seguir la reproducción del MusicXML vinculado.
+ * Where each measure sits on a PDF's pages, so a playback guide can follow
+ * the linked MusicXML.
  *
- * Se analiza la imagen de cada página: los pentagramas son filas con una línea
- * oscura muy larga, y las barras de compás son columnas oscuras que cruzan el
- * sistema entero (las plicas no llegan a cruzar el hueco entre las dos manos).
- * Con eso se cuentan los compases de cada sistema y se cruzan con los del
- * MusicXML. Si las cuentas no cuadran, los compases se reparten por igual
- * entre los sistemas y la guía es aproximada.
+ * Each page's image is analyzed: staves are rows with a very long dark line,
+ * and barlines are dark columns crossing the whole system (stems don't reach
+ * across the gap between the two hands). That gives a measure count per
+ * system, cross-checked against the MusicXML. If the counts don't match,
+ * measures are spread evenly across systems and the guide is approximate.
  */
 
-/** Todo en coordenadas relativas (0–1) al tamaño de la página. */
+/** Everything in coordinates relative (0-1) to the page size. */
 export interface SystemLayout {
   top: number;
   bottom: number;
   left: number;
   right: number;
-  /** Barras de compás interiores (sin las de los extremos) */
+  /** Interior barlines (excluding the edge ones). */
   barlines: number[];
 }
 
@@ -30,7 +29,7 @@ export interface PageLayout {
 }
 
 export interface MeasureBox {
-  /** Página, empezando en 1 */
+  /** Page, starting at 1. */
   page: number;
   x0: number;
   x1: number;
@@ -39,15 +38,15 @@ export interface MeasureBox {
 }
 
 export interface MeasureMap {
-  /** Una caja por compás impreso */
+  /** One box per printed measure. */
   boxes: MeasureBox[];
-  /** Compás impreso (índice en `boxes`) de cada paso de la reproducción, con las repeticiones desplegadas */
+  /** Printed measure (index into `boxes`) for each playback step, repeats expanded. */
   order: number[];
-  /** Inicio de cada paso en negras */
+  /** Start of each step, in quarter notes. */
   starts: number[];
-  /** Duración de cada paso en negras */
+  /** Duration of each step, in quarter notes. */
   lengths: number[];
-  /** true si el recuento de barras no coincidió con el MusicXML */
+  /** true if the barline count didn't match the MusicXML. */
   approximate: boolean;
 }
 
@@ -76,7 +75,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
     dark[i] = data[o] * 0.299 + data[o + 1] * 0.587 + data[o + 2] * 0.114 < 140 ? 1 : 0;
   }
 
-  // Filas que son línea de pentagrama: una racha oscura continua de al menos un tercio del ancho.
+  // rows that are a staff line: a continuous dark run of at least a third of the width
   const isLineRow = new Uint8Array(H);
   for (let y = 0; y < H; y++) {
     let run = 0;
@@ -87,7 +86,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
     }
     isLineRow[y] = best >= W * 0.33 ? 1 : 0;
   }
-  // Filas contiguas → una línea, con su centro.
+  // adjacent rows → one line, take its center
   const lines: number[] = [];
   for (let y = 0; y < H; y++) {
     if (!isLineRow[y]) continue;
@@ -97,7 +96,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
     y = y1;
   }
 
-  // Cinco líneas equidistantes → un pentagrama.
+  // five equidistant lines → one staff
   const staves: Staff[] = [];
   for (let i = 0; i + 4 < lines.length; ) {
     const sp = lines[i + 1] - lines[i];
@@ -109,7 +108,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
       i++;
       continue;
     }
-    // Extremos horizontales: primera y última columna oscura de cada línea (mediana de las cinco).
+    // horizontal edges: first/last dark column of each line (median of the five)
     const lefts: number[] = [];
     const rights: number[] = [];
     for (let k = 0; k < 5; k++) {
@@ -125,7 +124,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
     i += 5;
   }
 
-  // Pentagramas consecutivos y cercanos → un sistema (dos manos al piano).
+  // consecutive, nearby staves → one system (two hands at the piano)
   const systems: SystemLayout[] = [];
   for (let i = 0; i < staves.length; ) {
     const group = [staves[i]];
@@ -144,7 +143,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
     const right = Math.min(...group.map((s) => s.right));
     const spacing = group[0].spacing;
 
-    // Barras de compás: columnas oscuras casi de arriba abajo del sistema.
+    // barlines: dark columns spanning nearly top to bottom of the system
     const y0 = Math.round(top);
     const y1 = Math.round(bottom);
     const span = y1 - y0 + 1;
@@ -154,7 +153,7 @@ export function analyzeCanvas(canvas: HTMLCanvasElement, stavesPerSystem: number
       for (let y = y0; y <= y1; y++) n += dark[y * W + x];
       if (n >= span * 0.85) raw.push(x);
     }
-    // Columnas contiguas → una barra; barras muy juntas (doble barra, repetición) → una.
+    // adjacent columns → one bar; bars very close together (double bar, repeat) → merge into one
     const bars: number[] = [];
     for (let k = 0; k < raw.length; k++) {
       let end = k;
@@ -188,10 +187,10 @@ export async function analyzePdf(file: Blob, pageCount: number, stavesPerSystem:
   return out;
 }
 
-/** Cruza los sistemas detectados con los compases de la partitura. */
+/** Cross-checks the detected systems against the score's measures. */
 export function buildMeasureMap(layouts: PageLayout[], score: ParsedScore): MeasureMap {
   const printed = score.measures.map((m) => Math.max(...m.staves.map((ev) => ev.reduce((s, e) => s + e.beats, 0)), 0));
-  // La guía sigue el reloj de reproducción, que toca las repeticiones desplegadas.
+  // the guide follows the playback clock, which plays repeats expanded
   const order = expandRepeats(score.measures);
   const lengths = order.map((mi) => printed[mi]);
   const starts: number[] = [];
@@ -213,7 +212,7 @@ export function buildMeasureMap(layouts: PageLayout[], score: ParsedScore): Meas
       for (let k = 0; k + 1 < edges.length; k++) boxes.push({ page: s.page, x0: edges[k], x1: edges[k + 1], top: s.top, bottom: s.bottom });
     }
   } else if (systems.length) {
-    // Reparto proporcional a lo detectado (o por igual si no se vio ninguna barra).
+    // spread proportionally to what was detected (or evenly if no barline was seen)
     const weights = detected.some((d) => d > 1) ? detected : systems.map(() => 1);
     const sumW = weights.reduce((a, b) => a + b, 0);
     const counts = weights.map((w) => Math.floor((total * w) / sumW));
@@ -231,7 +230,7 @@ export function buildMeasureMap(layouts: PageLayout[], score: ParsedScore): Meas
   return { boxes, order, starts, lengths, approximate: !exact };
 }
 
-/** Compás impreso (índice en `boxes`) y fracción dentro de él para una posición en negras de la reproducción. */
+/** Printed measure (index into `boxes`) and fraction into it for a playback position in quarter notes. */
 export function locate(map: MeasureMap, beats: number): { measure: number; frac: number } | null {
   if (!map.boxes.length || !map.order.length) return null;
   let step = 0;

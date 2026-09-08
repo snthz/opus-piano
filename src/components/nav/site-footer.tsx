@@ -11,11 +11,10 @@ import {
 } from "@/lib/seo";
 
 /**
- * Columnas de enlaces del pie. Solo contenido indexable: son enlaces que
- * aparecen en todas las páginas, así que reparten autoridad hacia las páginas
- * que interesa posicionar y le dan a Google un mapa del sitio en cada visita.
- * Cuenta y ajustes van aparte, con `rel="nofollow"`, porque robots.txt los
- * bloquea y no tiene sentido gastar rastreo en ellos.
+ * Footer link columns: indexable content only. These links appear on every
+ * page, spreading authority to the pages worth ranking and giving Google a
+ * sitemap on each visit. Account/settings live in their own column with
+ * `rel="nofollow"`, since robots.txt blocks them anyway.
  */
 const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   {
@@ -41,6 +40,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   {
     title: "Practicar",
     links: [
+      { href: "/metronome", label: "Metrónomo" },
       { href: "/practice/notes", label: "Leer notas" },
       { href: "/practice/keyboard", label: "Notas en el teclado" },
       { href: "/practice/rhythm", label: "Ritmo" },
@@ -50,11 +50,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   },
 ];
 
-/**
- * Enlaces de la zona privada. Van en su propia columna, con `rel="nofollow"`:
- * robots.txt las bloquea y no tiene sentido gastar rastreo en ellas, pero para
- * quien ya usa la app son los accesos más rápidos del pie.
- */
+/** Private-area links, in their own `rel="nofollow"` column (blocked by robots.txt but useful shortcuts for existing users). */
 const ACCOUNT_LINKS = [
   { href: "/scores", label: "Mis partituras" },
   { href: "/account", label: "Cuenta" },
@@ -62,29 +58,30 @@ const ACCOUNT_LINKS = [
   { href: "/more", label: "Más" },
 ];
 
-/** Lo que resume la app en tres golpes: gratis, sin conexión y en español. */
+/** What sums up the app in three words: free, offline, and in Spanish. */
 const BADGES = ["Gratis", "Funciona sin conexión", "En español"];
 
 /**
- * Pie de página del sitio: la firma (autor y estudio) y el mapa de enlaces
- * internos. Es un componente de servidor —no tiene estado— para que su
- * contenido viaje en el HTML que lee el buscador.
+ * Site footer: signature (author and studio) plus the internal link map. A
+ * server component (no state) so its content ships in the HTML search
+ * engines read.
  *
- * En móvil queda por encima de la barra flotante gracias al `safe-nav` del
- * `body` en el layout.
+ * Hidden when installed as a PWA (`data-site-footer` in globals.css, keyed
+ * off `display-mode: standalone`): its purpose is the internal links Google
+ * crawls, and there's no crawler in the installed app — just three screens
+ * of footer before the nav bar.
  */
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-line bg-surface">
-      {/* Teclas: el mismo motivo del logotipo, en una franja de 6 px. Decorativo
-          puro, de ahí el aria-hidden. */}
+    <footer data-site-footer className="mt-auto border-t border-line bg-surface">
+      {/* keys: same motif as the logo, in a 6px strip; purely decorative, hence aria-hidden */}
       <div
         aria-hidden
         className="h-1.5 w-full bg-[repeating-linear-gradient(90deg,var(--line)_0_1px,transparent_1px_14px)]"
       />
 
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-10 md:py-12">
-        {/* En móvil, dos columnas: con una sola, el pie mide tres pantallas. */}
+        {/* two columns on mobile; a single one would make the footer three screens tall */}
         <div className="grid gap-8 grid-cols-2 md:grid-cols-[1.4fr_1.1fr_1.1fr_1fr_0.9fr]">
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2 text-ink">
@@ -117,9 +114,7 @@ export function SiteFooter() {
 
           {COLUMNS.map((column) => (
             <nav key={column.title} aria-label={column.title}>
-              {/* Un <p> y no un <h2>: el `aria-label` del <nav> ya agrupa los
-                  enlaces, y así el esquema de encabezados de cada página lo
-                  marca solo su contenido, no el pie que se repite en todas. */}
+              {/* <p>, not <h2>: the <nav>'s aria-label already groups the links, keeping each page's heading outline to its own content */}
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">
                 {column.title}
               </p>
@@ -160,16 +155,13 @@ export function SiteFooter() {
             <p className="text-xs text-ink-2">
               © {COPYRIGHT_YEAR} {SITE_NAME}. Todos los derechos reservados.
             </p>
-            {/* La atribución de las fuentes no es cortesía: la licencia SIL OFL
-                obliga a citarlas allá donde se usan. */}
+            {/* font attribution isn't optional: the SIL OFL license requires it wherever the fonts are used */}
             <p className="text-[11px] text-ink-3">
               Fuentes musicales Bravura y Academico © Steinberg, bajo licencia SIL OFL 1.1.
             </p>
           </div>
 
-          {/* La firma: autor y estudio, cada uno enlazado a su web.
-              `rel="author"` es la pista que usan los buscadores para asociar
-              el sitio con quien lo escribe. */}
+          {/* signature: author and studio, each linked to their site; `rel="author"` is the hint search engines use to attribute the site */}
           <p className="text-xs text-ink-2 md:text-right">
             Desarrollado por{" "}
             <a

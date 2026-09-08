@@ -3,17 +3,17 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { PlanState } from "@/lib/study-plan";
 
-/** Un trazo dibujado sobre una página, en coordenadas relativas (0–1) al tamaño de la página. */
+/** A stroke drawn on a page, in coordinates relative (0-1) to the page size. */
 export interface Stroke {
   color: string;
-  /** Grosor relativo al ancho de la página */
+  /** Width relative to the page's own width. */
   width: number;
-  /** Trazo de subrayador: semitransparente y ancho */
+  /** Highlighter stroke: semi-transparent and wide. */
   highlighter?: boolean;
   points: [number, number][];
 }
 
-/** Trazos por número de página (empezando en 1). */
+/** Strokes by page number (starting at 1). */
 export type Annotations = Record<number, Stroke[]>;
 
 export type ScoreKind = "pdf" | "musicxml";
@@ -21,25 +21,25 @@ export type ScoreKind = "pdf" | "musicxml";
 export interface ScoreRecord {
   id: string;
   name: string;
-  /** PDF original, o el XML de MusicXML ya descomprimido */
+  /** The original PDF, or MusicXML's XML already decompressed. */
   file: Blob;
   thumbnail: string; // data URL
   notes: string;
   addedAt: number;
-  /** PDF: páginas. MusicXML: compases. */
+  /** PDF: pages. MusicXML: measures. */
   pageCount: number;
-  /** Los registros anteriores a este campo son PDF. */
+  /** Records predating this field are PDF. */
   kind?: ScoreKind;
   annotations?: Annotations;
-  /** Solo PDF: MusicXML de la misma pieza, para poder escucharla y ver los nombres */
+  /** PDF only: MusicXML of the same piece, so it can be played and note names shown. */
   linkedXml?: Blob;
-  /** Plan de estudio generado con IA; se sincroniza como las notas */
+  /** AI-generated study plan; syncs like the notes. */
   plan?: PlanState;
-  /** Última modificación local de nombre, notas o trazos (ms). */
+  /** Last local edit to name, notes, or strokes (ms). */
   updatedAt?: number;
-  /** Momento en que el servidor confirmó tener esta versión (metadatos y archivos). */
+  /** When the server confirmed it has this version (metadata and files). */
   syncedAt?: number;
-  /** El MusicXML vinculado cambió después de la última sincronización. */
+  /** The linked MusicXML changed since the last sync. */
   xmlDirty?: boolean;
 }
 
@@ -65,7 +65,7 @@ function getDB() {
   return dbPromise;
 }
 
-/* ---------- Avisos de cambio: la sincronización con la cuenta se engancha aquí ---------- */
+/* ---------- Change notifications: account sync hooks in here ---------- */
 
 export type ScoreChange = { type: "put"; id: string; source: "local" | "remote" } | { type: "delete"; id: string; source: "local" | "remote" } | { type: "clear" };
 const listeners = new Set<(c: ScoreChange) => void>();
@@ -78,7 +78,7 @@ export function onScoresChange(listener: (c: ScoreChange) => void) {
 }
 const emit = (c: ScoreChange) => listeners.forEach((l) => l(c));
 
-/* ---------- Escrituras locales (desde la interfaz) ---------- */
+/* ---------- Local writes (from the UI) ---------- */
 
 export async function addScore(record: Omit<ScoreRecord, "id" | "addedAt">): Promise<ScoreRecord> {
   const db = await getDB();
@@ -114,6 +114,22 @@ export const updateScoreName = (id: string, name: string) => patchLocal(id, { na
 export const updateScorePlan = (id: string, plan: PlanState | undefined) => patchLocal(id, { plan });
 export const updateScoreLinkedXml = (id: string, linkedXml: Blob | undefined) => patchLocal(id, { linkedXml, xmlDirty: true });
 
+/**
+ * Ticks (or unticks) a day as studied in a score's schedule.
+ *
+ * The score is re-read before writing: between painting the agenda and pressing
+ * the tick the plan may have changed — account sync, another tab, the reader.
+ */
+export async function toggleStudyDay(scoreId: string, day: string): Promise<void> {
+  const rec = await getScore(scoreId);
+  const state = rec?.plan;
+  if (!state?.schedule) return;
+  const done = { ...state.schedule.done };
+  if (done[day]) delete done[day];
+  else done[day] = true;
+  await updateScorePlan(scoreId, { ...state, schedule: { ...state.schedule, done } });
+}
+
 export async function deleteScore(id: string): Promise<void> {
   const db = await getDB();
   await db.delete("scores", id);
@@ -126,7 +142,7 @@ export async function clearScores(): Promise<void> {
   emit({ type: "clear" });
 }
 
-/* ---------- Escrituras que vienen del servidor (no disparan otra subida) ---------- */
+/* ---------- Writes coming from the server (don't trigger another upload) ---------- */
 
 export async function putFromServer(record: ScoreRecord): Promise<void> {
   const db = await getDB();
@@ -134,7 +150,7 @@ export async function putFromServer(record: ScoreRecord): Promise<void> {
   emit({ type: "put", id: record.id, source: "remote" });
 }
 
-/** Marca la versión local como confirmada por el servidor, sin tocar `updatedAt`. */
+/** Marks the local version as confirmed by the server, without touching `updatedAt`. */
 export async function markSynced(id: string, patch: Partial<ScoreRecord> = {}): Promise<void> {
   const db = await getDB();
   const rec = await db.get("scores", id);
@@ -147,7 +163,7 @@ export async function removeFromServer(id: string): Promise<void> {
   emit({ type: "delete", id, source: "remote" });
 }
 
-/** Espacio aproximado ocupado por la biblioteca, en bytes. */
+/** Approximate space used by the library, in bytes. */
 export async function scoresSize(): Promise<{ count: number; bytes: number }> {
   const all = await listScores();
   const bytes = all.reduce((sum, s) => sum + s.file.size + s.thumbnail.length, 0);

@@ -5,13 +5,10 @@ import { useState } from "react";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { EXERCISES } from "@/data/exercises";
-import { dayStreak, summarize, todayKey, useProgress } from "@/lib/progress";
+import { DAILY_GOAL, dayStreak, summarize, summarizeToday, useProgress } from "@/lib/progress";
 import { exercisePath } from "@/lib/routes";
 import { suggestExercises } from "@/lib/suggestions";
 import { Chevron, tabClass } from "./nav-tab";
-
-/** Respuestas por día que cierran el anillo de «hoy». */
-const DAILY_GOAL = 20;
 
 /**
  * Desplegable «Progreso» de la fila de navegación: la actividad de hoy, el
@@ -24,17 +21,7 @@ export function ProgressMenu() {
   const progress = useProgress();
   const totals = summarize(progress);
   const streak = dayStreak(progress);
-  const today = todayKey();
-  let todayAttempts = 0;
-  let todayCorrect = 0;
-  for (const ex of Object.values(progress)) {
-    const d = ex.days[today];
-    if (d) {
-      todayAttempts += d.attempts;
-      todayCorrect += d.correct;
-    }
-  }
-  const todayAccuracy = todayAttempts ? Math.round((todayCorrect / todayAttempts) * 100) : null;
+  const { attempts: todayAttempts, accuracy: todayAccuracy } = summarizeToday(progress);
   const suggestions = suggestExercises(progress, EXERCISES);
 
   return (

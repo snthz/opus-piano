@@ -11,13 +11,10 @@ import {
 } from "@/lib/study-plan";
 
 /**
- * El profesor con IA de Opus Piano: Claude, llamado con la clave de API del
- * servidor. El alumno no pone nada de su parte —ni clave ni tarjeta—, así que
- * el gasto lo controla quien despliega con `PLANS_PER_DAY` y con el modelo que
- * elija en `STUDY_PLAN_MODEL`.
- *
- * Sin `ANTHROPIC_API_KEY` la función queda desactivada y la aplicación no
- * ofrece la opción, igual que pasa con el OMR sin `OMR_URL`.
+ * Opus Piano's AI teacher: Claude, called with the server's own API key. The
+ * student pays nothing directly; spend is capped via `PLANS_PER_DAY` and the
+ * chosen `STUDY_PLAN_MODEL`. Disabled without `ANTHROPIC_API_KEY`, same as OMR
+ * without `OMR_URL`.
  */
 
 const HOUR = 60 * 60 * 1000;
@@ -26,34 +23,27 @@ const apiKey = () => (process.env.ANTHROPIC_API_KEY ?? "").trim();
 
 export const planEnabled = () => !!apiKey();
 
-/**
- * Sonnet lee bien una partitura escaneada y cuesta una fracción de lo que
- * cuesta Opus; Haiku es la mitad de caro pero se le escapan alteraciones y
- * figuras, que es justo lo que no puede fallar en un plan de estudio.
- */
+/** Sonnet reads a scanned score well for a fraction of Opus's cost; Haiku is cheaper but misses accidentals and note values. */
 const DEFAULT_MODEL = "claude-sonnet-5";
 
 export const planModel = () => (process.env.STUDY_PLAN_MODEL || DEFAULT_MODEL).trim();
 
-/** Planes por usuario y día. Cada uno son unos 10-15 céntimos de la cuenta del servidor. */
+/** Plans per user per day; each one costs ~10-15 cents on the server's bill. */
 export const planLimit = () => ({ max: Number(process.env.PLANS_PER_DAY || 3), windowMs: 24 * HOUR });
 
-/** Preguntas al profesor por usuario y hora: son baratas (sin imágenes), pero no infinitas. */
+/** Teacher questions per user per hour: cheap (no images), but not unlimited. */
 export const askLimit = () => ({ max: Number(process.env.PLAN_QUESTIONS_PER_HOUR || 40), windowMs: HOUR });
 
 /**
- * Un plan tarda uno o dos minutos: siempre en streaming, porque una petición
- * HTTP muda tanto rato la corta cualquier proxy por el camino.
- *
- * Los topes van holgados aposta. No son el presupuesto —solo se paga lo que se
- * escribe, y lo condensado se pide en las instrucciones— sino el punto en el
- * que la respuesta se corta a medias, y ahí se ha pagado la petición entera
- * para tirarla. Cuentan también los tokens de razonamiento.
+ * Streamed because a plan takes a minute or two, and a silent HTTP request
+ * that long gets cut by some proxy along the way. These caps are generous on
+ * purpose: they're not the budget, just where a half-finished reply gets cut
+ * off after the whole request was already paid for.
  */
 const PLAN_MAX_TOKENS = 16_000;
 const ASK_MAX_TOKENS = 4_000;
 
-/** Mensaje ya escrito para el alumno; el detalle técnico se queda en el registro. */
+/** Message already written for the student; technical detail stays in the log. */
 export class PlanError extends Error {}
 
 let client: Anthropic | null = null;
@@ -62,39 +52,32 @@ function anthropic(): Anthropic {
   return client;
 }
 
-/**
- * Traduce el fallo del proveedor. El alumno no puede arreglar ninguno de estos
- * —la clave y el saldo son del servidor—, así que lo único útil es decirle si
- * vale la pena volver a intentarlo.
- */
+/** Translates a provider failure into a message the student can act on (retry or not). */
 function translate(e: unknown): PlanError {
   if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
-    console.error("study-plan: la clave de API del servidor no vale", e.message);
+    console.error("study-plan: server API key is invalid", e.message);
     return new PlanError("El profesor no está disponible ahora mismo. Avisa por el formulario de contacto si sigue así.");
   }
   if (e instanceof Anthropic.RateLimitError) {
     return new PlanError("Hay demasiadas peticiones ahora mismo. Espera un par de minutos y vuelve a intentarlo.");
   }
   if (e instanceof Anthropic.APIError) {
-    // 400 con «credit» es la cuenta sin saldo; 529 es el proveedor saturado.
+    // 400 with "credit" = out of balance; 529 = provider overloaded
     if (e.status === 529 || (e.status ?? 0) >= 500) return new PlanError("El profesor está saturado en este momento. Inténtalo en unos minutos.");
-    console.error(`study-plan: la API ha devuelto ${e.status}`, e.message);
+    console.error(`study-plan: API returned ${e.status}`, e.message);
     return new PlanError("No se ha podido preparar el plan. Vuelve a intentarlo en un rato.");
   }
-  console.error("study-plan: fallo inesperado", e);
+  console.error("study-plan: unexpected failure", e);
   return new PlanError("No se ha podido preparar el plan. Vuelve a intentarlo en un rato.");
 }
 
-/** Lo que el modelo dejó de escribir por su cuenta: ninguno se arregla reintentando igual. */
+/** Reasons the model stopped early; none of them fix themselves with a plain retry. */
 function checkStop(stopReason: string | null | undefined, truncated: string) {
   if (stopReason === "refusal") throw new PlanError("El profesor no ha querido responder a esta petición.");
   if (stopReason === "max_tokens") throw new PlanError(truncated);
 }
 
-/**
- * Pide el plan y devuelve el JSON sin analizar (lo valida quien llama, con el
- * esquema de zod). Las páginas van como PNG en base64.
- */
+/** Requests the plan and returns raw JSON (the caller validates it with a zod schema). Pages go as base64 PNGs. */
 export async function generatePlan(req: PlanRequest, pages: string[], signal?: AbortSignal): Promise<string> {
   const content: Anthropic.ContentBlockParam[] = [
     { type: "text", text: planUserMessage(req) },
@@ -116,7 +99,7 @@ export async function generatePlan(req: PlanRequest, pages: string[], signal?: A
     );
     message = await stream.finalMessage();
   } catch (e) {
-    if (signal?.aborted) throw e; // lo ha cancelado el alumno: no es un fallo
+    if (signal?.aborted) throw e; // cancelled by the student, not a real failure
     throw translate(e);
   }
 
@@ -129,10 +112,7 @@ export async function generatePlan(req: PlanRequest, pages: string[], signal?: A
   return text;
 }
 
-/**
- * Responde a una pregunta sobre el plan, trozo a trozo según lo va escribiendo
- * el modelo, para que el alumno vea la respuesta aparecer en vez de esperar.
- */
+/** Answers a question about the plan, streamed chunk by chunk as the model writes it. */
 export async function* askTeacher(ctx: AskContext, history: ChatTurn[], signal?: AbortSignal): AsyncGenerator<string> {
   const stream = anthropic().messages.stream(
     {
@@ -150,8 +130,7 @@ export async function* askTeacher(ctx: AskContext, history: ChatTurn[], signal?:
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") yield event.delta.text;
     }
-    // La respuesta ya se ha ido enviando; esto solo cubre lo que el modelo
-    // dejó a medias, para que el alumno no se quede con media frase sin saberlo.
+    // response already streamed; this only catches a reply left half-finished
     checkStop((await stream.finalMessage()).stop_reason, "La respuesta se ha cortado. Prueba a preguntar algo más concreto.");
   } catch (e) {
     if (e instanceof PlanError || signal?.aborted) throw e;

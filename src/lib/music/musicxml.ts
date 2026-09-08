@@ -5,21 +5,21 @@ import { toMidi, noteName, type Letter, type NamingSystem, type Pitch } from "./
 import type { ClefName } from "@/components/notation/score";
 
 /**
- * Lector de MusicXML (partwise) reducido a lo que Opus Piano sabe dibujar y tocar:
- * dos pentagramas como máximo, una voz por pentagrama, acordes, silencios,
- * puntillos y ligaduras. Suficiente para lo que exporta MuseScore de una pieza
- * de piano; adornos, voces secundarias y notas de adorno se omiten.
+ * MusicXML (partwise) reader, reduced to what Opus Piano can draw and play:
+ * at most two staves, one voice per staff, chords, rests, dots and ties.
+ * Enough for what MuseScore exports for a piano piece; ornaments, secondary
+ * voices and grace notes are dropped.
  */
 
 export interface XmlEvent {
-  /** Vacío si es silencio */
+  /** Empty if it's a rest. */
   pitches: Pitch[];
   rest: boolean;
-  /** Duración real en negras (ya con puntillos o tresillos) */
+  /** Real duration in quarter notes (dots/triplets already applied). */
   beats: number;
-  /** Figura notada: "q", "8", "h."… */
+  /** Notated figure: "q", "8", "h."… */
   vex: string;
-  /** Alteraciones que van impresas, por nota: "#", "b", "n", "" */
+  /** Printed accidental per note: "#", "b", "n", "". */
   shown: string[];
   tieStart: boolean;
   tieStop: boolean;
@@ -28,20 +28,20 @@ export interface XmlEvent {
 export interface XmlMeasure {
   number: string;
   staves: XmlEvent[][];
-  /** Barra de repetición que abre al principio del compás («|:») */
+  /** Repeat barline opening at the start of the measure ("|:"). */
   repeatStart?: boolean;
-  /** Barra de repetición que cierra al final del compás («:|») */
+  /** Repeat barline closing at the end of the measure (":|"). */
   repeatEnd?: boolean;
-  /** Casilla de repetición en la que está el compás: 1 para «1.», 2 para «2.»… 0 o ausente si ninguna */
+  /** Ending this measure is in: 1 for "1.", 2 for "2."… 0 or absent for none. */
   ending?: number;
 }
 
 export interface ParsedScore {
   title: string;
-  /** Armadura en notación VexFlow ("G", "Bbm"…) */
+  /** Key signature in VexFlow notation ("G", "Bbm"…). */
   keyVex: string;
   time: { num: number; den: number };
-  /** Negras por minuto; 0 si la partitura no lo indica */
+  /** Quarter notes per minute; 0 if the score doesn't say. */
   tempo: number;
   clefs: ClefName[];
   measures: XmlMeasure[];
@@ -70,7 +70,7 @@ function text(el: ParentNode | null | undefined, sel: string): string | undefine
   return el?.querySelector(sel)?.textContent?.trim() || undefined;
 }
 
-/** .mxl es un zip con un container.xml que señala el archivo principal. */
+/** .mxl is a zip with a container.xml that points to the main file. */
 export function unpackMxl(data: Uint8Array): string {
   const files = unzipSync(data);
   const container = files["META-INF/container.xml"];
@@ -86,7 +86,7 @@ export function unpackMxl(data: Uint8Array): string {
   return strFromU8(files[root]);
 }
 
-/** Figura VexFlow a partir de la duración en negras, cuando el archivo no indica el tipo. */
+/** VexFlow figure from the duration in quarter notes, when the file doesn't state the type. */
 function vexFromBeats(beats: number): string {
   const table: [number, string][] = [
     [4, "w"], [3, "h."], [2, "h"], [1.5, "q."], [1, "q"], [0.75, "8."], [0.5, "8"], [0.375, "16."], [0.25, "16"], [0.125, "32"],
@@ -105,8 +105,7 @@ export function parseMusicXml(xml: string): ParsedScore {
   const title =
     text(doc, "work > work-title") ?? text(doc, "movement-title") ?? text(doc, "credit > credit-words") ?? "";
 
-  // Piano: una parte con dos pentagramas. Si cada mano viene como parte
-  // independiente, se toman las dos primeras.
+  // piano: one part with two staves; if each hand is its own part, take the first two
   const firstStaves = Number(text(parts[0], "attributes > staves") ?? "1");
   const sources: { part: Element; staff: number }[] =
     firstStaves >= 2
@@ -118,12 +117,12 @@ export function parseMusicXml(xml: string): ParsedScore {
   let time = { num: 4, den: 4 };
   let tempo = 0;
 
-  // Estado de lectura por parte: divisiones y voz principal de cada pentagrama.
+  // per-part read state: divisions and main voice of each staff
   const measureCount = Math.max(...sources.map((s) => s.part.querySelectorAll(":scope > measure").length));
   const measures: XmlMeasure[] = [];
   const divisionsByPart = new Map<Element, number>();
   const voiceByStaff = new Map<string, string>();
-  // Casilla abierta: dura hasta la barra que la cierra, aunque abarque varios compases.
+  // open ending: lasts until its closing barline, even across several measures
   let openEnding = 0;
 
   for (let mi = 0; mi < measureCount; mi++) {
@@ -164,7 +163,7 @@ export function parseMusicXml(xml: string): ParsedScore {
           const t = child.tagName === "sound" ? child.getAttribute("tempo") : child.querySelector("sound")?.getAttribute("tempo");
           if (t && !tempo) tempo = Math.round(Number(t));
         } else if (child.tagName === "barline" && si === 0) {
-          // Repeticiones y casillas: solo las lee el primer pentagrama, son de todo el compás.
+          // repeats and endings: only the first staff reads them, they apply to the whole measure
           const direction = child.querySelector("repeat")?.getAttribute("direction");
           if (direction === "forward") repeatStart = true;
           if (direction === "backward") repeatEnd = true;
@@ -184,7 +183,7 @@ export function parseMusicXml(xml: string): ParsedScore {
           if (child.querySelector("grace") || child.querySelector("cue")) continue;
           const noteStaff = Number(text(child, "staff") ?? "1");
           if (noteStaff !== staff) continue;
-          // Solo la primera voz que aparece en cada pentagrama.
+          // only the first voice that shows up on each staff
           const voice = text(child, "voice") ?? "1";
           const key = `${si}`;
           if (!voiceByStaff.has(key)) voiceByStaff.set(key, voice);
@@ -234,20 +233,18 @@ export function parseMusicXml(xml: string): ParsedScore {
   return { title, keyVex, time, tempo, clefs, measures };
 }
 
-/* ---------- Repeticiones ---------- */
+/* ---------- Repeats ---------- */
 
 /**
- * Orden en que se tocan los compases (índices en `measures`) una vez
- * desplegadas las repeticiones y las casillas. Sin repeticiones es la
- * identidad. Cada barra de cierre devuelve una sola vez al principio de su
- * sección (la última barra de apertura, o el inicio de la pieza si no la hay);
- * en la pasada n solo suenan los compases de la casilla n, y los que no están
- * en ninguna casilla suenan siempre.
+ * Order in which measures are played (indices into `measures`) once repeats
+ * and endings are expanded. Identity if there are no repeats. Each closing
+ * barline jumps back once to the start of its section (the last opening
+ * barline, or the piece's start if there's none); on pass n only measures in
+ * ending n play, and measures in no ending always play.
  *
- * Con casillas «1.» y «2.» el resultado es A + 1.ª + A + 2.ª, que es lo que
- * quiere decir la partitura. Una casilla que no puede alcanzarse (su pasada
- * nunca llega porque no hay barra de cierre) se toca de corrido para no
- * perder música.
+ * With a "1." and "2." ending the result is A + 1st + A + 2nd, as the score
+ * intends. An unreachable ending (its pass never arrives because there's no
+ * closing barline) plays straight through so no music is lost.
  */
 export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeatEnd" | "ending">[]): number[] {
   const order: number[] = [];
@@ -257,7 +254,7 @@ export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeat
   const opened = new Set<number>();
 
   const reachable = (from: number, wanted: number) => {
-    // ¿Hay una barra de cierre por delante, en esta misma sección, que nos traiga de vuelta hasta la pasada `wanted`?
+    // is there a closing barline ahead, in this same section, that brings us back to pass `wanted`?
     let passes = pass;
     for (let k = from; k < measures.length; k++) {
       if (k !== from && measures[k].repeatStart) return false;
@@ -289,7 +286,7 @@ export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeat
       continue;
     }
     if (m.repeatEnd) {
-      // Sección terminada: lo que sigue empieza de cero.
+      // section done: what follows starts fresh
       start = i + 1;
       pass = 1;
     }
@@ -298,9 +295,9 @@ export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeat
   return order;
 }
 
-/* ---------- De la partitura leída a lo que dibuja y suena Opus Piano ---------- */
+/* ---------- From the parsed score to what Opus Piano draws and plays ---------- */
 
-/** Texto EasyScore de un evento; el silencio se coloca en el centro del pentagrama. */
+/** EasyScore text for an event; a rest is placed at the staff's center. */
 export function eventToEasyScore(ev: XmlEvent, clef: ClefName): string {
   if (ev.rest || !ev.pitches.length) {
     const pos = clef === "bass" ? "D3" : clef === "alto" ? "C4" : "B4";
@@ -314,7 +311,7 @@ export function measureToEasyScore(events: XmlEvent[], clef: ClefName): string {
   return events.map((e) => eventToEasyScore(e, clef)).join(", ");
 }
 
-/** Etiqueta con los nombres de las notas (los acordes, de grave a agudo). */
+/** Label with note names (chords low to high). */
 export function eventLabel(ev: XmlEvent, system: NamingSystem): string {
   if (ev.rest || !ev.pitches.length) return "";
   return [...ev.pitches]
@@ -327,23 +324,22 @@ export interface ScoreTimelineNote {
   midis: number[];
   start: number;
   beats: number;
-  /** Pentagrama y posición (entre todas las notas de ese pentagrama) de cada nota visual que suena */
+  /** Staff and position (among that staff's notes) of each visual note it covers. */
   refs: { staff: number; index: number }[];
 }
 
 const beatsOf = (events: XmlEvent[]) => events.reduce((sum, e) => sum + e.beats, 0);
 
 /**
- * Línea de tiempo para tocar la pieza: las notas ligadas se funden en una sola
- * para que no vuelvan a atacarse, pero recuerdan qué notas visuales cubren.
+ * Timeline for playing the piece: tied notes merge into one so they don't
+ * re-attack, but remember which visual notes they cover.
  *
- * Cada compás impreso empieza a la vez en todos los pentagramas, y el reloj se
- * vuelve a poner en su sitio en cada barra. Es lo que dice la partitura, y
- * además evita que un compás mal leído —de una transcripción automática, por
- * ejemplo— descuadre la pieza entera: si a la mano izquierda le falta una
- * negra en el compás 3, se nota en el 3 y no en todo lo que viene después,
- * arrastrándose cada vez más. La duración del compás es la del pentagrama que
- * más dura, de modo que una anacrusa o un último compás corto siguen valiendo.
+ * Every printed measure starts at the same time on all staves, and the clock
+ * resets on each barline. That's what the score says, and it also stops a
+ * misread measure — from an automatic transcription, say — from throwing off
+ * the whole piece: if the left hand is missing a beat in measure 3, it shows
+ * up in measure 3 only, not compounding into everything after. A measure's
+ * length is its longest staff's, so a pickup or short final measure still counts.
  */
 export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
   const out: ScoreTimelineNote[] = [];
@@ -362,7 +358,7 @@ export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
   }
 
   score.clefs.forEach((_, staff) => {
-    // Índice global de la primera nota de cada compás impreso.
+    // global index of the first note of each printed measure
     const offsets: number[] = [];
     let n = 0;
     for (const m of score.measures) {
@@ -371,7 +367,7 @@ export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
     }
     let open: ScoreTimelineNote | null = null;
     order.forEach((mi, step) => {
-      // Al saltar atrás (o adelante) una ligadura abierta no continúa.
+      // jumping back (or ahead) breaks any open tie
       if (step > 0 && order[step - 1] !== mi - 1) open = null;
       let t = starts[step];
       let index = offsets[mi];

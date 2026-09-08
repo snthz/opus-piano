@@ -1,7 +1,7 @@
 /**
- * Carga perezosa de VexFlow (solo en el navegador) con las fuentes locales.
- * VexFlow 5 dibuja los glifos con la propia fuente Bravura, así que la notación
- * usa exactamente los mismos símbolos originales que el catálogo.
+ * Lazy-loads VexFlow (browser only) with the local fonts. VexFlow 5 draws
+ * glyphs with the Bravura font itself, so notation uses the exact same
+ * symbols as the catalog.
  */
 export type VexFlowModule = typeof import("vexflow/core");
 

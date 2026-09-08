@@ -1,16 +1,14 @@
 /**
- * Limitador en memoria por clave (IP + correo) para registro e inicio de sesión.
- * Basta para una sola instancia; protege de fuerza bruta sin necesitar Redis.
- *
- * El mismo contador vale para lo que cuesta dinero o CPU y no es un intento de
- * adivinar nada —el reconocimiento de partituras—, pasándole otra ventana y
- * otro máximo.
+ * In-memory rate limiter by key (IP + email) for signup/login. Good enough
+ * for a single instance; protects against brute force without Redis. Also
+ * reused for anything that costs money or CPU rather than guessing attempts
+ * (e.g. score recognition), with its own window and max.
  */
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
 
 export interface RateLimit {
-  /** Cuántas se dejan pasar en la ventana */
+  /** How many are allowed in the window. */
   max: number;
   windowMs: number;
 }

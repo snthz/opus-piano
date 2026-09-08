@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { scheduleSchema } from "@/lib/agenda";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
 import { keyByVex, keyName } from "@/lib/music/keys";
@@ -8,14 +9,13 @@ import { NAMING_SYSTEMS, type NamingSystem } from "@/lib/music/pitch";
 import { arr, en, int, nullable, obj, str, type SchemaNode } from "@/lib/plan/schema";
 
 /**
- * Plan de estudio de una partitura, preparado por Claude con la clave de API
- * del servidor (ver `src/lib/server/study-plan.ts`). Aquí vive todo lo que
- * comparten el navegador —que reúne los datos y enseña el plan— y el servidor
- * —que arma la petición al modelo y guarda el resultado—: el esquema del plan,
- * el resumen textual de la partitura y las instrucciones.
+ * Study plan for a score, prepared by Claude with the server's own API key
+ * (see `src/lib/server/study-plan.ts`). Holds what the browser (gathers data,
+ * shows the plan) and the server (builds the model request, saves the
+ * result) share: the plan schema, the score's text summary, and the prompts.
  */
 
-/* ---------- Esquema del plan (lo que devuelve el modelo y lo que se guarda) ---------- */
+/* ---------- Plan schema (what the model returns and what gets saved) ---------- */
 
 export const LEVELS = ["principiante", "elemental", "intermedio", "avanzado"] as const;
 export type Level = (typeof LEVELS)[number];
@@ -38,10 +38,9 @@ const LESSON_SLUGS = LESSON_SECTIONS.flatMap((s) => s.lessons.map((l) => l.slug)
 const EXERCISE_IDS = EXERCISES.map((e) => e.id);
 
 /**
- * Los topes de zod son una red de seguridad, no el estilo: quien decide lo
- * corto que sale el plan son las instrucciones y las descripciones del esquema.
- * Van holgados a propósito, porque pasarse de una línea no puede costar el plan
- * entero (y otra petición pagada) por un consejo de más.
+ * The zod caps are a safety net, not a style guide — the prompts and schema
+ * descriptions decide how terse the plan is. Kept generous on purpose, since
+ * running one line over shouldn't cost the whole plan (and another paid request).
  */
 const short = z.string().max(300);
 const long = z.string().max(4000);
@@ -49,7 +48,7 @@ const long = z.string().max(4000);
 export const goalSchema = z.object({
   id: z.string().min(1).max(20),
   title: short,
-  /** Primer y último compás; null si el objetivo no va de compases concretos */
+  /** First and last measure; null if the goal isn't about specific measures. */
   from: z.number().int().nullable(),
   to: z.number().int().nullable(),
   hands: z.enum(HANDS).nullable(),
@@ -96,13 +95,19 @@ export const studyPlanSchema = z.object({
 export type StudyPlan = z.infer<typeof studyPlanSchema>;
 export type Goal = z.infer<typeof goalSchema>;
 
-/** Lo que se guarda con la partitura (local y en la cuenta). */
+/** What's saved with the score (locally and on the account). */
 export const planStateSchema = z.object({
   plan: studyPlanSchema,
-  /** Objetivos cumplidos: { "<goalId>": true } */
+  /** Completed goals: { "<goalId>": true } */
   progress: z.record(z.string().max(20), z.boolean()),
   model: z.string().max(80),
   createdAt: z.number().int().positive(),
+  /**
+   * Study schedule, once the routine is added to the agenda. Lives here
+   * rather than as its own score field so it syncs to the account the same
+   * way the plan does, and gets deleted with it.
+   */
+  schedule: scheduleSchema.optional(),
 });
 export type PlanState = z.infer<typeof planStateSchema>;
 
@@ -152,14 +157,14 @@ export const STUDY_PLAN_SCHEMA: SchemaNode = obj({
   }),
 });
 
-/* ---------- Resumen de la partitura para el modelo ---------- */
+/* ---------- Score summary for the model ---------- */
 
 export const SUMMARY_MAX_CHARS = 100_000;
 
 /**
- * Texto compacto con todo lo que sabe la app de un MusicXML: cabecera y, compás
- * a compás, las notas de cada pentagrama. Es determinista, así que el chat
- * puede regenerarlo sin guardarlo.
+ * Compact text with everything the app knows about a MusicXML: header, then
+ * each staff's notes measure by measure. Deterministic, so the chat can
+ * regenerate it without saving it.
  */
 export function summarizeScore(parsed: ParsedScore): string {
   const key = keyByVex(parsed.keyVex);
@@ -191,24 +196,23 @@ export function summarizeScore(parsed: ParsedScore): string {
   return text;
 }
 
-/* ---------- Páginas del PDF que ve el modelo ---------- */
+/* ---------- PDF pages the model sees ---------- */
 
-/** Páginas que se envían como imagen (las primeras). */
+/** Pages sent as images (the first ones). */
 export const MAX_PAGES = 12;
 
 /**
- * Lado largo (px) al que se dibuja cada página. Las imágenes son la mayor parte
- * de lo que cuesta un plan —Anthropic cuenta unos ancho×alto/750 tokens por
- * imagen— y aquí paga el servidor, no el alumno: a 1568 px una A4 sale por unos
- * 2300 tokens, así que las doce páginas rondan los 28 000. Subirlo a los 2576
- * que admite el modelo casi triplica esa cuenta a cambio de un detalle que en
- * una partitura impresa no cambia el plan.
+ * Long side (px) each page is rendered at. Images are most of what a plan
+ * costs — Anthropic charges roughly width×height/750 tokens per image, and
+ * the server pays: at 1568 px an A4 runs ~2300 tokens, so twelve pages land
+ * around 28,000. Going up to the model's max of 2576 nearly triples that for
+ * detail that doesn't change the plan on a printed score.
  */
 export const PAGE_EDGE = 1568;
 
-/* ---------- Lo que el navegador manda al servidor ---------- */
+/* ---------- What the browser sends the server ---------- */
 
-/** Notas y objetivo personal del alumno: caben de sobra y acotan lo que se le pasa al modelo. */
+/** Student's notes and personal goal: plenty of room, and caps what reaches the model. */
 const NOTES_MAX_CHARS = 4_000;
 const GOAL_MAX_CHARS = 1_000;
 
@@ -221,7 +225,7 @@ export const planRequestSchema = z.object({
   scoreName: z.string().max(300),
   notes: z.string().max(NOTES_MAX_CHARS),
   summary: z.string().max(SUMMARY_MAX_CHARS + 200),
-  /** Cuántas páginas del PDF se adjuntan y cuántas tiene */
+  /** How many PDF pages are attached, and how many it has. */
   pages: z.object({ sent: z.number().int().min(0), total: z.number().int().min(0) }).nullable(),
 });
 export type PlanRequest = z.infer<typeof planRequestSchema>;
@@ -231,7 +235,7 @@ export interface ChatTurn {
   content: string;
 }
 
-/** Los últimos turnos que se mandan; la instrucción ya lleva el plan y la partitura. */
+/** Most recent turns sent; the prompt already carries the plan and score. */
 export const HISTORY_TURNS = 12;
 const QUESTION_MAX_CHARS = 2_000;
 
@@ -247,7 +251,7 @@ export const askRequestSchema = z.object({
     .max(HISTORY_TURNS),
 });
 
-/* ---------- Instrucciones para el modelo ---------- */
+/* ---------- Prompts for the model ---------- */
 
 const namingRule = (naming: NamingSystem) =>
   naming === "latino"
@@ -255,9 +259,9 @@ const namingRule = (naming: NamingSystem) =>
     : "Nombra las notas y tonalidades en sistema anglosajón (C, D, E… «G major», «F#»).";
 
 /**
- * Lo que hace útil un plan es que quepa de un vistazo: el alumno lo abre entre
- * dos sesiones de estudio, no se sienta a leerlo. De ahí que el estilo se
- * repita en las instrucciones y en las descripciones del esquema.
+ * What makes a plan useful is fitting in a glance: the student opens it
+ * between practice sessions, not to sit and read. Hence this style repeats
+ * in both the prompts and the schema descriptions.
  */
 const BREVITY =
   "Escribe condensado: frases cortas, una idea por frase y nada de relleno. Prohibido el preámbulo («en esta pieza vamos a…»), " +
@@ -333,7 +337,7 @@ export function askInstructions(ctx: AskContext): string {
   ].join("\n");
 }
 
-/** Texto corto del tramo de un objetivo: «Compases 5-8 · Manos separadas». */
+/** Short text for a goal's range: "Compases 5-8 · Manos separadas". */
 export function goalRange(g: Goal): string {
   const parts: string[] = [];
   if (g.from !== null && g.to !== null) parts.push(g.from === g.to ? `Compás ${g.from}` : `Compases ${g.from}-${g.to}`);
@@ -342,7 +346,7 @@ export function goalRange(g: Goal): string {
   return parts.join(" · ");
 }
 
-/** Los ids de los objetivos deben ser únicos: si el modelo repite alguno, se renumeran. */
+/** Goal ids must be unique; renumbered if the model repeats one. */
 export function dedupeGoalIds(plan: StudyPlan): StudyPlan {
   const seen = new Set<string>();
   const goals = plan.goals.map((g, i) => {

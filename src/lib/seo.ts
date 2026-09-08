@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 
 /**
- * Configuración central de SEO.
- *
- * El dominio se lee de `SITE_URL` (o `NEXT_PUBLIC_SITE_URL`). Es una variable de
- * *build*: las páginas se prerenderizan, así que la URL canónica y el sitemap se
- * escriben en el momento de compilar. En Docker se pasa como `ARG SITE_URL`.
+ * Central SEO config. The domain comes from `SITE_URL` (or
+ * `NEXT_PUBLIC_SITE_URL`) — a *build*-time variable, since pages are
+ * prerendered and the canonical URL/sitemap get written at compile time. In
+ * Docker it's passed as `ARG SITE_URL`.
  */
 const RAW_SITE_URL = (process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://opuspiano.app").trim();
 
@@ -15,68 +14,60 @@ export const SITE_TAGLINE = "Aprende a leer partituras y a tocar el piano";
 export const SITE_LOCALE = "es_ES";
 export const SITE_LANG = "es";
 
-/**
- * Título de la portada. Se deja en 56 caracteres a propósito: Google corta el
- * enlace azul alrededor de los 60 y «Opus Piano» y «leer partituras» son lo
- * que hay que ver sí o sí. El resto de la propuesta va en la descripción.
- */
+/** Kept at 56 chars on purpose: Google truncates the blue link around 60, and "Opus Piano" + "leer partituras" must survive. */
 export const SITE_TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`;
 
 // ---------------------------------------------------------------------------
-// Autoría
+// Authorship
 // ---------------------------------------------------------------------------
 
-/** Autor de la app: firma los metadatos (`authors`, `creator`) y el JSON-LD. */
+/** App author: signs the metadata (`authors`, `creator`) and the JSON-LD. */
 export const AUTHOR_NAME = "Axl Santos";
 
-/**
- * Perfil público del autor. Va en `sameAs` del JSON-LD —el campo con el que
- * Google enlaza a una persona con sus perfiles— y en la firma del pie.
- */
+/** Author's public profile; used in the JSON-LD's `sameAs` and the footer signature. */
 export const AUTHOR_URL = "https://github.com/snthz";
 
-/** Estudio que la desarrolla y publica: `publisher`, y el pie de página. */
+/** Studio that develops and publishes the app: `publisher`, and the footer. */
 export const STUDIO_NAME = "FallxnStudio";
 
-/** Web del estudio; `NEXT_PUBLIC_STUDIO_URL` la sobreescribe si algún día cambia. */
+/** Studio site; `NEXT_PUBLIC_STUDIO_URL` overrides it if it ever changes. */
 export const STUDIO_URL =
   (process.env.NEXT_PUBLIC_STUDIO_URL || "").trim().replace(/\/+$/, "") || "https://fallxn.studio";
 
-/** Año del aviso de copyright; el mismo que el del archivo LICENSE. */
+/** Copyright year; same as in the LICENSE file. */
 export const COPYRIGHT_YEAR = 2026;
 
 export const SITE_DESCRIPTION =
   "Curso gratuito de lectura musical y piano en español: solfeo, claves, notas, figuras, compases, armaduras y todos los símbolos de la partitura, con ejercicios interactivos. Funciona sin conexión.";
 
 /**
- * Palabras clave generales del sitio; cada página añade las suyas en
- * `pageMetadata`. Van de lo genérico y muy buscado («aprender piano») a lo
- * long-tail, que es donde una app nueva puede posicionar de verdad
- * («cómo leer partituras desde cero»), y se cierran con las de marca.
+ * General site keywords; each page adds its own in `pageMetadata`. Goes from
+ * generic/high-volume ("aprender piano") to long-tail, where a new app can
+ * actually rank ("cómo leer partituras desde cero"), closing with brand terms.
  */
 export const SITE_KEYWORDS = [
-  // Intención principal: leer partituras.
+  // main intent: reading scores
   "aprender a leer partituras",
   "cómo leer partituras",
   "aprender a leer partituras desde cero",
   "leer música",
   "lectura musical",
   "lectura a primera vista",
-  // Solfeo y lenguaje musical.
+  // solfège and music theory
   "solfeo",
   "solfeo online",
   "curso de solfeo gratis",
   "lenguaje musical",
   "teoría musical",
   "teoría musical para principiantes",
-  // Piano.
+  // piano
   "aprender piano",
   "aprender piano desde cero",
   "curso de piano gratis",
   "clases de piano online gratis",
   "notas del piano",
   "teclado del piano",
-  // Elementos de la partitura: cada uno es una lección del sitio.
+  // score elements: each one is a lesson on the site
   "notas musicales",
   "pentagrama",
   "clave de sol",
@@ -88,30 +79,29 @@ export const SITE_KEYWORDS = [
   "símbolos musicales",
   "signos de la partitura",
   "intervalos musicales",
-  // Formato y uso.
+  // format and usage
   "ejercicios de solfeo",
   "app para aprender a leer partituras",
   "app de música sin conexión",
   "partituras pdf y musicxml",
   "aprender música en español",
-  // Marca.
+  // brand
   "opus piano",
   STUDIO_NAME,
   AUTHOR_NAME,
 ];
 
-/** URL absoluta de una ruta interna («/theory» → «https://…/theory»). */
+/** Absolute URL for an internal route ("/theory" → "https://…/theory"). */
 export function absoluteUrl(path = "/"): string {
   if (!path.startsWith("/")) path = `/${path}`;
-  // La raíz se escribe sin barra final, que es como la normaliza Next al
-  // generar la canónica; así el sitemap y la canónica dicen exactamente lo mismo.
+  // root has no trailing slash, matching how Next normalizes the canonical
   return path === "/" ? SITE_URL : `${SITE_URL}${path}`;
 }
 
 /**
- * Imagen de vista previa al compartir un enlace. Se declara en cada página
- * porque `openGraph` no se hereda campo a campo: una página que define su
- * `openGraph` sustituye entero el del layout, imagen incluida.
+ * Link-preview image. Declared on every page because `openGraph` doesn't
+ * merge field by field — a page that sets its own `openGraph` replaces the
+ * layout's entirely, image included.
  */
 export const OG_IMAGE = {
   url: `${SITE_URL}/opengraph-image`,
@@ -122,23 +112,23 @@ export const OG_IMAGE = {
 };
 
 export interface PageSeo {
-  /** Título de la pestaña; el layout le añade « · Opus Piano». */
+  /** Tab title; the layout appends " · Opus Piano". */
   title: string;
-  /** 120–160 caracteres, con la palabra clave al principio. */
+  /** 120-160 chars, keyword up front. */
   description: string;
-  /** Ruta interna, para la canónica y para Open Graph. */
+  /** Internal route, for canonical and Open Graph. */
   path: string;
   keywords?: string[];
-  /** «article» para lecciones y fichas; «website» para índices. */
+  /** "article" for lessons and detail pages; "website" for index pages. */
   type?: "website" | "article";
-  /** Páginas privadas (datos del usuario) o sin valor de búsqueda. */
+  /** Private pages (user data) or ones with no search value. */
   noindex?: boolean;
 }
 
 /**
- * Metadatos completos de una página: canónica, Open Graph y Twitter Card.
- * Sin canónica, el mismo contenido servido con y sin barra final, con `?utm_…`
- * o desde otro dominio cuenta como duplicado.
+ * Full page metadata: canonical, Open Graph and Twitter Card. Without a
+ * canonical, the same content served with/without a trailing slash, with
+ * `?utm_…`, or from another domain counts as a duplicate.
  */
 export function pageMetadata({
   title,
@@ -159,8 +149,7 @@ export function pageMetadata({
     robots: noindex
       ? { index: false, follow: true, googleBot: { index: false, follow: true } }
       : undefined,
-    // `authors` solo existe en el Open Graph de tipo «article»; en los índices
-    // («website») la etiqueta no está definida y Facebook la descarta.
+    // `authors` only exists on "article" Open Graph; on "website" it's undefined and Facebook drops it
     openGraph:
       type === "article"
         ? {
@@ -192,12 +181,12 @@ export function pageMetadata({
 }
 
 // ---------------------------------------------------------------------------
-// Datos estructurados (JSON-LD)
+// Structured data (JSON-LD)
 // ---------------------------------------------------------------------------
 
 export type JsonLdObject = Record<string, unknown>;
 
-/** Migas de pan para Google: la ruta que se ve bajo el título en los resultados. */
+/** Breadcrumbs for Google: the path shown under the title in results. */
 export function breadcrumbJsonLd(items: { name: string; path: string }[]): JsonLdObject {
   return {
     "@context": "https://schema.org",
@@ -212,14 +201,14 @@ export function breadcrumbJsonLd(items: { name: string; path: string }[]): JsonL
 }
 
 /**
- * Identidad del sitio: nodos con `@id` a los que apunta el resto del JSON-LD
- * en vez de repetir los datos. Google los une en un solo grafo, así que la
- * autoría declarada aquí vale para todas las páginas.
+ * Site identity: nodes with an `@id` that the rest of the JSON-LD points to
+ * instead of repeating data. Google merges them into a single graph, so
+ * authorship declared here applies to every page.
  */
 export const WEBSITE_ID = `${SITE_URL}/#website`;
-/** El estudio que publica la app: FallxnStudio. */
+/** The studio publishing the app: FallxnStudio. */
 export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
-/** El autor: Axl Santos. */
+/** The author: Axl Santos. */
 export const PERSON_ID = `${SITE_URL}/#author`;
 
 export function siteJsonLd(): JsonLdObject[] {
@@ -244,7 +233,7 @@ export function siteJsonLd(): JsonLdObject[] {
       description: `Estudio de desarrollo de software, autor de ${SITE_NAME}.`,
       logo: absoluteUrl("/icons/icon-512.png"),
       founder: { "@id": PERSON_ID },
-      // La marca es del producto; el estudio es quien la publica.
+      // the brand belongs to the product; the studio just publishes it
       brand: {
         "@type": "Brand",
         name: SITE_NAME,
@@ -294,7 +283,7 @@ export function siteJsonLd(): JsonLdObject[] {
   ];
 }
 
-/** Ficha de término del glosario: puede salir como definición destacada. */
+/** Glossary term entry: can show up as a featured definition. */
 export function definedTermJsonLd(term: string, definition: string, path: string): JsonLdObject {
   return {
     "@context": "https://schema.org",
@@ -311,7 +300,7 @@ export function definedTermJsonLd(term: string, definition: string, path: string
   };
 }
 
-/** Lección de teoría: recurso de aprendizaje con su tiempo estimado. */
+/** Theory lesson: a learning resource with its estimated time. */
 export function learningResourceJsonLd(opts: {
   name: string;
   description: string;
@@ -349,8 +338,8 @@ export function faqJsonLd(items: { question: string; answer: string }[]): JsonLd
 }
 
 /**
- * El itinerario de teoría como curso. Google puede mostrarlo en el bloque de
- * cursos si declara proveedor, modalidad, dedicación y precio.
+ * The theory track as a course. Google can show it in the courses block if
+ * it declares provider, mode, workload and price.
  */
 export function courseJsonLd(opts: {
   name: string;

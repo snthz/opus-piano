@@ -261,6 +261,55 @@ body {
   border-color: var(--bad);
 }
 
+/* Barra de valor (`<input type="range">`) con la ropa del sistema: riel fino
+   gris y pulgar de tinta con un borde del color de la tarjeta, para que se
+   despegue del riel. El nativo pinta un pulgar pequeño y azul del sistema. */
+@utility range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: var(--surface-3);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  /* (alto del riel − alto del pulgar) / 2: lo centra sobre el riel. */
+  margin-top: -0.5625rem;
+  border-radius: 9999px;
+  background: var(--ink);
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow);
+}
+.range::-moz-range-track {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: var(--surface-3);
+}
+.range::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: var(--ink);
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow);
+}
+.range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Suma (no max): en Android el gesto del sistema a veces se solapa aunque
    env() informe un valor pequeño, así que siempre queda un colchón mínimo. */
 @utility safe-bottom {
@@ -277,6 +326,24 @@ body {
    (3.5rem de alto + 0.75rem de aire) más el gesto del sistema. */
 @utility safe-nav {
   padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Instalada como PWA (o en pantalla completa) el pie sobra: sus columnas de
+   enlaces existen para el buscador, y en la app solo son tres pantallas de
+   desplazamiento antes de la barra. Se oculta por CSS y solo aquí —no en todo
+   el móvil— porque el índice de Google es primero móvil y el pie sigue
+   haciendo falta en el navegador. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  [data-site-footer] {
+    display: none;
+  }
+}
+
+/* Rebote del punto del metrónomo en cada pulso. */
+@keyframes beat-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.16); }
+  100% { transform: scale(1); }
 }
 
 @keyframes pulse-key {

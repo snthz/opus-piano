@@ -1,13 +1,8 @@
 /**
- * Rutas públicas en un solo sitio.
- *
- * Los datos (`lessons.ts`, `exercises.ts`, `glossary.ts`) todavía usan slugs en
- * español mientras las carpetas de `app/` ya están en inglés. Estas funciones
- * traducen unos a otros; cuando los datos pasen a slugs en inglés las tablas
- * dejarán de encontrar coincidencias y el `?? slug` devolverá el valor tal cual,
- * así que seguirán siendo correctas y podrán borrarse.
- *
- * Importa: una URL equivocada en el sitemap es una página 404 servida a Google.
+ * Public routes in one place. Data files (`lessons.ts`, `exercises.ts`,
+ * `glossary.ts`) still use Spanish slugs while `app/` folders are already in
+ * English; these functions translate between them. A wrong URL in the
+ * sitemap means a 404 served to Google.
  */
 
 const LESSON_SLUGS: Record<string, string> = {
@@ -35,10 +30,7 @@ const EXERCISE_SLUGS: Record<string, string> = {
 export const lessonPath = (slug: string) => `/theory/${LESSON_SLUGS[slug] ?? slug}`;
 export const exercisePath = (id: string) => `/practice/${EXERCISE_SLUGS[id] ?? id}`;
 
-/**
- * Normaliza un enlace guardado en los datos («/teoria/armaduras») a su ruta
- * actual («/theory/key-signatures»). Si ya está en inglés, lo deja igual.
- */
+/** Normalizes a link saved in the data ("/teoria/armaduras") to its current route; already-English links pass through unchanged. */
 export function normalizePath(href: string): string {
   const [, section, slug] = href.split("/");
   if (section === "teoria" || section === "theory") return slug ? lessonPath(slug) : "/theory";
@@ -50,7 +42,7 @@ export function normalizePath(href: string): string {
   return href;
 }
 
-/** Categorías del catálogo de símbolos: id de los datos → segmento de URL. */
+/** Symbol catalog categories: data id → URL segment. */
 export const SYMBOL_CATEGORY_SLUGS: Record<string, string> = {
   claves: "clefs",
   figuras: "note-values",

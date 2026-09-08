@@ -1,6 +1,6 @@
 /**
- * Motor de audio con Web Audio API: piano sintetizado, metrónomo y secuenciador.
- * No usa muestras externas, así funciona sin conexión.
+ * Web Audio engine: synthesized piano, metronome, and sequencer. No external
+ * samples, so it works offline.
  */
 import { midiToFrequency } from "@/lib/music/pitch";
 
@@ -21,7 +21,7 @@ export function getAudioContext(): AudioContext {
   return ctx;
 }
 
-/** Debe llamarse desde un gesto del usuario (click/touch) para desbloquear el audio en iOS. */
+/** Must be called from a user gesture (click/touch) to unlock audio on iOS. */
 export async function unlockAudio(): Promise<void> {
   const c = getAudioContext();
   if (c.state !== "running") await c.resume();
@@ -33,7 +33,7 @@ export function setMasterVolume(v: number) {
 }
 
 const HARMONICS: [number, number][] = [
-  // [múltiplo de la fundamental, amplitud relativa]
+  // [multiple of the fundamental, relative amplitude]
   [1, 1],
   [2, 0.5],
   [3, 0.25],
@@ -43,15 +43,15 @@ const HARMONICS: [number, number][] = [
 ];
 
 export interface NoteOptions {
-  /** Duración en segundos */
+  /** Duration in seconds. */
   duration?: number;
-  /** 0–1 */
+  /** 0-1. */
   velocity?: number;
-  /** Tiempo absoluto del AudioContext en el que empieza */
+  /** AudioContext absolute time it starts at. */
   when?: number;
 }
 
-/** Toca una nota MIDI con un timbre parecido a un piano. Devuelve una función para apagarla antes. */
+/** Plays a MIDI note with a piano-like timbre. Returns a function to stop it early. */
 export function playNote(midi: number, opts: NoteOptions = {}): () => void {
   const c = getAudioContext();
   const when = opts.when ?? c.currentTime;
@@ -62,14 +62,14 @@ export function playNote(midi: number, opts: NoteOptions = {}): () => void {
   const env = c.createGain();
   env.gain.setValueAtTime(0, when);
   env.gain.linearRampToValueAtTime(velocity, when + 0.005);
-  // Decaimiento natural del piano: rápido al principio, largo después.
+  // natural piano decay: fast at first, long afterward
   env.gain.exponentialRampToValueAtTime(velocity * 0.4, when + 0.25);
   env.gain.exponentialRampToValueAtTime(Math.max(velocity * 0.08, 0.0005), when + Math.max(duration, 0.3));
   env.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(duration, 0.3) + 0.25);
 
   const filter = c.createBiquadFilter();
   filter.type = "lowpass";
-  // Las notas agudas son más brillantes; las graves, más opacas.
+  // high notes are brighter; low notes are darker
   filter.frequency.setValueAtTime(Math.min(freq * 8, 12000), when);
   filter.frequency.exponentialRampToValueAtTime(Math.max(freq * 2, 400), when + 0.6);
 
@@ -82,7 +82,7 @@ export function playNote(midi: number, opts: NoteOptions = {}): () => void {
     if (partial > 18000) continue;
     const osc = c.createOscillator();
     osc.type = mult === 1 ? "triangle" : "sine";
-    // Pequeña inarmonicidad, como las cuerdas reales.
+    // slight inharmonicity, like real strings
     osc.frequency.value = partial * (1 + 0.0004 * mult * mult);
     const g = c.createGain();
     g.gain.value = amp / (1 + (midi - 60) / 40);
@@ -101,7 +101,7 @@ export function playNote(midi: number, opts: NoteOptions = {}): () => void {
       try {
         o.stop(now + 0.15);
       } catch {
-        /* ya detenido */
+        /* already stopped */
       }
     }
   };
@@ -112,7 +112,7 @@ export function playChord(midis: number[], opts: NoteOptions = {}) {
   return () => stops.forEach((s) => s());
 }
 
-/** Clic de metrónomo. `accent` = primer tiempo del compás. */
+/** Metronome click. `accent` = first beat of the bar. */
 export function playClick(when: number, accent = false) {
   const c = getAudioContext();
   const osc = c.createOscillator();
@@ -129,18 +129,16 @@ export function playClick(when: number, accent = false) {
 
 export interface MetronomeOptions {
   bpm: number;
-  /** Pulsos por compás (para acentuar el primero). 0 = sin acento. */
+  /** Beats per bar (to accent the first one). 0 = no accent. */
   beatsPerBar: number;
-  /** Subdivisiones por pulso que se marcan con un clic más suave (1 = ninguna). */
+  /** Subdivisions per beat marked with a softer click (1 = none). */
   subdivision?: number;
-  /** Marca el pulso sin sonar: sigue avisando por `onBeat` para el pulso visual. */
+  /** Marks the beat silently; still fires `onBeat` for a visual pulse. */
   muted?: boolean;
   onBeat?: (beat: number, subdivision: number, time: number) => void;
 }
 
-/**
- * Metrónomo con planificación anticipada (lookahead), estable aunque el hilo principal se ocupe.
- */
+/** Lookahead-scheduled metronome, stable even when the main thread is busy. */
 export class Metronome {
   private timer: number | null = null;
   private nextTime = 0;
@@ -217,23 +215,23 @@ export class Metronome {
 }
 
 export interface SequenceEvent {
-  /** Notas MIDI (vacío = silencio) */
+  /** MIDI notes (empty = rest). */
   midis: number[];
-  /** Duración en negras */
+  /** Duration in quarter notes. */
   beats: number;
 }
 
 export interface PlaybackHandle {
   stop: () => void;
-  /** Promesa que se resuelve al terminar (o al detener) */
+  /** Resolves when playback finishes (or is stopped). */
   done: Promise<void>;
-  /** Instante (reloj del AudioContext) en que empieza la primera nota */
+  /** AudioContext-clock instant the first note starts. */
   startTime: number;
 }
 
 /**
- * Reproduce una secuencia de eventos a un tempo dado.
- * `onEvent(index)` se llama cuando empieza cada evento (para resaltar la nota en pantalla).
+ * Plays a sequence of events at a given tempo. `onEvent(index)` fires when
+ * each event starts, to highlight the note on screen.
  */
 export function playSequence(
   events: SequenceEvent[],
@@ -297,17 +295,17 @@ export function playSequence(
 
 export interface TimelineNote {
   midis: number[];
-  /** Inicio en negras desde el principio */
+  /** Start in quarter notes from the beginning. */
   start: number;
-  /** Duración en negras */
+  /** Duration in quarter notes. */
   beats: number;
 }
 
 /**
- * Reproduce notas con inicios independientes (dos manos, voces que se solapan).
- * A diferencia de `playSequence`, aquí cada nota lleva su propio instante de
- * inicio en lugar de encadenarse con la anterior.
- * `onNote(index)` se llama al empezar cada nota y con -1 al terminar o detener.
+ * Plays notes with independent start times (two hands, overlapping voices).
+ * Unlike `playSequence`, each note carries its own start instant instead of
+ * chaining off the previous one. `onNote(index)` fires on each note's start,
+ * and -1 on finish or stop.
  */
 export function playTimeline(
   notes: TimelineNote[],

@@ -1,4 +1,4 @@
-// Se evalúa en cada petición: la clave y el modelo llegan por entorno, no en el build.
+// evaluated per request: key and model come from env, not the build
 export const dynamic = "force-dynamic";
 
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
@@ -7,31 +7,24 @@ import { generatePlan, planEnabled, planLimit, planModel, PlanError } from "@/li
 import { dedupeGoalIds, MAX_PAGES, planRequestSchema, studyPlanSchema } from "@/lib/study-plan";
 
 /**
- * Plan de estudio de una partitura. El navegador dibuja las páginas del PDF y
- * las manda aquí con lo que sabe de la pieza; este servidor se lo pasa a Claude
- * con su propia clave de API y devuelve el plan ya validado.
+ * Study plan for a score. The browser renders the PDF pages and posts them
+ * here with what it knows about the piece; this server forwards it to Claude
+ * with its own API key and returns the validated plan.
  *
- * La respuesta es un flujo de líneas JSON en vez de una sola respuesta al
- * final, como en `/api/omr`: preparar un plan lleva uno o dos minutos y una
- * petición HTTP que se pasa ese rato callada la corta cualquier proxy por el
- * camino. Cada línea es un objeto:
- *
- *   {"type":"working","seconds":30}
- *   {"type":"done","plan":{…},"model":"claude-sonnet-5"}
- *   {"type":"error","message":"…"}
- *
- * Los errores de antes de empezar (sesión, límite, datos) sí son respuestas
- * normales con su código de estado.
+ * The response streams NDJSON lines like `/api/omr`, since preparing a plan
+ * takes a minute or two and a silent request that long gets cut by some
+ * proxy along the way. Errors before the stream starts (session, limit,
+ * data) are normal responses with a status code.
  */
 
-/** Una página dibujada a 1568 px pesa unos 300 KB en PNG; aquí se deja margen. */
+/** A page rendered at 1568 px is ~300 KB as PNG; this leaves margin. */
 const MAX_PAGE_BYTES = 4 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
 
-/** Cada cuánto se manda señal de vida mientras el modelo trabaja. */
+/** How often a heartbeat is sent while the model works. */
 const HEARTBEAT_MS = 10_000;
 
-/** Para que la aplicación sepa si ofrecer la opción y cuántos planes caben al día. */
+/** So the app knows whether to offer the option and how many plans fit per day. */
 export function GET() {
   return Response.json({ enabled: planEnabled(), perDay: planLimit().max }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -40,7 +33,7 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return Response.json({ error: "Origen no permitido" }, { status: 403 });
   if (!planEnabled()) return Response.json({ error: "El plan de estudio con IA no está disponible en este servidor." }, { status: 503 });
 
-  // Con cuenta: cada plan lo paga el servidor, así que hay a quién contárselo.
+  // requires an account: the server pays for each plan
   const me = await userFromRequest(req);
   if (!me) return unauthorized();
   const limit = planLimit();
@@ -62,9 +55,8 @@ export async function POST(req: Request) {
   const started = Date.now();
   const encoder = new TextEncoder();
 
-  // Cerrar la pestaña a mitad de un plan es lo normal —son minutos—, así que el
-  // flujo tiene que sobrevivir a que el destinatario se vaya: en cuanto eso
-  // pasa se deja de escribir y se para el latido.
+  // closing the tab mid-plan is normal (it takes minutes); once the client
+  // disconnects, stop sending and clear the heartbeat
   let open = true;
   let beat: ReturnType<typeof setInterval> | undefined;
   const finish = () => {
@@ -92,7 +84,7 @@ export async function POST(req: Request) {
           if (req.signal.aborted) return;
           if (e instanceof PlanError) send({ type: "error", message: e.message });
           else {
-            console.error("study-plan: fallo inesperado", e);
+            console.error("study-plan: unexpected failure", e);
             send({ type: "error", message: "No se ha podido preparar el plan. Vuelve a intentarlo." });
           }
         })
@@ -103,11 +95,11 @@ export async function POST(req: Request) {
           try {
             controller.close();
           } catch {
-            // Ya lo había cerrado el propio servidor al irse el navegador.
+            // already closed by the runtime when the browser left
           }
         });
     },
-    // Lo llama el servidor cuando el navegador se desconecta.
+    // called by the runtime when the browser disconnects
     cancel: finish,
   });
 
@@ -115,7 +107,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-store",
-      // Que nadie por el camino junte las líneas y se coma las señales de vida.
+      // stop any proxy from buffering lines and eating heartbeats
       "X-Accel-Buffering": "no",
       "Content-Encoding": "identity",
     },
@@ -132,9 +124,9 @@ function json(value: FormDataEntryValue | null | undefined): unknown {
 }
 
 /**
- * El esquema estricto de la API ya obliga a la forma, pero no a que las
- * lecciones enlazadas existan ni a que los objetivos tengan ids distintos: eso
- * se comprueba aquí antes de que el plan llegue a guardarse.
+ * The API's strict schema already enforces shape, but not that linked
+ * lessons exist or that goal ids are unique — checked here before the plan
+ * gets saved.
  */
 function validate(text: string) {
   let raw: unknown;
