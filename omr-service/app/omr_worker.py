@@ -70,6 +70,27 @@ def _set_step_size(ete, step: int) -> None:
     ete.inference = with_step
 
 
+def _set_target_pixels(pixels: int) -> None:
+    """
+    Cambia el tamaño al que oemer trabaja la página.
+
+    Antes de segmentar, oemer lleva cualquier imagen a unos 3,67 millones de
+    píxeles —ni el tamaño que le mandes ni el recorte previo cambian eso—, y de
+    ahí sale casi todo el tiempo de inferencia.
+    """
+    if pixels <= 0:
+        return
+    from PIL import Image
+
+    from oemer import inference
+
+    def resize(image: Image.Image) -> Image.Image:
+        ratio = (pixels / (image.width * image.height)) ** 0.5
+        return image.resize((round(image.width * ratio), round(image.height * ratio)))
+
+    inference.resize_image = resize
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("usage: python -m app.omr_worker <image> <output.musicxml>", file=sys.stderr)
@@ -83,6 +104,7 @@ def main() -> int:
     from oemer.exceptions import StafflineException
 
     _set_step_size(ete, config.STEP_SIZE)
+    _set_target_pixels(config.TARGET_PIXELS)
 
     # Enderezar la página antes de leerla. Aquí y no en el servidor: OpenCV se
     # queda cargado en el proceso que lo importa, y este se muere con la página.

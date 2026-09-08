@@ -63,3 +63,12 @@ DEWARP = _bool("OMR_DEWARP", False)
 #: 64 px de solape ninguna cabeza de nota puede caer partida entre dos
 #: recuadros, y una nota perdida no se nota hasta que suena.
 STEP_SIZE = _int("OMR_STEP_SIZE", 192)
+
+
+#: Píxeles a los que oemer reduce (o amplía) la página antes de pasarla por la
+#: red. Su valor de fábrica son 3,67 millones —pase lo que se le pase— y el
+#: tiempo de inferencia va con ellos. A 2,4 la página de prueba sale con los
+#: mismos compases y las mismas alturas en un 60 % del tiempo; bajar mucho más
+#: empezaría a comerse los símbolos pequeños (alteraciones, silencios).
+#: 0 deja el suyo.
+TARGET_PIXELS = _int("OMR_TARGET_PIXELS", 2_400_000)
