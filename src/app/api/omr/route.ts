@@ -90,8 +90,11 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-store",
-      // Que ningún proxy junte las líneas y se coma las señales de vida.
+      // Que nadie por el camino junte las líneas y se coma las señales de
+      // vida: ni el proxy (X-Accel-Buffering) ni una compresión que se guarde
+      // los trozos hasta llenar su búfer (Content-Encoding).
       "X-Accel-Buffering": "no",
+      "Content-Encoding": "identity",
     },
   });
 }
