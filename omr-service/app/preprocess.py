@@ -87,6 +87,70 @@ def deskew_file(path: str) -> float:
     return round(skew, 2)
 
 
+#: Aire que se deja alrededor del contenido al recortar, como fracción del lado
+#: mayor. Las cabezas de nota pegadas al borde necesitan sitio, y oemer busca
+#: los pentagramas con algo de contexto blanco alrededor.
+_CROP_MARGIN = 0.02
+
+#: Por debajo de este ahorro de área no se recorta: volver a escribir el PNG
+#: cuesta más de lo que vale, y un recorte de nada no cambia la resolución.
+_MIN_CROP_SAVING = 0.03
+
+
+def crop_margins_file(path: str) -> float:
+    """
+    Recorta los márgenes blancos de la página guardada en `path` y devuelve la
+    fracción del área que quitó (0 si no tocó nada).
+
+    No ahorra tiempo: oemer siempre reescala la página a los mismos píxeles
+    (`OMR_TARGET_PIXELS`), pase lo que se le pase. Lo que cambia es a qué se
+    dedican esos píxeles: en una hoja A4 típica un cuarto de la página es
+    margen, y recortarlo le da a la música esa resolución de más.
+    """
+    with Image.open(path) as image:
+        image.load()
+        box = content_box(image)
+        if box is None:
+            return 0.0
+        left, top, right, bottom = box
+        saving = 1 - ((right - left) * (bottom - top)) / (image.width * image.height)
+        if saving < _MIN_CROP_SAVING:
+            return 0.0
+        image.crop(box).save(path, format="PNG")
+    return round(saving, 3)
+
+
+def content_box(image: Image.Image) -> tuple[int, int, int, int] | None:
+    """
+    Caja (izquierda, arriba, derecha, abajo) que encierra lo impreso, con su
+    margen de aire. `None` si la página está en blanco.
+
+    Se mide sobre una copia pequeña: para saber dónde empieza la tinta no hace
+    falta la página entera, y así no cuesta nada. Una fila o columna cuenta
+    como contenido cuando tiene varios píxeles oscuros, no uno: un punto de
+    polvo del escáner no es música.
+    """
+    import numpy as np
+
+    scale = min(1.0, 600 / image.width)
+    small = image.convert("L")
+    if scale < 1.0:
+        small = small.resize((round(image.width * scale), round(image.height * scale)), Image.BILINEAR)
+    dark = np.array(small) < 128
+
+    rows = np.flatnonzero(dark.sum(axis=1) >= 3)
+    cols = np.flatnonzero(dark.sum(axis=0) >= 3)
+    if len(rows) == 0 or len(cols) == 0:
+        return None
+
+    margin = _CROP_MARGIN * max(image.width, image.height)
+    left = max(0, int(cols[0] / scale - margin))
+    top = max(0, int(rows[0] / scale - margin))
+    right = min(image.width, int((cols[-1] + 1) / scale + margin))
+    bottom = min(image.height, int((rows[-1] + 1) / scale + margin))
+    return left, top, right, bottom
+
+
 def estimate_skew(image: Image.Image) -> float:
     """
     Grados que hay que girar la página para dejar sus pentagramas horizontales.

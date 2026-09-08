@@ -17,7 +17,7 @@ import traceback
 from types import SimpleNamespace
 
 from . import config
-from .preprocess import deskew_file
+from .preprocess import crop_margins_file, deskew_file
 
 EXIT_UNREADABLE = 3
 
@@ -112,6 +112,14 @@ def main() -> int:
         rotated = deskew_file(image_path)
         if rotated:
             print(f"page rotated {rotated} degrees", file=sys.stderr)
+
+    # Y, si se pide, quitarle los márgenes después de girarla: el giro añade
+    # esquinas blancas que también sobran. Ver CROP_MARGINS para el porqué de
+    # que venga apagado.
+    if config.CROP_MARGINS:
+        cropped = crop_margins_file(image_path)
+        if cropped:
+            print(f"page margins cropped ({cropped:.0%} of the area)", file=sys.stderr)
 
     ete.clear_data()
     args = SimpleNamespace(

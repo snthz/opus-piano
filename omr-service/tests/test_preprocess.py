@@ -5,7 +5,7 @@ from PIL import Image
 
 from app import config
 from app.errors import ImageTooSmall, UnsupportedType
-from app.preprocess import deskew_file, normalize, sniff
+from app.preprocess import content_box, crop_margins_file, deskew_file, normalize, sniff
 
 
 def png(width: int, height: int) -> bytes:
@@ -95,6 +95,49 @@ def test_una_pagina_torcida_se_endereza(tmp_path):
     # Se mide la inclinación de las líneas y se corrige; luego ya no queda nada.
     assert deskew_file(path) == pytest.approx(3, abs=0.4)
     assert deskew_file(path) == 0.0
+
+
+def test_los_margenes_blancos_se_recortan_dejando_aire(tmp_path):
+    # Los pentagramas de `staves` van de x=100 a 1100 y de y=150 a ~1330 en
+    # una hoja de 1200x1600: alrededor hay margen que no aporta nada.
+    path = str(tmp_path / "con-margen.png")
+    staves(0).save(path)
+    saving = crop_margins_file(path)
+    assert saving > 0.2
+    with Image.open(path) as image:
+        # Se queda lo impreso más un 2 % de aire (32 px), no lo impreso a ras.
+        assert image.width == pytest.approx(1000 + 2 * 32, abs=4)
+        assert image.height == pytest.approx(1181 + 2 * 32, abs=6)
+        # Y las líneas siguen dentro: la primera fila oscura está a ~32 px del borde.
+        pixels = image.convert("L").load()
+        assert pixels[image.width // 2, 32] < 128
+
+
+def test_una_pagina_sin_margen_no_se_toca(tmp_path):
+    from PIL import ImageDraw
+
+    image = Image.new("L", (800, 600), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 799, 599), outline=0, width=3)  # tinta hasta el borde
+    path = str(tmp_path / "sin-margen.png")
+    image.save(path)
+    assert crop_margins_file(path) == 0.0
+    with Image.open(path) as saved:
+        assert saved.size == (800, 600)
+
+
+def test_una_pagina_en_blanco_no_se_recorta(tmp_path):
+    assert content_box(Image.new("L", (800, 600), "white")) is None
+    path = str(tmp_path / "blanca.png")
+    Image.new("L", (800, 600), "white").save(path)
+    assert crop_margins_file(path) == 0.0
+
+
+def test_un_punto_de_polvo_no_cuenta_como_contenido():
+    image = staves(0)
+    image.putpixel((5, 5), 0)  # una mota en la esquina
+    left, top, _, _ = content_box(image)
+    assert left > 50 and top > 100
 
 
 def staves(degrees: float) -> Image.Image:

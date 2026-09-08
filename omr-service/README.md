@@ -65,7 +65,8 @@ atrapa y devuelve su propio 404 en HTML. Para comprobar el servicio desplegado, 
 | Variable | Por defecto | Qué hace |
 | --- | --- | --- |
 | `OMR_DEWARP` | `0` | Enderezado profundo de oemer (páginas curvadas). Cuesta minutos; cada petición puede pedirlo con el campo `dewarp` |
-| `OMR_STEP_SIZE` | 192 | Salto de la ventana de la red sobre la página. Con 128 (el de oemer) tarda el doble; con 256, un tercio menos que con 192 |
+| `OMR_STEP_SIZE` | 224 | Salto de la ventana de la red sobre la página. Con 128 (el de oemer) pasa por tres veces más recuadros; con 256 ya no hay solape en el primer modelo |
+| `OMR_CROP_MARGINS` | `0` | Recortar los márgenes blancos antes de reconocer. Apagado: en la página de prueba perdió tres sostenidos (ver abajo) |
 | `PORT` | 8080 | Puerto de escucha (Cloud Run la inyecta) |
 | `OMR_TOKEN` | — | Si está, se exige `Authorization: Bearer` |
 | `OMR_TIMEOUT` | 600 | Corte duro del reconocimiento, en segundos |
@@ -113,15 +114,31 @@ dejaron en **dos minutos**, con las mismas notas:
 | | Antes | Ahora |
 | --- | --- | --- |
 | Enderezado | El de oemer: remuestrea ocho imágenes de la página entera, de un solo hilo | Un giro y ya, medido con Hough sobre una copia pequeña |
-| Ventana de la red | Salto 128: cada píxel pasa cuatro veces por la red | Salto 192: pasa menos de dos |
+| Ventana de la red | Salto 128: 330 recuadros por página | Salto 224: 108 recuadros |
 | Tamaño de trabajo | Los 3,67 Mpx de oemer | 2,4 Mpx |
-| Tiempo (en local) | 380 s | **86 s** |
-| CPU consumida | 1263 s | **280 s** |
+| Tiempo (en local) | 380 s | **60–85 s** |
+| CPU consumida | 1263 s | **~280 s** |
 | Memoria máxima | ~4,5 GB | ~4,5 GB |
 
-Con la misma página, el resultado no cambia: los mismos 18 compases y las mismas alturas. Bajar el
-salto a 256 lo deja en 106 s y también salen las mismas, pero se queda en 192 a propósito: con 64 px
-de solape ninguna cabeza de nota puede caer partida entre dos recuadros.
+Con la misma página, el resultado no cambia: los mismos 18 compases y las mismas alturas. Con
+salto 256 saldría algo más rápido aún (96 recuadros), pero se queda en 224 a propósito: la ventana
+del primer modelo mide 256 px y con 256 de salto no solaparía nada, y con 224 quedan 32 px de
+solape en los dos modelos, de modo que ninguna cabeza de nota cae partida entre dos recuadros.
+
+De esos 60–85 s (el margen es el ruido de medir en un portátil), la inferencia de los dos modelos
+son unos 45–70 s y el posprocesado en Python de un solo hilo unos 14 s. El segundo modelo
+(`seg_net`, cabezas, plicas y claves) tarda el doble que el primero aunque pese la mitad: usa
+ventanas de 288 px y convoluciones separables, que en CPU van despacio. Las llamadas a los
+clasificadores de scikit-learn, que cargan el modelo del disco en cada símbolo, suman 0,3 s en
+total: no hay nada que ganar ahí. Lo que queda por probar, si hiciera falta más, es cuantizar los
+dos modelos ONNX a int8 (calibración estática y volver a validar el resultado).
+
+**Recortar los márgenes no ayuda**, aunque parezca que debería: oemer trabaja a un número fijo
+de píxeles y el margen se los come. Probado con `OMR_CROP_MARGINS=1` en la misma página (solo un
+4 % de margen), las alturas cambian: los tres sostenidos del compás 6 salen como becuadros y
+aparecen silencios sueltos en tres compases más. Los clasificadores de símbolos esperan los
+tamaños de una página entera y el cambio de escala los descoloca. Queda como opción apagada para
+probar con páginas de márgenes anchos.
 
 Cuidado con la métrica `memory/utilizations` de Cloud Run para dimensionar: es la **media de cada
 minuto**, no el pico. Marcaba un 49 % de 6 GiB —2,9 GB— y con ese dato se probó a bajar el límite a

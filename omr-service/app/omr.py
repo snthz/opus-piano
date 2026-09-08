@@ -42,9 +42,9 @@ def run_omr(image_path: str, workdir: str, dewarp: bool | None = None) -> OmrRes
     if dewarp is not None:
         env["OMR_DEWARP"] = "1" if dewarp else "0"
     if config.THREADS > 0:
-        # numpy, OpenBLAS y scikit-learn (media hora de trabajo después de la
-        # inferencia) cuentan los núcleos del anfitrión, no los del contenedor.
-        # A onnxruntime esto no le dice nada: a ese lo ata el propio worker.
+        # numpy y OpenBLAS (el posprocesado, unos 15 s por página) cuentan los
+        # núcleos del anfitrión, no los del contenedor. A onnxruntime esto no
+        # le dice nada: a ese lo ata el propio worker.
         for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
             env[var] = str(config.THREADS)
     env["MPLBACKEND"] = "Agg"  # matplotlib sin pantalla

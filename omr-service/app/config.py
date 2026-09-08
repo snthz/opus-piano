@@ -56,14 +56,24 @@ THREADS = _int("OMR_THREADS", 0)
 #: Cada petición puede pedirlo con el campo «dewarp».
 DEWARP = _bool("OMR_DEWARP", False)
 
-#: Salto entre los recuadros de 256 px con los que la red recorre la página.
-#: oemer trae 128: cada píxel pasa cuatro veces por la red y se promedia. Con
-#: 192 el trabajo baja a la mitad larga y en la página de prueba salen las
-#: mismas notas; se queda ahí y no en 256 (que iría aún más rápido) porque con
-#: 64 px de solape ninguna cabeza de nota puede caer partida entre dos
-#: recuadros, y una nota perdida no se nota hasta que suena.
-STEP_SIZE = _int("OMR_STEP_SIZE", 192)
+#: Salto entre los recuadros con los que la red recorre la página (256 px en el
+#: primer modelo, 288 en el segundo). oemer trae 128: cada píxel pasa cuatro
+#: veces por la red y se promedia. Con 224 el trabajo baja a un tercio y en la
+#: página de prueba salen las mismas notas; se queda ahí y no en 256 (que iría
+#: algo más rápido) porque con 32 px de solape en los dos modelos ninguna
+#: cabeza de nota puede caer partida entre dos recuadros, y una nota perdida
+#: no se nota hasta que suena.
+STEP_SIZE = _int("OMR_STEP_SIZE", 224)
 
+
+#: Recortar los márgenes blancos antes de reconocer. Como oemer trabaja a un
+#: número fijo de píxeles, quitar el margen le da esa resolución a la música.
+#: Apagado por defecto: en la página de prueba (con un 4 % de margen) el
+#: recorte hizo que los tres sostenidos de un compás salieran como becuadros;
+#: los clasificadores de oemer esperan los símbolos al tamaño de una página
+#: entera y no perdonan el cambio de escala. Queda como opción para probar con
+#: páginas de márgenes anchos, que es donde podría compensar.
+CROP_MARGINS = _bool("OMR_CROP_MARGINS", False)
 
 #: Píxeles a los que oemer reduce (o amplía) la página antes de pasarla por la
 #: red. Su valor de fábrica son 3,67 millones —pase lo que se le pase— y el
