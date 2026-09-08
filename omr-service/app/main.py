@@ -24,7 +24,7 @@ import tempfile
 import threading
 import time
 
-from fastapi import FastAPI, Request, UploadFile
+from fastapi import Depends, FastAPI, Request, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -60,15 +60,23 @@ def _equal(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
 
 
+@app.get("/health")
 @app.get("/healthz")
-async def healthz() -> dict:
-    """Sonda de Cloud Run: no toca los modelos ni el disco."""
+async def health() -> dict:
+    """
+    Comprobación de vida: no toca los modelos ni el disco.
+
+    Dos rutas para lo mismo porque en Cloud Run `/healthz` no llega hasta aquí
+    —lo atrapa el frontend de Google y devuelve su propio 404—, así que la que
+    sirve de verdad ahí fuera es `/health`.
+    """
     return {"status": "ok", "version": VERSION}
 
 
-@app.post("/v1/transcribe")
-async def transcribe(request: Request, file: UploadFile) -> JSONResponse:
-    _check_token(request)
+@app.post("/v1/transcribe", dependencies=[Depends(_check_token)])
+async def transcribe(file: UploadFile) -> JSONResponse:
+    # El token se comprueba como dependencia, antes de que FastAPI se ponga a
+    # leer el multipart: quien no se identifica no llega ni a subir el archivo.
 
     # Un byte más del límite para distinguir «justo en el límite» de «se pasa».
     data = await file.read(config.MAX_UPLOAD_BYTES + 1)

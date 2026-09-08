@@ -53,19 +53,29 @@ export async function POST(req: Request) {
   const started = Date.now();
   const encoder = new TextEncoder();
 
+  // Cerrar la pestaña a mitad de un reconocimiento es lo normal —son minutos—,
+  // así que el flujo tiene que sobrevivir a que el destinatario se vaya: en
+  // cuanto eso pasa se deja de escribir y se para el latido, y ni escribir ni
+  // cerrar vuelve a tocar el controlador.
+  let open = true;
+  let beat: ReturnType<typeof setInterval> | undefined;
+  const finish = () => {
+    open = false;
+    clearInterval(beat);
+  };
+
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      let open = true;
       const send = (line: object) => {
         if (!open) return;
         try {
           controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
         } catch {
-          open = false; // el navegador ha cerrado: da igual, el finally limpia
+          finish();
         }
       };
 
-      const beat = setInterval(() => send({ type: "working", seconds: Math.round((Date.now() - started) / 1000) }), HEARTBEAT_MS);
+      beat = setInterval(() => send({ type: "working", seconds: Math.round((Date.now() - started) / 1000) }), HEARTBEAT_MS);
       send({ type: "working", seconds: 0 });
 
       recognisePage(file, req.signal)
@@ -79,11 +89,18 @@ export async function POST(req: Request) {
           }
         })
         .finally(() => {
-          clearInterval(beat);
-          if (open) controller.close();
-          open = false;
+          const wasOpen = open;
+          finish();
+          if (!wasOpen) return;
+          try {
+            controller.close();
+          } catch {
+            // Ya lo había cerrado el propio servidor al irse el navegador.
+          }
         });
     },
+    // Lo llama el servidor cuando el navegador se desconecta.
+    cancel: finish,
   });
 
   return new Response(stream, {

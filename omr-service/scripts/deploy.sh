@@ -51,7 +51,7 @@ gcloud run deploy "${SERVICE}" \
 URL=$(gcloud run services describe "${SERVICE}" --project "${PROJECT}" --region "${REGION}" --format='value(status.url)')
 echo
 echo "Listo: ${URL}"
-echo "Comprueba:  curl ${URL}/healthz"
+echo "Comprueba:  curl ${URL}/health"
 echo "En el .env de Opus Piano:  OMR_URL=${URL}  y  OMR_TOKEN=<el mismo>"
 echo
 echo "Si aún no lo has hecho, pon una alerta de presupuesto de 1 USD:"

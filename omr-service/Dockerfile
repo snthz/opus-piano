@@ -49,7 +49,7 @@ USER omr
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/healthz').read()" || exit 1
+  CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/health').read()" || exit 1
 
 # Un solo worker: la concurrencia la reparte Cloud Run levantando instancias,
 # que es lo único que sirve cuando cada petición ocupa la CPU entera.

@@ -29,10 +29,18 @@ def upload(client, data: bytes, name: str = "page.png", **kwargs):
     return client.post("/v1/transcribe", files={"file": (name, data, "image/png")}, **kwargs)
 
 
-def test_healthz_responde_sin_tocar_los_modelos(client):
-    response = client.get("/healthz")
+@pytest.mark.parametrize("path", ["/health", "/healthz"])
+def test_la_comprobacion_de_vida_responde_sin_tocar_los_modelos(client, path):
+    # Dos rutas: en Cloud Run «/healthz» la atrapa el frontend de Google.
+    response = client.get(path)
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_sin_token_no_se_llega_ni_a_leer_el_archivo(client, monkeypatch):
+    monkeypatch.setattr(config, "TOKEN", "secreto")
+    response = client.post("/v1/transcribe")  # sin multipart siquiera
+    assert response.status_code == 401
 
 
 def test_una_pagina_devuelve_su_musicxml(client):

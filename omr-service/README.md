@@ -53,9 +53,12 @@ Los errores llevan su código y su estado:
 Los mensajes van en inglés y sin detalles internos: quien los traduce y los enseña es la
 aplicación, en `src/lib/server/omr.ts`.
 
-### `GET /healthz`
+### `GET /health`
 
-`{"status":"ok"}`. No carga modelos ni toca el disco: es la sonda de Cloud Run.
+`{"status":"ok","version":"1.0.0"}`. No carga modelos ni toca el disco.
+
+Responde igual en `/healthz`, pero **en Cloud Run esa ruta no llega**: el frontend de Google la
+atrapa y devuelve su propio 404 en HTML. Para comprobar el servicio desplegado, `/health`.
 
 ## Variables
 
@@ -74,7 +77,7 @@ aplicación, en `src/lib/server/omr.ts`.
 
 ```bash
 scripts/local_run.sh                 # crea .venv, baja los modelos (110 MB) y levanta el 8000
-curl localhost:8000/healthz
+curl localhost:8000/health
 curl -F file=@tests/fixtures/bach-wtk1-prelude1.pdf localhost:8000/v1/transcribe
 ```
 
