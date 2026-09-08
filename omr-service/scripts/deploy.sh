@@ -27,8 +27,10 @@ fi
 # README): 7 minutos de reloj, 1,5 vCPU de media y un pico de 2,9 GB.
 # --cpu 4: aunque la media sea 1,5, la inferencia sí aprovecha los cuatro; con
 #   menos, los 7 minutos se irían a más de diez y nadie espera eso.
-# --memory 4Gi: un tercio de margen sobre el pico. Si se queda corto, la
-#   instancia muere entera y la petición se cae sin explicación.
+# --memory 6Gi: el pico real ronda los 4,5 GB. Ojo con la métrica de memoria
+#   de Cloud Run: es la media de cada minuto, y con 4 GiB parecía sobrar sitio
+#   —marcaba 2,9 GB— hasta que una página tumbó la instancia. Si se queda
+#   corta, el contenedor muere entero y la petición se cae a media página.
 # --concurrency 1: oemer ocupa la CPU entera, dos páginas a la vez en la misma
 #   instancia tardan más que dos seguidas.
 # --min-instances 0: en reposo no se paga nada; a cambio, el primer uso del día
@@ -40,7 +42,7 @@ gcloud run deploy "${SERVICE}" \
   --source . \
   --region "${REGION}" \
   --cpu 4 \
-  --memory 4Gi \
+  --memory 6Gi \
   --concurrency 1 \
   --min-instances 0 \
   --max-instances 3 \

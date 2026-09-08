@@ -45,6 +45,7 @@ const MESSAGES: Record<string, string> = {
   EMPTY_SCORE: "No se han encontrado pentagramas en esta página. Suele pasar con páginas de texto, portadas o escaneos torcidos.",
   OMR_TIMEOUT: "El reconocimiento ha tardado demasiado y se ha cortado. Prueba con una página con menos compases.",
   BUSY: "El servicio está ocupado con otra partitura. Prueba dentro de un minuto.",
+  CRASHED: "El servicio se ha caído a mitad de esta página, casi siempre por quedarse sin memoria. Vuelve a intentarlo; si se repite, esa página es demasiado para él.",
   UNAUTHORIZED: "El servidor no ha podido identificarse ante el servicio de reconocimiento.",
 };
 
@@ -99,12 +100,21 @@ export async function recognisePage(image: Blob, signal?: AbortSignal): Promise<
   return { musicxml: body.musicxml, seconds: typeof body.seconds === "number" ? body.seconds : 0 };
 }
 
+/**
+ * El código del servicio si lo hay; si no, el fallo lo ha puesto la plataforma
+ * y hay que distinguirlo. Un 503 del servicio quiere decir «estoy con otra
+ * página»; un 503 de Cloud Run quiere decir que la instancia se ha muerto por
+ * el camino —normalmente sin memoria— y decirle al usuario que espere un
+ * minuto sería mandarle a repetir lo mismo.
+ */
 async function errorCode(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: { code?: string } };
     if (body.error?.code) return body.error.code;
   } catch {
-    // Cloud Run puede responder con HTML cuando el problema es suyo.
+    // Cuando el problema es de Cloud Run, la respuesta no es JSON.
   }
-  return response.status === 429 || response.status === 503 ? "BUSY" : "OMR_FAILED";
+  if (response.status === 429) return "BUSY"; // no hay instancia libre
+  if (response.status === 502 || response.status === 503) return "CRASHED";
+  return "OMR_FAILED";
 }

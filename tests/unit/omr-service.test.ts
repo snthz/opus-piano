@@ -81,17 +81,33 @@ describe("cliente del servicio de OMR", () => {
     expect(error.message).toBe("No se ha podido reconocer la partitura.");
   });
 
-  test("una respuesta que no es JSON (Cloud Run caído) se trata como fallo del servicio", async () => {
-    reply("<html>502 Bad Gateway</html>", 502);
+  test("una respuesta que no es JSON no deja al usuario con un volcado de HTML", async () => {
+    reply("<html>500 Internal Server Error</html>", 500);
     const error = (await recognisePage(page()).catch((e: unknown) => e)) as OmrError;
     expect(error.code).toBe("OMR_FAILED");
+    expect(error.message).not.toContain("html");
   });
 
-  test("un 503 sin cuerpo se lee como «ocupado»", async () => {
-    reply("", 503);
-    const error = (await recognisePage(page()).catch((e: unknown) => e)) as OmrError;
+  test("«ocupado» solo lo dice el servicio, no la plataforma", async () => {
+    // El 503 del propio servicio (con su código) sí es «estoy con otra página».
+    reply({ error: { code: "BUSY", message: "Another page is being processed" } }, 503);
+    let error = (await recognisePage(page()).catch((e: unknown) => e)) as OmrError;
     expect(error.code).toBe("BUSY");
     expect(error.message).toContain("ocupado");
+
+    // El 503 de Cloud Run (sin cuerpo JSON) es la instancia muerta a mitad
+    // —casi siempre sin memoria—, y mandar a esperar un minuto sería mandar a
+    // repetir lo mismo.
+    reply("", 503);
+    error = (await recognisePage(page()).catch((e: unknown) => e)) as OmrError;
+    expect(error.code).toBe("CRASHED");
+    expect(error.message).toContain("sin memoria");
+  });
+
+  test("un 429 sí es falta de sitio", async () => {
+    reply("", 429);
+    const error = (await recognisePage(page()).catch((e: unknown) => e)) as OmrError;
+    expect(error.code).toBe("BUSY");
   });
 
   test("un 200 que no trae MusicXML tampoco cuela", async () => {
