@@ -136,7 +136,10 @@ class _JsonFormatter(logging.Formatter):
                 entry[key] = value
         if record.exc_info:
             entry["exception"] = self.formatException(record.exc_info)
-        return json.dumps(entry, ensure_ascii=False)
+        # default=str: en los registros de acceso de uvicorn viaja el «scope» de
+        # la petición, que no es serializable; antes de perder la línea entera,
+        # se escribe como texto.
+        return json.dumps(entry, ensure_ascii=False, default=str)
 
 
 def setup_logging() -> None:
@@ -145,6 +148,13 @@ def setup_logging() -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(os.environ.get("OMR_LOG_LEVEL", "INFO"))
+    # uvicorn se monta sus propios manejadores antes de importar la aplicación;
+    # se los quitamos para que sus líneas salgan por el mismo sitio y con el
+    # mismo formato que las nuestras.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        logger = logging.getLogger(name)
+        logger.handlers = []
+        logger.propagate = True
 
 
 setup_logging()

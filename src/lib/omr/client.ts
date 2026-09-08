@@ -5,6 +5,7 @@ import { parseMusicXml, type ParsedScore } from "@/lib/music/musicxml";
 import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
 import { UserError } from "@/lib/user-error";
 import { mergePages } from "./merge";
+import { readNdjson } from "./ndjson";
 
 /**
  * Reconocimiento de una partitura escaneada sin IA ni claves de API: el
@@ -136,36 +137,14 @@ async function recognise(image: Blob, signal: AbortSignal | undefined, onWait: (
   }
   if (!res.body) throw new UserError("El servidor no ha devuelto ninguna respuesta.");
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
   let musicxml: string | null = null;
   let failure: string | null = null;
 
-  const handle = (line: string) => {
-    if (!line.trim()) return;
-    let event: { type?: string; musicxml?: string; message?: string; seconds?: number };
-    try {
-      event = JSON.parse(line) as typeof event;
-    } catch {
-      return; // línea partida por el camino: la siguiente lectura la completa
-    }
-    if (event.type === "working") onWait(event.seconds ?? 0);
+  await readNdjson(res.body, (event) => {
+    if (event.type === "working") onWait(typeof event.seconds === "number" ? event.seconds : 0);
     else if (event.type === "done" && typeof event.musicxml === "string") musicxml = event.musicxml;
-    else if (event.type === "error") failure = event.message ?? "No se ha podido reconocer la partitura.";
-  };
-
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let index: number;
-    while ((index = buffer.indexOf("\n")) >= 0) {
-      handle(buffer.slice(0, index));
-      buffer = buffer.slice(index + 1);
-    }
-  }
-  handle(buffer);
+    else if (event.type === "error") failure = typeof event.message === "string" ? event.message : "No se ha podido reconocer la partitura.";
+  });
 
   if (failure) throw new UserError(failure);
   if (!musicxml) throw new UserError("El reconocimiento se ha cortado antes de terminar. Vuelve a intentarlo.");
