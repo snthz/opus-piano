@@ -107,15 +107,16 @@ además, solo deja usarlo con la sesión iniciada y con un límite de páginas p
 ### Lo que cuesta de verdad
 
 Medido con `tests/fixtures/bach-wtk1-prelude1.pdf` (una página A4, dos pentagramas, semicorcheas
-seguidas). La primera versión tardaba 7 minutos por página; dos cambios la dejaron en algo más de
-dos, con las mismas notas:
+seguidas). La primera versión tardaba 7 minutos por página; tres cambios y el doble de CPU la
+dejaron en **dos minutos**, con las mismas notas:
 
 | | Antes | Ahora |
 | --- | --- | --- |
-| Enderezado | El de oemer: remuestrea ocho imágenes de la página entera, de un solo hilo | Un giro y ya, en `preprocess`, medido con Hough sobre una copia pequeña |
+| Enderezado | El de oemer: remuestrea ocho imágenes de la página entera, de un solo hilo | Un giro y ya, medido con Hough sobre una copia pequeña |
 | Ventana de la red | Salto 128: cada píxel pasa cuatro veces por la red | Salto 192: pasa menos de dos |
-| Tiempo (en local) | 380 s | **141 s** |
-| CPU consumida | 1263 s | **461 s** |
+| Tamaño de trabajo | Los 3,67 Mpx de oemer | 2,4 Mpx |
+| Tiempo (en local) | 380 s | **86 s** |
+| CPU consumida | 1263 s | **280 s** |
 | Memoria máxima | ~4,5 GB | ~4,5 GB |
 
 Con la misma página, el resultado no cambia: los mismos 18 compases y las mismas alturas. Bajar el

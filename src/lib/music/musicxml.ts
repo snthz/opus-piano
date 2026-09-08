@@ -303,7 +303,8 @@ export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeat
 export function eventToEasyScore(ev: XmlEvent, clef: ClefName): string {
   if (ev.rest || !ev.pitches.length) {
     const pos = clef === "bass" ? "D3" : clef === "alto" ? "C4" : "B4";
-    return `${pos}/${ev.vex}/r`;
+    // EasyScore espera los puntillos detrás del tipo: «B4/h/r.», no «B4/h./r».
+    return `${pos}/${ev.vex.replace(/\./g, "")}/r${ev.vex.replace(/[^.]/g, "")}`;
   }
   const keys = ev.pitches.map((p, i) => `${p.letter}${ev.shown[i] ?? ""}${p.octave}`);
   return keys.length === 1 ? `${keys[0]}/${ev.vex}` : `(${keys.join(" ")})/${ev.vex}`;

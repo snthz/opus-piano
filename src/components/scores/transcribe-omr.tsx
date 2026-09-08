@@ -127,7 +127,7 @@ export function TranscribeWithOmr({
                 {pageCount > MAX_OMR_PAGES ? ` Se reconocen ${MAX_OMR_PAGES} como mucho de una vez.` : ""}
               </p>
               <p>
-                Cada página tarda <strong>dos o tres minutos</strong>. Puedes cerrar el panel y seguir leyendo la partitura
+                Cada página tarda <strong>unos dos minutos</strong>. Puedes cerrar el panel y seguir leyendo la partitura
                 mientras tanto; si cierras la pestaña, se pierde.
               </p>
             </div>
