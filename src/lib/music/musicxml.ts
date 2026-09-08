@@ -1,4 +1,5 @@
 import { unzipSync, strFromU8 } from "fflate";
+import { easyScorePiece } from "./easyscore";
 import { keysWithFifths } from "./keys";
 import { toMidi, noteName, type Letter, type NamingSystem, type Pitch } from "./pitch";
 import type { ClefName } from "@/components/notation/score";
@@ -303,11 +304,10 @@ export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeat
 export function eventToEasyScore(ev: XmlEvent, clef: ClefName): string {
   if (ev.rest || !ev.pitches.length) {
     const pos = clef === "bass" ? "D3" : clef === "alto" ? "C4" : "B4";
-    // EasyScore espera los puntillos detrás del tipo: «B4/h/r.», no «B4/h./r».
-    return `${pos}/${ev.vex.replace(/\./g, "")}/r${ev.vex.replace(/[^.]/g, "")}`;
+    return easyScorePiece(pos, ev.vex, true);
   }
   const keys = ev.pitches.map((p, i) => `${p.letter}${ev.shown[i] ?? ""}${p.octave}`);
-  return keys.length === 1 ? `${keys[0]}/${ev.vex}` : `(${keys.join(" ")})/${ev.vex}`;
+  return easyScorePiece(keys.length === 1 ? keys[0] : `(${keys.join(" ")})`, ev.vex);
 }
 
 export function measureToEasyScore(events: XmlEvent[], clef: ClefName): string {
@@ -331,13 +331,36 @@ export interface ScoreTimelineNote {
   refs: { staff: number; index: number }[];
 }
 
+const beatsOf = (events: XmlEvent[]) => events.reduce((sum, e) => sum + e.beats, 0);
+
 /**
  * Línea de tiempo para tocar la pieza: las notas ligadas se funden en una sola
  * para que no vuelvan a atacarse, pero recuerdan qué notas visuales cubren.
+ *
+ * Cada compás impreso empieza a la vez en todos los pentagramas, y el reloj se
+ * vuelve a poner en su sitio en cada barra. Es lo que dice la partitura, y
+ * además evita que un compás mal leído —de una transcripción automática, por
+ * ejemplo— descuadre la pieza entera: si a la mano izquierda le falta una
+ * negra en el compás 3, se nota en el 3 y no en todo lo que viene después,
+ * arrastrándose cada vez más. La duración del compás es la del pentagrama que
+ * más dura, de modo que una anacrusa o un último compás corto siguen valiendo.
  */
 export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
   const out: ScoreTimelineNote[] = [];
   const order = expandRepeats(score.measures);
+
+  const nominal = (score.time.num * 4) / score.time.den;
+  const lengths = score.measures.map((m) => {
+    const longest = m.staves.reduce((max, events) => Math.max(max, beatsOf(events)), 0);
+    return longest > 0 ? longest : nominal;
+  });
+  const starts: number[] = [];
+  let clock = 0;
+  for (const mi of order) {
+    starts.push(clock);
+    clock += lengths[mi];
+  }
+
   score.clefs.forEach((_, staff) => {
     // Índice global de la primera nota de cada compás impreso.
     const offsets: number[] = [];
@@ -346,11 +369,11 @@ export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
       offsets.push(n);
       n += (m.staves[staff] ?? []).length;
     }
-    let t = 0;
     let open: ScoreTimelineNote | null = null;
     order.forEach((mi, step) => {
       // Al saltar atrás (o adelante) una ligadura abierta no continúa.
       if (step > 0 && order[step - 1] !== mi - 1) open = null;
+      let t = starts[step];
       let index = offsets[mi];
       for (const ev of score.measures[mi].staves[staff] ?? []) {
         if (!ev.rest && ev.pitches.length) {
