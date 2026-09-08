@@ -1,0 +1,10 @@
+# Lo que no hace falta subir a Cloud Build. Ojo: si este archivo existe,
+# gcloud ya no aplica .gitignore, así que las exclusiones van todas aquí.
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+README.md

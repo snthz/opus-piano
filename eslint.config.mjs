@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Archivos generados o de terceros servidos tal cual.
     "public/**",
+    // El servicio de OMR es Python; su entorno virtual trae JavaScript de
+    // paquetes de terceros (matplotlib) que aquí no pinta nada.
+    "omr-service/**",
   ]),
 ]);
 

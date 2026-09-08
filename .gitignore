@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# el ejemplo sí se versiona: el README manda copiarlo
+!.env.example
 
 # vercel
 .vercel
@@ -43,3 +45,9 @@ next-env.d.ts
 
 # archivos de partituras en desarrollo local
 /data/
+
+# entorno virtual del servicio de OMR (Python)
+omr-service/.venv/
+omr-service/__pycache__/
+omr-service/**/__pycache__/
+omr-service/.pytest_cache/

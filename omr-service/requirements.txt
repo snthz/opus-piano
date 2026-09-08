@@ -1,0 +1,22 @@
+# Versiones fijas: la imagen se reconstruye pocas veces y un cambio de versión
+# en scipy o en scikit-learn cambia lo que reconoce oemer, no solo cómo corre.
+#
+# oemer no está en esta lista: se instala aparte con --no-deps (ver Dockerfile),
+# porque pide onnxruntime-gpu, que arrastra CUDA —gigas de imagen— para acabar
+# corriendo en la CPU igualmente. Con onnxruntime a secas le vale.
+fastapi==0.128.8
+uvicorn[standard]==0.39.0
+python-multipart==0.0.20
+PyMuPDF==1.26.5
+
+# Dependencias de oemer.
+# OpenCV se queda en la serie 4 a propósito: en la 5, HoughLinesP devuelve las
+# líneas con una dimensión menos y oemer se rompe con un IndexError al buscar
+# los pentagramas. Su propio requisito («>=4.5.3.56») ya no acota nada.
+onnxruntime==1.19.2
+opencv-python-headless==4.12.0.88
+scikit-learn==1.6.1
+scipy==1.13.1
+matplotlib==3.9.4
+pillow==11.3.0
+numpy==2.0.2
