@@ -2,7 +2,7 @@
 # Dos etapas para que en la imagen final no queden ni pip ni las ruedas
 # descargadas: solo el entorno virtual con lo instalado y los modelos.
 
-FROM python:3.11-slim AS build
+FROM python:3.11-slim-bookworm AS build
 
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /srv
@@ -20,10 +20,12 @@ COPY scripts/fetch_models.py ./scripts/
 RUN python scripts/fetch_models.py
 
 
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 
 # libgomp1: OpenMP, que usan onnxruntime, scipy y scikit-learn.
 # libglib2.0-0: la pide opencv aunque sea la variante headless.
+# La base se fija a bookworm: en trixie ese paquete pasó a llamarse
+# libglib2.0-0t64 y la construcción se caería sin avisar de por qué.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libgomp1 libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/* \

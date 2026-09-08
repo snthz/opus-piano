@@ -90,10 +90,14 @@ export function TranscribeWithOmr({
           no necesita ninguna clave y la partitura no sale de Opus Piano.
         </p>
         <p className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2">
-          <strong className="text-ink">Es un borrador, y le cuesta más de lo que parece.</strong> Está entrenado con partituras
-          impresas y limpias: con una edición escaneada de frente se defiende, y con una foto torcida, una partitura manuscrita o
-          una página muy apretada casi seguro que no. Opus Piano comprueba compás a compás que las figuras sumen lo que pide el
-          compás y te dice cuáles no.
+          <strong className="text-ink">Saca las notas; el ritmo, regular.</strong> Suele acertar las alturas, las claves y la
+          armadura, pero reparte mal las figuras, y un compás que no cuadra descoloca la reproducción a partir de ahí: cuenta con
+          repasarlo. Sirve sobre todo para tener el esqueleto y ver los nombres de las notas. Opus Piano comprueba compás a compás
+          que las figuras sumen lo que pide el compás y te dice cuáles no.
+        </p>
+        <p className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2">
+          Está entrenado con partituras <strong className="text-ink">impresas y limpias</strong>: con una edición escaneada de
+          frente se defiende; con una foto torcida, una partitura manuscrita o una página muy apretada, casi seguro que no.
         </p>
 
         {!user ? (

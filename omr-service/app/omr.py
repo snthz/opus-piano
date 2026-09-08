@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from . import config
 from .errors import EmptyScore, OmrFailed, OmrTimeout
+from .musicxml_clean import strip_filler_rests
 from .omr_worker import EXIT_UNREADABLE
 
 log = logging.getLogger("omr")
@@ -74,6 +75,10 @@ def run_omr(image_path: str, workdir: str) -> OmrResult:
         musicxml = handle.read()
     if "<note" not in musicxml:
         raise EmptyScore("No notes were recognised in the image")
+
+    musicxml, removed = strip_filler_rests(musicxml)
+    if removed:
+        log.info("removed oemer filler rests", extra={"rests": removed})
     return OmrResult(musicxml=musicxml, seconds=seconds)
 
 
