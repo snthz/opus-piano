@@ -17,19 +17,19 @@ import {
 } from "@/lib/study-plan";
 
 /**
- * El lado del navegador del plan de estudio: reúne lo que el profesor tiene que
- * ver —las páginas del PDF dibujadas y el MusicXML resumido— y lo manda a
- * `/api/study-plan`, que es quien habla con el modelo con la clave del
- * servidor. Aquí no hay ninguna clave de API.
+ * Browser side of the study plan: gathers what the teacher needs to see —
+ * rendered PDF pages and the summarized MusicXML — and posts it to
+ * `/api/study-plan`, which talks to the model with the server's own key. No
+ * API key lives here.
  *
- * Las dos rutas contestan con líneas JSON, no de una vez: preparar un plan son
- * minutos y una respuesta del profesor llega palabra a palabra.
+ * Both routes reply with NDJSON lines, not all at once: preparing a plan
+ * takes minutes and the teacher's answer arrives word by word.
  */
 
 export interface PlanService {
-  /** Está configurado en el servidor (hay ANTHROPIC_API_KEY) */
+  /** Whether the server has it configured (ANTHROPIC_API_KEY set). */
   enabled: boolean;
-  /** Planes por usuario y día que deja hacer este servidor */
+  /** Plans per user per day this server allows. */
   perDay: number;
 }
 
@@ -42,19 +42,16 @@ export async function planService(): Promise<PlanService> {
     const body = (await res.json()) as Partial<PlanService>;
     return { enabled: !!body.enabled, perDay: Number(body.perDay) || 0 };
   } catch {
-    return OFF; // sin conexión: la aplicación sigue, solo que sin esta opción
+    return OFF; // offline: the app still works, just without this option
   }
 }
 
 /**
- * Convierte las primeras páginas del PDF en PNG para que el modelo pueda
- * leerlas.
+ * Converts the PDF's first pages to PNG for the model to read.
  *
- * En PNG y no en JPEG porque una partitura es línea fina de alto contraste
- * (pentagramas, plicas, puntillos) y ahí es donde la compresión con pérdida
- * deja artefactos. Además sale más ligera: medido sobre una página densa a
- * 1400 px, 283 KB en PNG frente a 366 KB en JPEG de calidad 0,82 — el JPEG
- * gasta bits en los bordes y el PNG comprime bien el blanco del papel.
+ * PNG over JPEG because a score is thin high-contrast lines (staves, stems,
+ * dots), exactly where lossy compression leaves artifacts, and it's lighter
+ * too: on a dense page at 1400 px, 283 KB PNG vs 366 KB JPEG at quality 0.82.
  */
 export async function renderPages(pdf: Blob, pageCount: number, onProgress?: (done: number, total: number) => void): Promise<Blob[]> {
   const total = Math.min(pageCount, MAX_PAGES);
@@ -81,12 +78,12 @@ export interface GenerateInput {
   parsed: ParsedScore | null;
   pdf: { blob: Blob; pageCount: number } | null;
   onStatus?: (text: string) => void;
-  /** Fracción hecha (0 a 1) mientras se preparan las páginas; null mientras responde el modelo, que no avisa de su avance */
+  /** Fraction done (0-1) while pages render; null while the model answers, which doesn't report progress. */
   onProgress?: (fraction: number | null) => void;
   signal?: AbortSignal;
 }
 
-/** Genera el plan: resume el MusicXML, dibuja las páginas del PDF y se lo pide al servidor. */
+/** Generates the plan: summarizes the MusicXML, renders the PDF pages, and asks the server. */
 export async function generatePlan(input: GenerateInput): Promise<PlanState> {
   let pages: Blob[] = [];
   if (input.pdf) {
@@ -138,13 +135,13 @@ export interface AskInput {
   naming: NamingSystem;
   state: PlanState;
   parsed: ParsedScore | null;
-  /** Conversación hasta ahora, incluida la pregunta nueva al final */
+  /** Conversation so far, including the new question at the end. */
   history: ChatTurn[];
   onDelta: (text: string) => void;
   signal?: AbortSignal;
 }
 
-/** Pregunta al profesor sobre el plan; `onDelta` recibe cada trozo de la respuesta. */
+/** Asks the teacher about the plan; `onDelta` receives each chunk of the answer. */
 export async function askTeacher(input: AskInput): Promise<void> {
   const res = await post(
     "/api/study-plan/ask",
@@ -170,11 +167,7 @@ export async function askTeacher(input: AskInput): Promise<void> {
   if (failure) throw new UserError(failure);
 }
 
-/**
- * Manda la petición y devuelve el cuerpo, ya con los fallos de antes de empezar
- * —sesión caducada, límite diario, datos— convertidos en un mensaje que se
- * puede enseñar tal cual.
- */
+/** Sends the request and returns the body, with early failures (expired session, daily limit, bad data) already turned into a message fit to show as-is. */
 async function post(url: string, init: RequestInit, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
   let res: Response;
   try {

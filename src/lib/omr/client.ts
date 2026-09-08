@@ -8,42 +8,31 @@ import { mergePages } from "./merge";
 import { readNdjson } from "@/lib/ndjson";
 
 /**
- * Reconocimiento de una partitura escaneada sin modelos de lenguaje: el
- * servidor pasa cada página por oemer (modelos de OMR ya entrenados) y devuelve
- * su MusicXML.
+ * Recognizes a scanned score without language models: the server runs each
+ * page through oemer (pretrained OMR models) and returns its MusicXML.
  *
- * El recorrido del PDF lo lleva el navegador: dibuja una página, la manda,
- * espera y sigue con la siguiente. Así el servicio de reconocimiento no
- * necesita saber nada de PDF y las páginas nunca salen del dispositivo enteras,
- * solo la que se está mirando.
+ * The browser drives the PDF traversal — renders a page, sends it, waits,
+ * moves to the next — so the recognition service knows nothing about PDF and
+ * pages never leave the device whole, only the one being looked at.
  *
- * Lo que vuelve del servicio es MusicXML de verdad, pero puede traer cosas que
- * Opus Piano no dibuja (más de dos pentagramas, varias voces). Se lee con el
- * lector de la aplicación y se vuelve a escribir con su escritor, de modo que
- * lo que se guarda es siempre el mismo dialecto que produce todo lo demás.
+ * What comes back is real MusicXML but may include things Opus Piano can't
+ * draw (more than two staves, several voices), so it's read and rewritten
+ * through the app's own reader/writer to keep a single dialect.
  */
 
-/** Páginas por reconocimiento. Cada una son varios minutos de CPU del servidor. */
+/** Pages per recognition; each one is several minutes of server CPU. */
 export const MAX_OMR_PAGES = 4;
 
-/**
- * Ancho al que se dibuja la página. oemer reescala por dentro a unos 3,6
- * millones de píxeles pasándole lo que se le pase, así que esto es un A4 a 200
- * ppp: el detalle que aprovecha, sin subir de más.
- */
+/** Width to render the page at; oemer rescales to ~3.6M px internally, so this matches an A4 at 200 dpi — enough detail without going over. */
 const RENDER_WIDTH = 1700;
 
-/**
- * Lo que tarda una página en el servicio desplegado (una A4 de piano con cuatro
- * vCPU). Solo sirve para que el anillo avance mientras se espera: si se pasa,
- * se queda casi lleno hasta que llegue la respuesta.
- */
+/** How long a page takes on the deployed service (A4 piano score, 4 vCPU); just paces the progress ring while waiting. */
 const EXPECTED_SECONDS = 125;
 
 export interface OmrInput {
   scoreName: string;
   pdf: Blob;
-  /** Primera y última página del PDF, ambas incluidas */
+  /** First and last PDF page, both inclusive. */
   from: number;
   to: number;
   onStatus?: (text: string) => void;
@@ -52,7 +41,7 @@ export interface OmrInput {
 }
 
 export interface OmrOutcome {
-  /** MusicXML listo para vincular a la partitura */
+  /** MusicXML ready to attach to the score. */
   xml: string;
   score: ParsedScore;
   warnings: string[];
@@ -60,14 +49,14 @@ export interface OmrOutcome {
   engine: string;
 }
 
-/** Está configurado en el servidor (hay OMR_URL). */
+/** Whether the server has it configured (OMR_URL set). */
 export async function omrAvailable(): Promise<boolean> {
   try {
     const res = await fetch("/api/omr", { cache: "no-store" });
     if (!res.ok) return false;
     return !!((await res.json()) as { enabled?: boolean }).enabled;
   } catch {
-    return false; // sin conexión: la aplicación sigue, solo que sin esta opción
+    return false; // offline: the app still works, just without this option
   }
 }
 
@@ -106,7 +95,7 @@ export async function transcribeWithOmr(input: OmrInput): Promise<OmrOutcome> {
   return { xml, score, warnings, pages: total, engine };
 }
 
-/** Una página como PNG: línea fina de alto contraste, que es donde el JPEG deja artefactos. */
+/** A page as PNG: thin high-contrast lines, exactly where JPEG leaves artifacts. */
 async function pageImage(pdf: Blob, page: number): Promise<Blob> {
   const { width } = await getPageSize(pdf, page);
   const canvas = await renderPage(pdf, page, RENDER_WIDTH / width);
@@ -116,9 +105,9 @@ async function pageImage(pdf: Blob, page: number): Promise<Blob> {
 }
 
 /**
- * Manda la página y espera. La respuesta es un flujo de líneas JSON (ver
- * `/api/omr`): mientras el servicio trabaja llegan señales de vida con los
- * segundos que lleva, y al final el MusicXML o el error.
+ * Sends the page and waits. The response streams NDJSON lines (see
+ * `/api/omr`): heartbeats with elapsed seconds while it works, then the
+ * MusicXML or the error.
  */
 async function recognise(image: Blob, signal: AbortSignal | undefined, onWait: (seconds: number) => void): Promise<string> {
   const body = new FormData();
@@ -151,7 +140,7 @@ async function recognise(image: Blob, signal: AbortSignal | undefined, onWait: (
   return musicxml;
 }
 
-/** «1 min 20 s» / «45 s», para que la espera no parezca colgada. */
+/** "1 min 20 s" / "45 s", so the wait doesn't look stuck. */
 function clock(seconds: number): string {
   if (seconds < 60) return `${seconds} s`;
   return `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;
