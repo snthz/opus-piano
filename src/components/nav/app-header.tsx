@@ -51,7 +51,8 @@ export function AppHeader() {
 
   return (
     // data-app-header: el lector de partituras la esconde al ocultar sus controles.
-    <header data-app-header className="sticky top-0 z-40 bg-surface border-b border-line">
+    // z-60: por encima del lector (fixed, z-50) para que los desplegables no queden tapados.
+    <header data-app-header className="sticky top-0 z-60 bg-surface border-b border-line">
       <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 md:h-[72px] flex items-center gap-2 md:gap-3">
         <Logo />
         <div className="flex-1" />

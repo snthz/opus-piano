@@ -703,6 +703,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   // cabecera para no tapar la navegación. Sus controles van dentro (absolute).
   return (
     <div
+      // z-50: por debajo de la cabecera (z-60), cuyos desplegables caen sobre el lector.
       className="fixed inset-0 md:top-[var(--header-h)] z-50 bg-surface-2 flex flex-col"
       role="dialog"
       aria-label={name}
