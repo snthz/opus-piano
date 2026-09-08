@@ -4,7 +4,7 @@
 # Servicios: web (Next.js) + db (Postgres).
 services:
   web:
-    image: ${WEB_IMAGE:-ghcr.io/snthz/etude-web:latest}
+    image: ${WEB_IMAGE:-ghcr.io/snthz/opus-piano-web:latest}
     pull_policy: always
     restart: unless-stopped
     environment:

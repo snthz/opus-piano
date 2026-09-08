@@ -25,7 +25,7 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 
 | Servicio | Qué es | Imagen |
 | --- | --- | --- |
-| `web` | Next.js 16 (salida *standalone*) + Prisma. Sirve la app y la API (`/api/auth/*`, `/api/progress`, `/api/scores`, `/api/health`). Los archivos de las partituras van al volumen `scores` (en streaming, sin cargarlos en memoria); cuota por usuario `SCORES_QUOTA_MB` (300 por defecto). | `ghcr.io/<usuario>/etude-web` |
+| `web` | Next.js 16 (salida *standalone*) + Prisma. Sirve la app y la API (`/api/auth/*`, `/api/progress`, `/api/scores`, `/api/health`). Los archivos de las partituras van al volumen `scores` (en streaming, sin cargarlos en memoria); cuota por usuario `SCORES_QUOTA_MB` (300 por defecto). | `ghcr.io/<usuario>/opus-piano-web` |
 | `db` | PostgreSQL 16 (alpine), ajustado para poca RAM. Guarda usuarios, sesiones, progreso y los metadatos de las partituras (nombre, notas, trazos, miniatura). | `postgres:16-alpine` |
 | `omr` | **Fuera del VPS.** Reconocimiento óptico de partituras (oemer sobre FastAPI, ver [`omr-service/`](omr-service/)): recibe la imagen de una página y devuelve su MusicXML. Necesita 4 GB y la CPU entera durante minutos, así que va en Cloud Run, que lo apaga cuando nadie lo usa. Opcional: sin `OMR_URL`, la app no ofrece la opción. | se construye en `omr-service/` |
 
@@ -95,7 +95,7 @@ GitHub Container Registry (ghcr.io) y avisa a Dokploy, que hace `pull` y reinici
 ### 1. Repositorio y paquetes en GitHub
 
 1. Sube el código a GitHub (`main` es la rama que despliega).
-2. Tras el primer push a `main`, el workflow **Deploy** publica `ghcr.io/<usuario>/etude-web`.
+2. Tras el primer push a `main`, el workflow **Deploy** publica `ghcr.io/<usuario>/opus-piano-web`.
 3. Haz público el paquete (GitHub → tu perfil → *Packages* → el paquete → *Package settings* →
    *Change visibility*), o bien configura en Dokploy un registro privado (*Settings → Registry*) con un
    token clásico de GitHub con permiso `read:packages`. Con el paquete público no hace falta nada.
