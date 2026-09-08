@@ -34,11 +34,11 @@ export const MAX_OMR_PAGES = 4;
 const RENDER_WIDTH = 1700;
 
 /**
- * Lo que suele tardar una página (medido con una A4 de piano en el servicio con
- * cuatro vCPU). Solo sirve para que el anillo avance mientras se espera: si se
- * pasa, se queda casi lleno hasta que llegue la respuesta.
+ * Lo que tarda una página en el servicio desplegado (una A4 de piano con cuatro
+ * vCPU). Solo sirve para que el anillo avance mientras se espera: si se pasa,
+ * se queda casi lleno hasta que llegue la respuesta.
  */
-const EXPECTED_SECONDS = 300;
+const EXPECTED_SECONDS = 420;
 
 export interface OmrInput {
   scoreName: string;

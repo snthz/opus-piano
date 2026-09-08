@@ -23,12 +23,12 @@ if [ -z "${OMR_TOKEN:-}" ]; then
   exit 1
 fi
 
-# Los valores salen de medir una página A4 de piano (ver README): ~20 minutos de
-# CPU y un pico de ~4,5 GB de memoria.
-# --cpu 4: reparte esos 20 minutos de CPU en unos 5 de reloj. Con 1 vCPU serían
-#   veinte, más que el máximo de espera razonable de nadie.
-# --memory 6Gi: margen sobre el pico medido; si se queda corto, la instancia
-#   muere entera y la petición se cae sin explicación.
+# Los valores salen de medir una página A4 de piano en este mismo servicio (ver
+# README): 7 minutos de reloj, 1,5 vCPU de media y un pico de 2,9 GB.
+# --cpu 4: aunque la media sea 1,5, la inferencia sí aprovecha los cuatro; con
+#   menos, los 7 minutos se irían a más de diez y nadie espera eso.
+# --memory 4Gi: un tercio de margen sobre el pico. Si se queda corto, la
+#   instancia muere entera y la petición se cae sin explicación.
 # --concurrency 1: oemer ocupa la CPU entera, dos páginas a la vez en la misma
 #   instancia tardan más que dos seguidas.
 # --min-instances 0: en reposo no se paga nada; a cambio, el primer uso del día
@@ -40,7 +40,7 @@ gcloud run deploy "${SERVICE}" \
   --source . \
   --region "${REGION}" \
   --cpu 4 \
-  --memory 6Gi \
+  --memory 4Gi \
   --concurrency 1 \
   --min-instances 0 \
   --max-instances 3 \

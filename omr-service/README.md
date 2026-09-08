@@ -4,7 +4,7 @@ Reconocimiento óptico de partituras: recibe la imagen de **una página** y devu
 Por dentro es [oemer](https://github.com/BreezeWhite/oemer) (modelos ONNX ya entrenados, solo CPU)
 detrás de FastAPI. No se entrena nada.
 
-Va en un contenedor aparte de la aplicación porque necesita ~5 GB de memoria y la CPU entera
+Va en un contenedor aparte de la aplicación porque necesita ~3 GB de memoria y la CPU entera
 durante minutos por página: en el VPS donde vive Opus Piano (con 384 MB para la web y 256 MB para
 Postgres) no cabe, y tenerlo encendido todo el día para lo poco que se usa no tiene sentido. En
 Cloud Run se apaga solo cuando nadie lo llama.
@@ -105,21 +105,25 @@ además, solo deja usarlo con la sesión iniciada y con un límite de páginas p
 ### Lo que cuesta de verdad
 
 Medido con `tests/fixtures/bach-wtk1-prelude1.pdf` (una página A4, dos pentagramas, semicorcheas
-seguidas) en un MacBook con Apple Silicon:
+seguidas), en el propio servicio desplegado con `--cpu 4 --memory 4Gi`:
 
 | | |
 | --- | --- |
-| Tiempo de reloj | ~6 min |
-| CPU consumida | ~21 min (usa todos los núcleos que encuentre) |
-| Memoria máxima | ~5,0 GB |
+| Tiempo de reloj | **7 min** por página |
+| CPU | 1,5 vCPU de media (38 % de las cuatro); solo la inferencia se reparte, el resto de oemer es de un hilo |
+| Memoria máxima | **2,9 GB** (49 % del límite de 6 GiB con el que se midió) |
+
+En un MacBook con Apple Silicon la misma página tarda 6 minutos pero marca 5 GB: ahí onnxruntime usa
+CoreML y contabiliza la memoria de otra forma. Los números que valen para dimensionar son los de
+arriba, los de Linux.
 
 oemer reescala por dentro a unos 3,6 millones de píxeles pase lo que pase, así que mandar la
 imagen más pequeña **no** baja la memoria: baja la calidad y deja el gasto igual.
 
 Con esos números, el nivel gratuito de Cloud Run (180.000 vCPU-s y 360.000 GiB-s al mes) da para
-unas **140 páginas al mes** con `--cpu 4 --memory 6Gi`, y una página que se pase de ahí cuesta unos
-4 céntimos. No es «coste cero» pero sí «coste de bolsillo», siempre que la alerta de presupuesto
-esté puesta.
+unas **100 páginas al mes** —manda la CPU, no la memoria—, y una página que se pase de ahí cuesta
+unos 5 céntimos. No es «coste cero» pero sí «coste de bolsillo», siempre que la alerta de
+presupuesto esté puesta.
 
 ### Qué se puede esperar del resultado
 
