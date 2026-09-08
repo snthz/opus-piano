@@ -44,6 +44,8 @@ class Normalized:
     source: str
     #: Se redujo el ancho para llegar a MAX_WIDTH
     resized: bool
+    #: Grados que se giró la página para dejarla recta (0 si ya lo estaba)
+    rotated: float = 0.0
 
 
 def _first_pdf_page(data: bytes) -> Image.Image:
@@ -59,6 +61,57 @@ def _first_pdf_page(data: bytes) -> Image.Image:
         raise
     except Exception as exc:  # PDF cifrado, roto o que no es tal
         raise BadPdf("The PDF could not be read") from exc
+
+
+#: Por debajo de esta inclinación no se toca la imagen: girar tiene su propio
+#: coste en nitidez y una décima de grado no la endereza, la emborrona.
+_MIN_SKEW_DEGREES = 0.2
+
+#: Y por encima de esto no es una partitura inclinada, es otra cosa (una foto
+#: de lado, una página en vertical); girarla sería empeorarla.
+_MAX_SKEW_DEGREES = 12.0
+
+
+def estimate_skew(image: Image.Image) -> float:
+    """
+    Grados que hay que girar la página para dejar sus pentagramas horizontales.
+
+    Las líneas del pentagrama son lo más largo y lo más recto que hay en una
+    partitura, así que se buscan con Hough sobre una copia pequeña y se toma la
+    inclinación mediana de las que salen casi horizontales. Sale en menos de un
+    segundo, frente a los minutos que tarda el enderezado de oemer, que
+    remuestrea la página entera ocho veces.
+    """
+    import cv2
+    import numpy as np
+
+    # Con 1000 px de ancho sobra para medir un ángulo, y es lo que hace que
+    # esto no cueste nada.
+    scale = min(1.0, 1000 / image.width)
+    small = image.convert("L")
+    if scale < 1.0:
+        small = small.resize((round(image.width * scale), round(image.height * scale)), Image.BILINEAR)
+    array = np.array(small)
+
+    # Lo oscuro sobre lo claro: las líneas, las notas y el texto.
+    mask = cv2.adaptiveThreshold(array, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 25, 10)
+    # Un pentagrama mide de lado a lado; se buscan segmentos de al menos un
+    # cuarto del ancho para no medir el ángulo de una plica o de una letra.
+    min_length = max(60, array.shape[1] // 4)
+    lines = cv2.HoughLinesP(mask, 1, np.pi / 720, threshold=120, minLineLength=min_length, maxLineGap=8)
+    if lines is None:
+        return 0.0
+
+    angles = []
+    for x1, y1, x2, y2 in lines.reshape(-1, 4):
+        if x2 == x1:
+            continue
+        angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
+        if abs(angle) <= _MAX_SKEW_DEGREES:
+            angles.append(angle)
+    if len(angles) < 4:  # con cuatro segmentos no hay ni un pentagrama entero
+        return 0.0
+    return float(np.median(angles))
 
 
 def normalize(data: bytes, workdir: str) -> Normalized:
@@ -94,6 +147,15 @@ def normalize(data: bytes, workdir: str) -> Normalized:
         width = config.MAX_WIDTH
         image = image.resize((width, height), Image.LANCZOS)
 
+    # Enderezar aquí, de una vez y sobre una sola imagen, para poder ahorrarse
+    # el enderezado de oemer, que hace lo mismo ocho veces y tarda minutos.
+    skew = estimate_skew(image)
+    rotated = 0.0
+    if abs(skew) >= _MIN_SKEW_DEGREES:
+        image = image.rotate(skew, resample=Image.BICUBIC, expand=True, fillcolor=255)
+        width, height = image.size
+        rotated = skew
+
     path = os.path.join(workdir, "page.png")
     image.convert("RGB").save(path, format="PNG", optimize=False)
-    return Normalized(path=path, width=width, height=height, source=source, resized=resized)
+    return Normalized(path=path, width=width, height=height, source=source, resized=resized, rotated=round(rotated, 2))

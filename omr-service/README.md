@@ -64,6 +64,8 @@ atrapa y devuelve su propio 404 en HTML. Para comprobar el servicio desplegado, 
 
 | Variable | Por defecto | Qué hace |
 | --- | --- | --- |
+| `OMR_DEWARP` | `0` | Enderezado profundo de oemer (páginas curvadas). Cuesta minutos; cada petición puede pedirlo con el campo `dewarp` |
+| `OMR_STEP_SIZE` | 192 | Salto de la ventana de la red sobre la página. Con 128 (el de oemer) tarda el doble; con 256, un tercio menos que con 192 |
 | `PORT` | 8080 | Puerto de escucha (Cloud Run la inyecta) |
 | `OMR_TOKEN` | — | Si está, se exige `Authorization: Bearer` |
 | `OMR_TIMEOUT` | 600 | Corte duro del reconocimiento, en segundos |
@@ -105,13 +107,20 @@ además, solo deja usarlo con la sesión iniciada y con un límite de páginas p
 ### Lo que cuesta de verdad
 
 Medido con `tests/fixtures/bach-wtk1-prelude1.pdf` (una página A4, dos pentagramas, semicorcheas
-seguidas), en el propio servicio desplegado con `--cpu 4 --memory 6Gi`:
+seguidas). La primera versión tardaba 7 minutos por página; dos cambios la dejaron en algo más de
+dos, con las mismas notas:
 
-| | |
-| --- | --- |
-| Tiempo de reloj | **7 min** por página |
-| CPU | 1,5 vCPU de media (38 % de las cuatro); solo la inferencia se reparte, el resto de oemer es de un hilo |
-| Memoria máxima | **~4,5 GB** |
+| | Antes | Ahora |
+| --- | --- | --- |
+| Enderezado | El de oemer: remuestrea ocho imágenes de la página entera, de un solo hilo | Un giro y ya, en `preprocess`, medido con Hough sobre una copia pequeña |
+| Ventana de la red | Salto 128: cada píxel pasa cuatro veces por la red | Salto 192: pasa menos de dos |
+| Tiempo (en local) | 380 s | **141 s** |
+| CPU consumida | 1263 s | **461 s** |
+| Memoria máxima | ~4,5 GB | ~4,5 GB |
+
+Con la misma página, el resultado no cambia: los mismos 18 compases y las mismas alturas. Bajar el
+salto a 256 lo deja en 106 s y también salen las mismas, pero se queda en 192 a propósito: con 64 px
+de solape ninguna cabeza de nota puede caer partida entre dos recuadros.
 
 Cuidado con la métrica `memory/utilizations` de Cloud Run para dimensionar: es la **media de cada
 minuto**, no el pico. Marcaba un 49 % de 6 GiB —2,9 GB— y con ese dato se probó a bajar el límite a
@@ -121,9 +130,11 @@ used». El pico real está donde lo ponía la medición local, en torno a 4,5 GB
 oemer reescala por dentro a unos 3,6 millones de píxeles pase lo que pase, así que mandar la
 imagen más pequeña **no** baja la memoria: baja la calidad y deja el gasto igual.
 
-Con esos números, el nivel gratuito de Cloud Run (180.000 vCPU-s y 360.000 GiB-s al mes) da para
-unas **100 páginas al mes** —manda la CPU, no la memoria—, y una página que se pase de ahí cuesta
-unos 5 céntimos. No es «coste cero» pero sí «coste de bolsillo», siempre que la alerta de
+Se despliega con `--cpu 8` aunque el trabajo quepa en menos: lo que queda es casi todo inferencia,
+que sí se reparte entre núcleos, y en un servicio que cobra por vCPU-segundo doblar la CPU sale por
+lo mismo en la mitad de tiempo. Con esos números, el nivel gratuito de Cloud Run (180.000 vCPU-s y
+360.000 GiB-s al mes) da para unas **200 páginas al mes**, y una página que se pase de ahí cuesta
+unos 3 céntimos. No es «coste cero» pero sí «coste de bolsillo», siempre que la alerta de
 presupuesto esté puesta.
 
 ### Qué se puede esperar del resultado

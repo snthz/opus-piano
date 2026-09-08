@@ -13,6 +13,11 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    return default if not value else value not in ("0", "false", "no")
+
+
 #: Puerto de escucha. Cloud Run lo inyecta.
 PORT = _int("PORT", 8080)
 
@@ -41,3 +46,20 @@ PDF_DPI = _int("OMR_PDF_DPI", 200)
 #: en Cloud Run se pone el número de vCPU del servicio, porque dentro de un
 #: contenedor onnxruntime cuenta los núcleos del anfitrión y se pasa.
 THREADS = _int("OMR_THREADS", 0)
+
+
+#: Enderezado profundo de oemer, el que corrige una página *curvada* (la foto
+#: de un libro grueso). Remuestrea ocho imágenes del tamaño de la página, de un
+#: solo hilo, y es lo que más tarda de todo el reconocimiento: minutos. Apagado
+#: por defecto, porque la inclinación —que es el problema real del 99 % de los
+#: escaneos— ya la corrige `preprocess` girando la página una sola vez.
+#: Cada petición puede pedirlo con el campo «dewarp».
+DEWARP = _bool("OMR_DEWARP", False)
+
+#: Salto entre los recuadros de 256 px con los que la red recorre la página.
+#: oemer trae 128: cada píxel pasa cuatro veces por la red y se promedia. Con
+#: 192 el trabajo baja a la mitad larga y en la página de prueba salen las
+#: mismas notas; se queda ahí y no en 256 (que iría aún más rápido) porque con
+#: 64 px de solape ninguna cabeza de nota puede caer partida entre dos
+#: recuadros, y una nota perdida no se nota hasta que suena.
+STEP_SIZE = _int("OMR_STEP_SIZE", 192)

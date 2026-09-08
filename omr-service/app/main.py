@@ -23,8 +23,9 @@ import sys
 import tempfile
 import threading
 import time
+from typing import Optional
 
-from fastapi import Depends, FastAPI, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -74,7 +75,12 @@ async def health() -> dict:
 
 
 @app.post("/v1/transcribe", dependencies=[Depends(_check_token)])
-async def transcribe(file: UploadFile) -> JSONResponse:
+async def transcribe(file: UploadFile, dewarp: Optional[bool] = Form(default=None)) -> JSONResponse:
+    """
+    `dewarp` enciende el enderezado profundo de oemer para esta página: cuesta
+    minutos y solo hace falta con una página curvada (la foto de un libro
+    grueso). La inclinación normal ya se corrige antes, al normalizar.
+    """
     # El token se comprueba como dependencia, antes de que FastAPI se ponga a
     # leer el multipart: quien no se identifica no llega ni a subir el archivo.
 
@@ -87,23 +93,25 @@ async def transcribe(file: UploadFile) -> JSONResponse:
     if not _slot.acquire(blocking=False):
         raise Busy("Another page is being processed")
     try:
-        return await run_in_threadpool(_process, data)
+        return await run_in_threadpool(_process, data, dewarp)
     finally:
         _slot.release()
 
 
-def _process(data: bytes) -> JSONResponse:
+def _process(data: bytes, dewarp: Optional[bool] = None) -> JSONResponse:
     started = time.monotonic()
     workdir = tempfile.mkdtemp(prefix="omr-")
     try:
         image = normalize(data, workdir)
-        result = run_omr(image.path, workdir)
+        result = run_omr(image.path, workdir, dewarp=dewarp)
         log.info(
             "page recognised",
             extra={
                 "source": image.source,
                 "width": image.width,
                 "height": image.height,
+                "rotated": image.rotated,
+                "dewarp": config.DEWARP if dewarp is None else dewarp,
                 "omr_seconds": round(result.seconds, 1),
                 "total_seconds": round(time.monotonic() - started, 1),
                 "bytes": len(data),
@@ -113,7 +121,13 @@ def _process(data: bytes) -> JSONResponse:
             {
                 "musicxml": result.musicxml,
                 "seconds": round(result.seconds, 1),
-                "image": {"width": image.width, "height": image.height, "source": image.source, "resized": image.resized},
+                "image": {
+                    "width": image.width,
+                    "height": image.height,
+                    "source": image.source,
+                    "resized": image.resized,
+                    "rotated": image.rotated,
+                },
                 "engine": f"oemer (Opus Piano OMR {VERSION})",
             }
         )

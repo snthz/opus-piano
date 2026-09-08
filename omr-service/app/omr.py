@@ -30,10 +30,17 @@ class OmrResult:
     seconds: float
 
 
-def run_omr(image_path: str, workdir: str) -> OmrResult:
-    """Reconoce la partitura de `image_path` y devuelve su MusicXML."""
+def run_omr(image_path: str, workdir: str, dewarp: bool | None = None) -> OmrResult:
+    """
+    Reconoce la partitura de `image_path` y devuelve su MusicXML.
+
+    `dewarp` manda sobre la configuración solo para esta página; el proceso
+    hijo lo recibe por el entorno, que es lo único que comparten.
+    """
     output_path = os.path.join(workdir, "score.musicxml")
     env = dict(os.environ)
+    if dewarp is not None:
+        env["OMR_DEWARP"] = "1" if dewarp else "0"
     if config.THREADS > 0:
         # numpy, OpenBLAS y scikit-learn (media hora de trabajo después de la
         # inferencia) cuentan los núcleos del anfitrión, no los del contenedor.

@@ -15,7 +15,7 @@ MUSICXML = '<?xml version="1.0"?><score-partwise><part id="P1"><measure number="
 def client(monkeypatch):
     # oemer no entra en estos tests: tarda un minuto por página y lo que se
     # comprueba aquí es el contrato HTTP, no lo que reconoce.
-    monkeypatch.setattr(main, "run_omr", lambda path, workdir: OmrResult(musicxml=MUSICXML, seconds=1.5))
+    monkeypatch.setattr(main, "run_omr", lambda path, workdir, dewarp=None: OmrResult(musicxml=MUSICXML, seconds=1.5))
     return TestClient(main.app)
 
 
@@ -72,7 +72,7 @@ def test_una_imagen_pequena_se_rechaza_con_su_codigo(client):
 
 
 def test_sin_pentagramas_el_error_lo_dice(client, monkeypatch):
-    def falla(path, workdir):
+    def falla(path, workdir, dewarp=None):
         raise EmptyScore("No staves were found in the image")
 
     monkeypatch.setattr(main, "run_omr", falla)
@@ -82,7 +82,7 @@ def test_sin_pentagramas_el_error_lo_dice(client, monkeypatch):
 
 
 def test_el_corte_de_tiempo_sale_como_504(client, monkeypatch):
-    def tarda(path, workdir):
+    def tarda(path, workdir, dewarp=None):
         raise OmrTimeout("Recognition took longer than 300s")
 
     monkeypatch.setattr(main, "run_omr", tarda)
@@ -92,7 +92,7 @@ def test_el_corte_de_tiempo_sale_como_504(client, monkeypatch):
 
 
 def test_un_fallo_inesperado_no_se_cuenta_por_dentro(client, monkeypatch):
-    def revienta(path, workdir):
+    def revienta(path, workdir, dewarp=None):
         raise RuntimeError("/tmp/omr-abc123/page.png: cannot allocate")
 
     monkeypatch.setattr(main, "run_omr", revienta)
@@ -118,3 +118,19 @@ def test_solo_una_pagina_a_la_vez_por_instancia(client, monkeypatch):
     response = upload(client, page())
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "BUSY"
+
+
+def test_el_enderezado_profundo_se_pide_por_peticion(client, monkeypatch):
+    # Por defecto va apagado (cuesta minutos); una página curvada puede pedirlo.
+    visto = {}
+
+    def anota(path, workdir, dewarp=None):
+        visto["dewarp"] = dewarp
+        return OmrResult(musicxml=MUSICXML, seconds=1.0)
+
+    monkeypatch.setattr(main, "run_omr", anota)
+    upload(client, page())
+    assert visto["dewarp"] is None
+
+    client.post("/v1/transcribe", files={"file": ("page.png", page(), "image/png")}, data={"dewarp": "true"})
+    assert visto["dewarp"] is True

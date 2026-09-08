@@ -25,8 +25,10 @@ fi
 
 # Los valores salen de medir una página A4 de piano en este mismo servicio (ver
 # README): 7 minutos de reloj, 1,5 vCPU de media y un pico de 2,9 GB.
-# --cpu 4: aunque la media sea 1,5, la inferencia sí aprovecha los cuatro; con
-#   menos, los 7 minutos se irían a más de diez y nadie espera eso.
+# --cpu 8: lo que queda del reconocimiento es casi todo inferencia, y esa sí se
+#   reparte entre núcleos. Doblar la CPU baja el tiempo casi a la mitad por el
+#   mismo gasto (se pagan vCPU-segundos, y son los mismos en la mitad de
+#   tiempo), y aquí el tiempo lo espera una persona mirando la pantalla.
 # --memory 6Gi: el pico real ronda los 4,5 GB. Ojo con la métrica de memoria
 #   de Cloud Run: es la media de cada minuto, y con 4 GiB parecía sobrar sitio
 #   —marcaba 2,9 GB— hasta que una página tumbó la instancia. Si se queda
@@ -41,14 +43,14 @@ gcloud run deploy "${SERVICE}" \
   --project "${PROJECT}" \
   --source . \
   --region "${REGION}" \
-  --cpu 4 \
+  --cpu 8 \
   --memory 6Gi \
   --concurrency 1 \
   --min-instances 0 \
   --max-instances 3 \
   --timeout 900 \
   --allow-unauthenticated \
-  --set-env-vars "OMR_TOKEN=${OMR_TOKEN},OMR_THREADS=4,OMR_TIMEOUT=600"
+  --set-env-vars "OMR_TOKEN=${OMR_TOKEN},OMR_THREADS=8,OMR_TIMEOUT=600"
 
 URL=$(gcloud run services describe "${SERVICE}" --project "${PROJECT}" --region "${REGION}" --format='value(status.url)')
 echo

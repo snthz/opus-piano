@@ -38,7 +38,7 @@ const RENDER_WIDTH = 1700;
  * vCPU). Solo sirve para que el anillo avance mientras se espera: si se pasa,
  * se queda casi lleno hasta que llegue la respuesta.
  */
-const EXPECTED_SECONDS = 420;
+const EXPECTED_SECONDS = 160;
 
 export interface OmrInput {
   scoreName: string;

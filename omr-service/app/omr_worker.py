@@ -49,6 +49,26 @@ def _limit_onnx_threads(threads: int) -> None:
     rt.InferenceSession = Limited
 
 
+def _set_step_size(ete, step: int) -> None:
+    """
+    Cambia el salto con el que la red recorre la página.
+
+    oemer la parte en recuadros de 256 px y avanza de 128 en 128, así que cada
+    píxel pasa por la red cuatro veces y se promedia. El salto no es un
+    parámetro suyo —lo lleva por defecto la función que llama—, de modo que la
+    única forma de tocarlo sin editar la biblioteca es envolverla.
+    """
+    if step == 128:
+        return
+    original = ete.inference
+
+    def with_step(model_path, img_path, *args, **kwargs):
+        kwargs.setdefault("step_size", step)
+        return original(model_path, img_path, *args, **kwargs)
+
+    ete.inference = with_step
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("usage: python -m app.omr_worker <image> <output.musicxml>", file=sys.stderr)
@@ -61,6 +81,8 @@ def main() -> int:
     from oemer import ete
     from oemer.exceptions import StafflineException
 
+    _set_step_size(ete, config.STEP_SIZE)
+
     ete.clear_data()
     args = SimpleNamespace(
         img_path=image_path,
@@ -69,9 +91,7 @@ def main() -> int:
         # Sin caché: el .pkl de predicciones pesa más que la imagen y el
         # directorio temporal se borra al terminar la petición.
         save_cache=False,
-        # El enderezado lo hace oemer con las líneas que él mismo detecta, que
-        # es mejor información de la que tendría un enderezado previo a ciegas.
-        without_deskew=False,
+        without_deskew=not config.DEWARP,
     )
 
     try:
