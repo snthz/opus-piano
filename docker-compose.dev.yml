@@ -19,6 +19,29 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432"
 
+  # Servicio de reconocimiento de partituras, solo para probarlo en local: en
+  # producción vive en Cloud Run (ver omr-service/README.md) porque necesita
+  # 2 GB y la CPU entera durante minutos, y el VPS no da para eso.
+  # Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build omr
+  omr:
+    build:
+      context: ./omr-service
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      PORT: 8000
+      # Sin token en local; en Cloud Run es obligatorio.
+      OMR_TOKEN: ${OMR_TOKEN:-}
+      OMR_THREADS: ${OMR_THREADS:-0}
+    ports:
+      - "${OMR_PORT:-8000}:8000"
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: ${OMR_MEMORY:-5g}
+
 networks:
   dokploy-network:
     external: false

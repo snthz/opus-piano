@@ -15,10 +15,11 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
   qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
   con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
   Funciona con la clave de API del propio usuario (ChatGPT / OpenAI o Claude / Anthropic).
-- **Transcripción de un PDF a MusicXML con IA**: un modelo de visión lee las páginas y la app monta el
-  MusicXML, para poder escuchar una partitura escaneada y ver los nombres de las notas. Es un borrador —el
-  ritmo es donde estos modelos fallan— así que se comprueba compás a compás que las figuras sumen lo que
-  pide el compás y se señalan los que no.
+- **Transcripción de un PDF a MusicXML**, por dos caminos: el **reconocimiento automático** (OMR) de un
+  servicio propio, gratis para el usuario y sin claves, y un **modelo de visión** con la clave del propio
+  usuario, que lee mejor lo apretado pero se paga por página. En los dos casos es un borrador —el ritmo es
+  donde más se falla—, así que se comprueba compás a compás que las figuras sumen lo que pide el compás y
+  se señalan los que no.
 
 ## Arquitectura
 
@@ -26,6 +27,7 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 | --- | --- | --- |
 | `web` | Next.js 16 (salida *standalone*) + Prisma. Sirve la app y la API (`/api/auth/*`, `/api/progress`, `/api/scores`, `/api/health`). Los archivos de las partituras van al volumen `scores` (en streaming, sin cargarlos en memoria); cuota por usuario `SCORES_QUOTA_MB` (300 por defecto). | `ghcr.io/<usuario>/etude-web` |
 | `db` | PostgreSQL 16 (alpine), ajustado para poca RAM. Guarda usuarios, sesiones, progreso y los metadatos de las partituras (nombre, notas, trazos, miniatura). | `postgres:16-alpine` |
+| `omr` | **Fuera del VPS.** Reconocimiento óptico de partituras (oemer sobre FastAPI, ver [`omr-service/`](omr-service/)): recibe la imagen de una página y devuelve su MusicXML. Necesita 4 GB y la CPU entera durante minutos, así que va en Cloud Run, que lo apaga cuando nadie lo usa. Opcional: sin `OMR_URL`, la app no ofrece la opción. | se construye en `omr-service/` |
 
 Autenticación propia y ligera: contraseñas con **scrypt** (Node, sin dependencias nativas),
 sesiones en base de datos con cookie `HttpOnly` + `SameSite=Lax`, comprobación de origen en las
@@ -188,6 +190,24 @@ y [`src/lib/music/musicxml-build.ts`](src/lib/music/musicxml-build.ts)).
   calculadas a partir de la armadura. Se puede vincular a la partitura o descargar para arreglarlo en MuseScore.
 - **Límites**: 6 páginas por transcripción, una petición por página, y cuesta bastante más que un plan de
   estudio (se muestra la estimación). Para una transcripción fiable, el MusicXML de MuseScore sigue siendo mejor.
+
+### Reconocer la partitura sin IA (OMR)
+
+El mismo panel ofrece antes otra vía: **reconocimiento automático**, gratis y sin claves. El navegador
+dibuja cada página, la manda a `/api/omr` y el servidor se la pasa al servicio de
+[`omr-service/`](omr-service/) —[oemer](https://github.com/BreezeWhite/oemer), modelos de OMR ya
+entrenados— que devuelve el MusicXML de esa página. La app lo lee con su propio lector, pega las páginas
+(`src/lib/omr/merge.ts`) y lo vuelve a escribir con su escritor, así que lo que se guarda es el mismo
+dialecto de siempre: una parte de piano, uno o dos pentagramas, una voz por pentagrama.
+
+- **Hace falta cuenta.** Aquí la CPU la paga el servidor, no el usuario con su clave: se exige sesión y hay
+  un límite de `OMR_PAGES_PER_HOUR` páginas por hora y usuario. Sin `OMR_URL` configurada, la opción no
+  aparece y la transcripción con IA sigue funcionando igual (esa sí, sin cuenta).
+- **Tarda minutos por página**, así que la petición devuelve un flujo de líneas JSON con señales de vida y
+  la tarea corre en segundo plano como las demás: se puede cerrar el panel y seguir leyendo.
+- **Se le da bien lo impreso y aireado**, y mal lo denso, lo torcido y lo manuscrito; cuando no puede,
+  lo dice. Para partituras apretadas, el modelo de visión llega más lejos.
+- Detalles del servicio, contrato HTTP, despliegue y lo que consume: [`omr-service/README.md`](omr-service/README.md).
 
 ## SEO
 

@@ -17,6 +17,12 @@ services:
       # Archivos de las partituras (PDF / MusicXML) en un volumen; los metadatos van en Postgres.
       SCORES_DIR: /data/scores
       SCORES_QUOTA_MB: ${SCORES_QUOTA_MB:-300}
+      # Reconocimiento de partituras: el servicio de `omr-service/` vive fuera
+      # del VPS (Cloud Run) porque necesita 2 GB y la CPU entera por página.
+      # Sin OMR_URL, la aplicación no ofrece la opción.
+      OMR_URL: ${OMR_URL:-}
+      OMR_TOKEN: ${OMR_TOKEN:-}
+      OMR_PAGES_PER_HOUR: ${OMR_PAGES_PER_HOUR:-20}
     volumes:
       - scores:/data/scores
     # Traefik (el proxy de Dokploy) llega por la red interna y termina el HTTPS.
