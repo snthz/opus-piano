@@ -165,7 +165,7 @@ describe("montaje de la respuesta del modelo", () => {
     beatType: 4,
     tempo: 100,
     clefs: ["sol", "fa"] as ("sol" | "fa" | "do")[],
-    measures,
+    measures: measures.map((m) => ({ repeat: "none" as const, ending: 0, ...m })),
     ...extra,
   });
 

@@ -13,6 +13,12 @@ export interface ScoreRenderApi {
   height: number;
 }
 
+export interface MeasureRepeat {
+  start?: boolean;
+  end?: boolean;
+  ending?: { number: number; bracket: "begin" | "mid" | "end" | "both" };
+}
+
 export interface ScoreProps {
   clef?: ClefName;
   /** "4/4", "3/4", "6/8", "C", "C|" */
@@ -61,6 +67,8 @@ export interface ScoreProps {
   noteStyles?: Record<number, string>;
   /** Barra final al terminar */
   endBar?: "single" | "double" | "end" | "repeat" | "none";
+  /** Por compás: barras de repetición que abren o cierran y casilla («1.», «2.») con el tramo de corchete que le toca */
+  repeats?: MeasureRepeat[];
   /** Texto accesible que describe el ejemplo */
   title?: string;
   className?: string;
@@ -96,6 +104,7 @@ export function Score({
   bassTies,
   showTime = true,
   endBar = "none",
+  repeats,
   title,
   className = "",
   render,
@@ -110,7 +119,7 @@ export function Score({
   const grand = !!bassMeasures;
   const computedHeight = height ?? (render ? 160 : grand ? STAVE_HEIGHT * 2 + 40 : STAVE_HEIGHT + 30);
   const measuresKey = JSON.stringify([measures, bassMeasures]);
-  const labelsKey = JSON.stringify([labels, bassLabels, ties, bassTies, slurs, tuplets, noteStyles]);
+  const labelsKey = JSON.stringify([labels, bassLabels, ties, bassTies, slurs, tuplets, noteStyles, repeats]);
   const highlightKey = JSON.stringify([highlight, bassHighlight]);
 
   useEffect(() => {
@@ -152,6 +161,7 @@ export function Score({
               bassTies,
               showTime,
               endBar,
+              repeats,
               onNotes,
             });
           }
@@ -233,6 +243,7 @@ interface DrawOptions {
   bassTies?: [number, number][];
   showTime: boolean;
   endBar: NonNullable<ScoreProps["endBar"]>;
+  repeats?: MeasureRepeat[];
   onNotes?: (notes: StemmableNote[]) => void;
 }
 
@@ -269,11 +280,20 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
       if (o.keySignature) stave.addKeySignature(o.keySignature);
       if (o.time && o.showTime) stave.addTimeSignature(o.time);
     }
+    const types = vf.Barline.type;
+    const rep = o.repeats?.[index];
     if (index === count - 1 && o.endBar !== "none") {
-      const types = vf.Barline.type;
       stave.setEndBarType(
         o.endBar === "double" ? types.DOUBLE : o.endBar === "end" ? types.END : o.endBar === "repeat" ? types.REPEAT_END : types.SINGLE,
       );
+    }
+    // Las repeticiones mandan sobre la barra final: «:|» ya es una barra gruesa.
+    if (rep?.start) stave.setBegBarType(types.REPEAT_BEGIN);
+    if (rep?.end) stave.setEndBarType(types.REPEAT_END);
+    if (rep?.ending && collect) {
+      const volta = vf.Volta.type;
+      const kind = rep.ending.bracket === "begin" ? volta.BEGIN : rep.ending.bracket === "end" ? volta.END : rep.ending.bracket === "both" ? volta.BEGIN_END : volta.MID;
+      stave.setVoltaType(kind, `${rep.ending.number}.`, 0);
     }
     if (notesStr && notesStr.trim()) {
       const notes = score.notes(notesStr, { clef: clefName });
@@ -325,7 +345,9 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
         factory.StaveConnector({ topStave: top, bottomStave: bottom, type: "brace" });
       }
       factory.StaveConnector({ topStave: top, bottomStave: bottom, type: "singleLeft" });
-      if (i === count - 1 && o.endBar !== "none") {
+      if (o.repeats?.[i]?.end) {
+        factory.StaveConnector({ topStave: top, bottomStave: bottom, type: "boldDoubleRight" });
+      } else if (i === count - 1 && o.endBar !== "none") {
         factory.StaveConnector({
           topStave: top,
           bottomStave: bottom,

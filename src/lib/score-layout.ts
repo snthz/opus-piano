@@ -1,7 +1,7 @@
 "use client";
 
 import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
-import type { ParsedScore } from "@/lib/music/musicxml";
+import { expandRepeats, type ParsedScore } from "@/lib/music/musicxml";
 
 /**
  * Dónde está cada compás en las páginas de un PDF, para que una guía pueda
@@ -39,10 +39,13 @@ export interface MeasureBox {
 }
 
 export interface MeasureMap {
+  /** Una caja por compás impreso */
   boxes: MeasureBox[];
-  /** Inicio de cada compás en negras */
+  /** Compás impreso (índice en `boxes`) de cada paso de la reproducción, con las repeticiones desplegadas */
+  order: number[];
+  /** Inicio de cada paso en negras */
   starts: number[];
-  /** Duración de cada compás en negras */
+  /** Duración de cada paso en negras */
   lengths: number[];
   /** true si el recuento de barras no coincidió con el MusicXML */
   approximate: boolean;
@@ -187,7 +190,10 @@ export async function analyzePdf(file: Blob, pageCount: number, stavesPerSystem:
 
 /** Cruza los sistemas detectados con los compases de la partitura. */
 export function buildMeasureMap(layouts: PageLayout[], score: ParsedScore): MeasureMap {
-  const lengths = score.measures.map((m) => Math.max(...m.staves.map((ev) => ev.reduce((s, e) => s + e.beats, 0)), 0));
+  const printed = score.measures.map((m) => Math.max(...m.staves.map((ev) => ev.reduce((s, e) => s + e.beats, 0)), 0));
+  // La guía sigue el reloj de reproducción, que toca las repeticiones desplegadas.
+  const order = expandRepeats(score.measures);
+  const lengths = order.map((mi) => printed[mi]);
   const starts: number[] = [];
   let t = 0;
   for (const l of lengths) {
@@ -222,15 +228,16 @@ export function buildMeasureMap(layouts: PageLayout[], score: ParsedScore): Meas
     });
   }
 
-  return { boxes, starts, lengths, approximate: !exact };
+  return { boxes, order, starts, lengths, approximate: !exact };
 }
 
-/** Compás y fracción dentro de él para una posición en negras. */
+/** Compás impreso (índice en `boxes`) y fracción dentro de él para una posición en negras de la reproducción. */
 export function locate(map: MeasureMap, beats: number): { measure: number; frac: number } | null {
-  if (!map.boxes.length) return null;
-  let m = 0;
-  while (m + 1 < map.starts.length && map.starts[m + 1] <= beats) m++;
-  if (m >= map.boxes.length) return null;
-  const len = map.lengths[m] || 1;
-  return { measure: m, frac: Math.min(1, Math.max(0, (beats - map.starts[m]) / len)) };
+  if (!map.boxes.length || !map.order.length) return null;
+  let step = 0;
+  while (step + 1 < map.starts.length && map.starts[step + 1] <= beats) step++;
+  const measure = map.order[step];
+  if (measure === undefined || measure >= map.boxes.length) return null;
+  const len = map.lengths[step] || 1;
+  return { measure, frac: Math.min(1, Math.max(0, (beats - map.starts[step]) / len)) };
 }

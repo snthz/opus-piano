@@ -544,7 +544,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     let cancelled = false;
     analyzePdf(record.file, record.pageCount, parsed.clefs.length)
       .then((layouts) => !cancelled && setLayout({ of: parsed, map: buildMeasureMap(layouts, parsed) }))
-      .catch(() => !cancelled && setLayout({ of: parsed, map: { boxes: [], starts: [], lengths: [], approximate: true } }));
+      .catch(() => !cancelled && setLayout({ of: parsed, map: { boxes: [], order: [], starts: [], lengths: [], approximate: true } }));
     return () => {
       cancelled = true;
     };

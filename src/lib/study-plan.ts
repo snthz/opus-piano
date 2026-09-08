@@ -166,6 +166,7 @@ export function summarizeScore(parsed: ParsedScore): string {
     `Pentagramas: ${parsed.clefs.map((c, i) => `${staffLabel(i)} en clave de ${c === "bass" ? "fa" : c === "alto" ? "do" : "sol"}`).join(", ")}`,
     `Compases: ${parsed.measures.length}`,
     "Notación: nombres anglosajones con octava científica (C4 = do central), alteraciones reales ya aplicadas. " +
+      "«|:» y «:|» son barras de repetición y «[1.]», «[2.]» las casillas de repetición. " +
       "Duración tras la barra: w redonda, h blanca, q negra, 8 corchea, 16 semicorchea, 32 fusa; «.» puntillo; r silencio; " +
       "acordes entre paréntesis; «~» ligadura de unión con la nota siguiente. Solo la voz principal de cada pentagrama.",
     "",
@@ -173,7 +174,8 @@ export function summarizeScore(parsed: ParsedScore): string {
   let text = lines.join("\n");
   for (const m of parsed.measures) {
     const staves = m.staves.map((events, i) => `${staffLabel(i)}: ${events.map(eventCode).join(" ") || "-"}`);
-    const line = `c${m.number} | ${staves.join(" | ")}\n`;
+    const marks = `${m.ending ? ` [${m.ending}.]` : ""}${m.repeatStart ? " |:" : ""}`;
+    const line = `c${m.number}${marks} | ${staves.join(" | ")}${m.repeatEnd ? " :|" : ""}\n`;
     if (text.length + line.length > SUMMARY_MAX_CHARS) {
       text += `… (la partitura sigue hasta el compás ${parsed.measures[parsed.measures.length - 1].number}; se omite el resto por longitud)\n`;
       break;

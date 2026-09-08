@@ -30,6 +30,8 @@ type ClefCode = (typeof CLEF_NAMES)[number];
 
 const CLEF_OF_CODE: Record<ClefCode, ClefName> = { sol: "treble", fa: "bass", do: "alto" };
 
+const REPEAT_CODES = ["none", "start", "end", "both"] as const;
+
 export const TRANSCRIPTION_SCHEMA: SchemaNode = obj({
   title: str("Título de la pieza tal como aparece impreso; cadena vacía si no consta"),
   composer: str("Compositor tal como aparece impreso; cadena vacía si no consta"),
@@ -43,6 +45,11 @@ export const TRANSCRIPTION_SCHEMA: SchemaNode = obj({
     obj({
       number: int("Número del compás"),
       staves: arr(str("Los eventos del pentagrama separados por espacios, o «-» si no tiene ninguno"), "Una entrada por pentagrama, en el mismo orden que «clefs»"),
+      repeat: en(
+        REPEAT_CODES,
+        "Barra de repetición del compás: «start» si empieza con la barra gruesa con dos puntos a su derecha (|:), «end» si termina con dos puntos a la izquierda de la barra gruesa (:|), «both» si tiene las dos, «none» si ninguna",
+      ),
+      ending: int("Casilla de repetición sobre el compás: 1 si está bajo el corchete «1.» o «I», 2 bajo «2.» o «II», y así; 0 si no hay casilla"),
     }),
     "Los compases de esta página, en orden de lectura",
   ),
@@ -57,7 +64,16 @@ export const transcriptionSchema = z.object({
   beatType: z.number().int().min(1).max(64),
   tempo: z.number().int().min(0).max(400),
   clefs: z.array(z.enum(CLEF_NAMES)).min(1).max(2),
-  measures: z.array(z.object({ number: z.number().int().min(0), staves: z.array(z.string().max(4000)).max(2) })).max(300),
+  measures: z
+    .array(
+      z.object({
+        number: z.number().int().min(0),
+        staves: z.array(z.string().max(4000)).max(2),
+        repeat: z.enum(REPEAT_CODES).default("none"),
+        ending: z.number().int().min(0).max(9).default(0),
+      }),
+    )
+    .max(300),
 });
 export type Transcription = z.infer<typeof transcriptionSchema>;
 
@@ -85,7 +101,9 @@ export function transcribeInstructions(): string {
     "- Las figuras de cada compás deben sumar exactamente lo que pide el compás: en 3/4, tres negras. Esto es lo más importante de la transcripción; si dudas entre dos figuras, elige la que hace cuadrar el compás.",
     "- Una sola voz por pentagrama. Si hay varias, transcribe la principal (la superior en la mano derecha, la inferior en la izquierda) y funde con ella, como acorde, las notas de las demás que empiecen en el mismo tiempo y duren lo mismo.",
     "- Transcribe solo los compases que se ven enteros en esta página y en orden de lectura: primer sistema de izquierda a derecha, luego el siguiente.",
-    "- Las repeticiones, casillas y saltos no se transcriben: escribe los compases una sola vez, tal como están impresos.",
+    "- Los compases se escriben una sola vez, tal como están impresos: las repeticiones no se despliegan. En su lugar se marcan: «repeat» es «start» en el compás que empieza con la barra gruesa seguida de dos puntos (|:), «end» en el que termina con dos puntos y barra gruesa (:|), «both» si tiene las dos, y «none» en el resto. Una barra gruesa final sin puntos no es repetición.",
+    "- Las casillas de repetición son los corchetes sobre el pentagrama con un número («1.», «2.») o cifra romana («I», «II»): la primera vez se toca la casilla 1 y en la repetición la 2. Pon en «ending» el número de la casilla bajo la que está cada compás (el corchete puede abarcar varios) y 0 si no hay ninguna. El compás de la casilla 1 suele llevar «repeat» «end».",
+    "- Saltos como D.C., D.S., Coda o Fine no se marcan; ignóralos.",
     "- Omite dinámicas, articulaciones, pedal, digitaciones, letra y adornos: no caben en esta notación y no hacen falta.",
     "- No inventes compases que no estén en la página. Si un pasaje no se lee bien, transcribe lo que se distinga y respeta la duración del compás con silencios.",
   ].join("\n");
@@ -172,7 +190,11 @@ export function assemble(pages: Transcription[]): Assembled {
           return [];
         }
       });
-      measures.push({ number, staves });
+      const xm: XmlMeasure = { number, staves };
+      if (m.repeat === "start" || m.repeat === "both") xm.repeatStart = true;
+      if (m.repeat === "end" || m.repeat === "both") xm.repeatEnd = true;
+      if (m.ending > 0) xm.ending = m.ending;
+      measures.push(xm);
     }
   }
   linkTies(measures, clefs.length);

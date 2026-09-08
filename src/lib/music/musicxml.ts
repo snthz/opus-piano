@@ -27,6 +27,12 @@ export interface XmlEvent {
 export interface XmlMeasure {
   number: string;
   staves: XmlEvent[][];
+  /** Barra de repetición que abre al principio del compás («|:») */
+  repeatStart?: boolean;
+  /** Barra de repetición que cierra al final del compás («:|») */
+  repeatEnd?: boolean;
+  /** Casilla de repetición en la que está el compás: 1 para «1.», 2 para «2.»… 0 o ausente si ninguna */
+  ending?: number;
 }
 
 export interface ParsedScore {
@@ -116,10 +122,15 @@ export function parseMusicXml(xml: string): ParsedScore {
   const measures: XmlMeasure[] = [];
   const divisionsByPart = new Map<Element, number>();
   const voiceByStaff = new Map<string, string>();
+  // Casilla abierta: dura hasta la barra que la cierra, aunque abarque varios compases.
+  let openEnding = 0;
 
   for (let mi = 0; mi < measureCount; mi++) {
     const staves: XmlEvent[][] = [];
     let number = String(mi + 1);
+    let repeatStart = false;
+    let repeatEnd = false;
+    let ending = openEnding;
 
     sources.forEach(({ part, staff }, si) => {
       const measure = part.querySelectorAll(":scope > measure")[mi];
@@ -151,6 +162,23 @@ export function parseMusicXml(xml: string): ParsedScore {
         } else if (child.tagName === "direction" || child.tagName === "sound") {
           const t = child.tagName === "sound" ? child.getAttribute("tempo") : child.querySelector("sound")?.getAttribute("tempo");
           if (t && !tempo) tempo = Math.round(Number(t));
+        } else if (child.tagName === "barline" && si === 0) {
+          // Repeticiones y casillas: solo las lee el primer pentagrama, son de todo el compás.
+          const direction = child.querySelector("repeat")?.getAttribute("direction");
+          if (direction === "forward") repeatStart = true;
+          if (direction === "backward") repeatEnd = true;
+          const volta = child.querySelector("ending");
+          if (volta) {
+            const n = parseInt(volta.getAttribute("number") ?? "", 10);
+            const type = volta.getAttribute("type");
+            if (type === "start" && n > 0) {
+              ending = n;
+              openEnding = n;
+            } else if (type === "stop" || type === "discontinue") {
+              if (!ending && n > 0) ending = n;
+              openEnding = 0;
+            }
+          }
         } else if (child.tagName === "note") {
           if (child.querySelector("grace") || child.querySelector("cue")) continue;
           const noteStaff = Number(text(child, "staff") ?? "1");
@@ -195,10 +223,78 @@ export function parseMusicXml(xml: string): ParsedScore {
       staves.push(events);
     });
 
-    measures.push({ number, staves });
+    const m: XmlMeasure = { number, staves };
+    if (repeatStart) m.repeatStart = true;
+    if (repeatEnd) m.repeatEnd = true;
+    if (ending) m.ending = ending;
+    measures.push(m);
   }
 
   return { title, keyVex, time, tempo, clefs, measures };
+}
+
+/* ---------- Repeticiones ---------- */
+
+/**
+ * Orden en que se tocan los compases (índices en `measures`) una vez
+ * desplegadas las repeticiones y las casillas. Sin repeticiones es la
+ * identidad. Cada barra de cierre devuelve una sola vez al principio de su
+ * sección (la última barra de apertura, o el inicio de la pieza si no la hay);
+ * en la pasada n solo suenan los compases de la casilla n, y los que no están
+ * en ninguna casilla suenan siempre.
+ *
+ * Con casillas «1.» y «2.» el resultado es A + 1.ª + A + 2.ª, que es lo que
+ * quiere decir la partitura. Una casilla que no puede alcanzarse (su pasada
+ * nunca llega porque no hay barra de cierre) se toca de corrido para no
+ * perder música.
+ */
+export function expandRepeats(measures: Pick<XmlMeasure, "repeatStart" | "repeatEnd" | "ending">[]): number[] {
+  const order: number[] = [];
+  let start = 0;
+  let pass = 1;
+  const jumped = new Set<number>();
+  const opened = new Set<number>();
+
+  const reachable = (from: number, wanted: number) => {
+    // ¿Hay una barra de cierre por delante, en esta misma sección, que nos traiga de vuelta hasta la pasada `wanted`?
+    let passes = pass;
+    for (let k = from; k < measures.length; k++) {
+      if (k !== from && measures[k].repeatStart) return false;
+      if (measures[k].repeatEnd && !jumped.has(k) && (!measures[k].ending || measures[k].ending === passes)) {
+        passes++;
+        if (passes >= wanted) return true;
+      }
+    }
+    return false;
+  };
+
+  let i = 0;
+  while (i < measures.length) {
+    const m = measures[i];
+    if (m.repeatStart && !opened.has(i)) {
+      opened.add(i);
+      start = i;
+      pass = 1;
+    }
+    if (m.ending && m.ending !== pass && (m.ending < pass || reachable(i, m.ending))) {
+      i++;
+      continue;
+    }
+    order.push(i);
+    if (m.repeatEnd && !jumped.has(i)) {
+      jumped.add(i);
+      pass++;
+      i = start;
+      continue;
+    }
+    if (m.repeatEnd) {
+      // Sección terminada: lo que sigue empieza de cero.
+      start = i + 1;
+      pass = 1;
+    }
+    i++;
+  }
+  return order;
 }
 
 /* ---------- De la partitura leída a lo que dibuja y suena Opus Piano ---------- */
@@ -240,12 +336,22 @@ export interface ScoreTimelineNote {
  */
 export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
   const out: ScoreTimelineNote[] = [];
+  const order = expandRepeats(score.measures);
   score.clefs.forEach((_, staff) => {
-    let t = 0;
-    let index = 0;
-    let open: ScoreTimelineNote | null = null;
+    // Índice global de la primera nota de cada compás impreso.
+    const offsets: number[] = [];
+    let n = 0;
     for (const m of score.measures) {
-      for (const ev of m.staves[staff] ?? []) {
+      offsets.push(n);
+      n += (m.staves[staff] ?? []).length;
+    }
+    let t = 0;
+    let open: ScoreTimelineNote | null = null;
+    order.forEach((mi, step) => {
+      // Al saltar atrás (o adelante) una ligadura abierta no continúa.
+      if (step > 0 && order[step - 1] !== mi - 1) open = null;
+      let index = offsets[mi];
+      for (const ev of score.measures[mi].staves[staff] ?? []) {
         if (!ev.rest && ev.pitches.length) {
           const midis = ev.pitches.map(toMidi);
           const sameAsOpen = open && ev.tieStop && open.midis.length === midis.length && open.midis.every((x, i) => x === midis[i]);
@@ -263,7 +369,7 @@ export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
         t += ev.beats;
         index++;
       }
-    }
+    });
   });
   return out.sort((a, b) => a.start - b.start);
 }

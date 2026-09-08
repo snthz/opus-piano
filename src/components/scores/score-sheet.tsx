@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Score } from "@/components/notation/score";
+import { Score, type MeasureRepeat } from "@/components/notation/score";
 import { eventLabel, measureToEasyScore, type ParsedScore } from "@/lib/music/musicxml";
 import { useSettings } from "@/lib/settings";
 import type { ActiveNotes } from "./use-score-player";
@@ -61,6 +61,16 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
     <div className="card p-4 md:p-6 overflow-x-auto space-y-1">
       {systems.map((sys, si) => {
         const slice = parsed.measures.slice(sys.from, sys.to);
+        // Barras de repetición y casillas; el corchete de una casilla puede seguir de un sistema al siguiente.
+        const repeats: MeasureRepeat[] = slice.map((m, k) => {
+          const rep: MeasureRepeat = { start: !!m.repeatStart, end: !!m.repeatEnd };
+          if (m.ending) {
+            const opens = (parsed.measures[sys.from + k - 1]?.ending ?? 0) !== m.ending;
+            const closes = (parsed.measures[sys.from + k + 1]?.ending ?? 0) !== m.ending;
+            rep.ending = { number: m.ending, bracket: opens && closes ? "both" : opens ? "begin" : closes ? "end" : "mid" };
+          }
+          return rep;
+        });
         const perStaff = parsed.clefs.map((clef, staff) => {
           const events = slice.flatMap((m) => m.staves[staff] ?? []);
           const base = offsets[staff][sys.from];
@@ -93,6 +103,7 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
               bassHighlight={grand ? perStaff[1].highlight : undefined}
               width={perSystem >= 4 ? 760 : 540}
               endBar={si === systems.length - 1 ? "end" : "single"}
+              repeats={repeats}
             />
           </div>
         );

@@ -188,9 +188,42 @@ function noteXml(ev: XmlEvent, staff: number, voice: number, state: Map<string, 
     .join("");
 }
 
-function measureXml(m: XmlMeasure, score: ParsedScore, fifths: number, head: string): string {
+/**
+ * Barras de repetición y casillas del compás. La casilla se abre en la barra
+ * izquierda del primer compás que la lleva y se cierra en la derecha del
+ * último; entre medias no se repite. `prev` y `next` son los compases vecinos.
+ */
+function barlinesXml(m: XmlMeasure, prev: XmlMeasure | undefined, next: XmlMeasure | undefined): { left: string; right: string } {
+  const ending = m.ending ?? 0;
+  const opens = ending > 0 && (prev?.ending ?? 0) !== ending;
+  const closes = ending > 0 && (next?.ending ?? 0) !== ending;
+  let left = "";
+  if (m.repeatStart || opens) {
+    left =
+      '<barline location="left">' +
+      (m.repeatStart ? "<bar-style>heavy-light</bar-style>" : "") +
+      (opens ? `<ending number="${ending}" type="start"/>` : "") +
+      (m.repeatStart ? '<repeat direction="forward"/>' : "") +
+      "</barline>";
+  }
+  let right = "";
+  if (m.repeatEnd || closes) {
+    // La casilla que no vuelve atrás (la última) se dibuja abierta por la derecha.
+    const type = m.repeatEnd ? "stop" : "discontinue";
+    right =
+      '<barline location="right">' +
+      (m.repeatEnd ? "<bar-style>light-heavy</bar-style>" : "") +
+      (closes ? `<ending number="${ending}" type="${type}"/>` : "") +
+      (m.repeatEnd ? '<repeat direction="backward"/>' : "") +
+      "</barline>";
+  }
+  return { left, right };
+}
+
+function measureXml(m: XmlMeasure, score: ParsedScore, fifths: number, head: string, prev?: XmlMeasure, next?: XmlMeasure): string {
   const key = keyAlters(fifths);
-  const parts: string[] = [head];
+  const bars = barlinesXml(m, prev, next);
+  const parts: string[] = [head, bars.left];
   score.clefs.forEach((_, si) => {
     const events = m.staves[si] ?? [];
     if (si > 0) {
@@ -201,6 +234,7 @@ function measureXml(m: XmlMeasure, score: ParsedScore, fifths: number, head: str
     const state = new Map<string, number>();
     for (const ev of events) parts.push(noteXml(ev, si + 1, si + 1, state, key));
   });
+  parts.push(bars.right);
   return `<measure number="${esc(m.number)}">${parts.join("")}</measure>`;
 }
 
@@ -232,7 +266,7 @@ export function buildMusicXml(score: ParsedScore, options: BuildOptions = {}): s
   const tempo = score.tempo
     ? `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${score.tempo}</per-minute></metronome></direction-type><sound tempo="${score.tempo}"/></direction>`
     : "";
-  const measures = score.measures.map((m, i) => measureXml(m, score, key.fifths, i === 0 ? attributes + tempo : ""));
+  const measures = score.measures.map((m, i, all) => measureXml(m, score, key.fifths, i === 0 ? attributes + tempo : "", all[i - 1], all[i + 1]));
   const composer = options.composer?.trim() ? `<creator type="composer">${esc(options.composer.trim())}</creator>` : "";
 
   return [
