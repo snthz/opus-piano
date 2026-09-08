@@ -1,3 +1,4 @@
+import { easyScorePiece } from "./easyscore";
 import type { TimeSignature } from "./meter";
 import { measureBeats } from "./meter";
 import { pick } from "@/lib/random";
@@ -153,7 +154,7 @@ export function generateRhythm(ts: TimeSignature, level: RhythmLevel, measures: 
 
 /** Compás en notación EasyScore con una sola altura (para lectura rítmica). */
 export function rhythmToEasyScore(measure: RhythmNote[], pitch = "B4"): string {
-  return measure.map((n) => `${pitch}/${n.vex}${n.rest ? "/r" : ""}`).join(", ");
+  return measure.map((n) => easyScorePiece(pitch, n.vex, n.rest)).join(", ");
 }
 
 export function rhythmToEvents(measures: RhythmNote[][], midi = 71) {

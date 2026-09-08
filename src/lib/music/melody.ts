@@ -1,3 +1,4 @@
+import { easyScorePiece } from "./easyscore";
 import type { KeyInfo } from "./keys";
 import { applyKey } from "./keys";
 import type { Pitch } from "./pitch";
@@ -70,7 +71,7 @@ export function generateMelody(
     }),
   );
 
-  const easy = out.map((m) => m.map((n) => `${toEasyScore(n.pitch)}/${n.vex}${n.rest ? "/r" : ""}`).join(", "));
+  const easy = out.map((m) => m.map((n) => easyScorePiece(toEasyScore(n.pitch), n.vex, n.rest)).join(", "));
   const events = out.flat().map((n) => ({ midis: n.rest ? [] : [toMidi(n.pitch)], beats: n.beats }));
   return { measures: out, easy, events };
 }
