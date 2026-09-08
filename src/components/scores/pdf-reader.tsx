@@ -1021,22 +1021,10 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
       </Sheet>
 
-      {/* ---- Transcripción del PDF con IA ---- */}
-      {transcribeOpen && (
-        <div className="absolute inset-0 z-20 bg-surface-2 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-3" style={{ paddingTop: "calc(0.75rem + var(--safe-t))", paddingBottom: "calc(2.5rem + var(--safe-b))" }}>
-            <TranscribePanel
-              scoreId={record.id}
-              scoreName={record.name}
-              pdf={record.file}
-              pageCount={record.pageCount}
-              hasXml={!!linkedXml}
-              onClose={() => setTranscribeOpen(false)}
-              onUse={applyXml}
-            />
-          </div>
-        </div>
-      )}
+      {/* ---- Transcripción del PDF con IA: otra hoja, sin salir de la partitura ---- */}
+      <Sheet open={transcribeOpen} onClose={() => setTranscribeOpen(false)} title="Transcribir con IA" subtitle={name}>
+        <TranscribePanel scoreId={record.id} scoreName={record.name} pdf={record.file} pageCount={record.pageCount} hasXml={!!linkedXml} onUse={applyXml} />
+      </Sheet>
 
       {/* ---- Cómo conseguir la reproducción ---- */}
       {askXml && (

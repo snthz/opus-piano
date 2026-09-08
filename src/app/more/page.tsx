@@ -3,14 +3,15 @@ import { PageHeader } from "@/components/ui/page-header";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
-  title: "Más: glosario, guía y preguntas frecuentes",
+  title: "Más: teoría, glosario, guía y preguntas frecuentes",
   description:
-    "El resto de recursos de Opus Piano: el glosario de términos, el diccionario de símbolos, la guía para leer partituras, las preguntas frecuentes y los ajustes.",
+    "El resto de recursos de Opus Piano: las lecciones de teoría, el glosario de términos, el diccionario de símbolos, la guía para leer partituras, las preguntas frecuentes y los ajustes.",
   path: "/more",
   keywords: ["recursos musicales", "opus piano"],
 });
 
 const links = [
+  { href: "/theory", title: "Teoría", text: "Las lecciones, en orden: del pentagrama y las notas al ritmo, las escalas y los acordes." },
   { href: "/guide", title: "Guía para leer partituras", text: "El recorrido completo, del pentagrama a los símbolos, en una sola página." },
   { href: "/symbols", title: "Diccionario de símbolos", text: "Todos los signos de la partitura, por familias, con su significado." },
   { href: "/glossary", title: "Glosario", text: "Términos musicales de la A a la Z." },

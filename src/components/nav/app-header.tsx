@@ -2,31 +2,43 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { Logo } from "@/components/ui/logo";
 import { ALL_LESSONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
 import { exercisePath, lessonPath } from "@/lib/routes";
 import { isActive } from "./app-nav";
-import { useAuth } from "@/lib/auth";
+import { Chevron, Tab, tabClass } from "./nav-tab";
+import { ProgressMenu } from "./progress-menu";
+import { logout, useAuth } from "@/lib/auth";
+import { useSettings } from "@/lib/settings";
+import { THEMES } from "@/lib/theme";
 import { dayStreak, useProgress } from "@/lib/progress";
 
 const TABS = [
   { href: "/", label: "Inicio" },
-  { href: "/theory", label: "Teoría" },
   { href: "/practice", label: "Práctica" },
   { href: "/scores", label: "Partituras" },
+];
+
+/** Secciones que ya no van en la fila de pestañas: viven en «Más» del menú de usuario. */
+const MORE_LINKS = [
+  { href: "/theory", label: "Teoría" },
   { href: "/glossary", label: "Glosario" },
-  { href: "/settings", label: "Ajustes" },
+  { href: "/more", label: "Todos los recursos" },
 ];
 
 const AUTH_PATHS = ["/login", "/register"];
 
 /**
  * Cabecera fija en dos filas. Arriba, la marca y la cuenta (racha, ayuda y
- * avatar o «Iniciar sesión»); debajo, en escritorio, las pestañas de las
- * secciones con el desplegable «Explorar» que lista lecciones y ejercicios.
+ * el menú de usuario o «Iniciar sesión»); debajo, en escritorio, las pestañas
+ * principales con el desplegable «Explorar» que lista lecciones y ejercicios
+ * y, a la derecha, «Progreso» (ProgressMenu) con el resumen y las prácticas
+ * sugeridas.
+ * Teoría, Glosario y Ajustes no van como pestañas: están en el menú de usuario
+ * (UserMenu), junto al cambio de tema y «Cerrar sesión».
  * En móvil solo se ve la fila de arriba: la navegación está abajo (AppNav).
  * En /login y /register la fila de pestañas se oculta para no distraer.
  * Su alto vive también en `--header-h` (globals.css): al cambiarlo aquí, hay
@@ -55,16 +67,8 @@ export function AppHeader() {
         </IconLink>
 
         {user ? (
-          <Link
-            href="/account"
-            aria-label={`Cuenta de ${user.name}`}
-            title={user.name}
-            className={`grid place-items-center w-10 h-10 rounded-xl text-sm font-bold transition-colors ${
-              isActive(pathname, "/account") ? "bg-ink text-bg" : "bg-ash text-ink hover:opacity-80"
-            }`}
-          >
-            {user.name.trim()[0]?.toUpperCase()}
-          </Link>
+          // key={pathname}: al navegar se desmonta y el menú se cierra solo.
+          <UserMenu key={pathname} pathname={pathname} name={user.name} email={user.email} />
         ) : (
           <Link href="/login" className="btn-outline h-10 px-3.5 md:h-11 md:px-4 text-sm md:text-[15px]">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden>
@@ -88,6 +92,7 @@ export function AppHeader() {
               </Tab>
             ))}
             <span className="flex-1" />
+            <ProgressMenu key={`progress-${pathname}`} />
             <Tab href="/more" active={isActive(pathname, "/more")}>
               Más
             </Tab>
@@ -127,23 +132,6 @@ function IconLink({ href, label, active, children }: { href: string; label: stri
   );
 }
 
-/** Pestaña: texto plano; la activa va en negrita con una línea gruesa de acento debajo. */
-const tabClass = (active: boolean) =>
-  `relative inline-flex items-center h-12 px-3.5 text-[15px] transition-colors ${
-    active ? "text-ink font-semibold" : "text-ink-2 font-medium hover:text-ink"
-  }`;
-
-const Underline = () => <span aria-hidden className="absolute inset-x-1 bottom-0 h-[3px] rounded-t-full bg-ink" />;
-
-function Tab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
-      {children}
-      {active && <Underline />}
-    </Link>
-  );
-}
-
 function ExploreMenu({ pathname }: { pathname: string }) {
   const [open, setOpen] = useState(false);
 
@@ -169,9 +157,7 @@ function ExploreMenu({ pathname }: { pathname: string }) {
           <path d="M4 20.5V6.5M8 8.5h8M8 12h6" strokeLinecap="round" />
         </svg>
         Explorar lecciones
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden>
-          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Chevron open={open} />
       </button>
 
       {open && (
@@ -246,3 +232,135 @@ function MenuItem({ href, active, children }: { href: string; active: boolean; c
     </Link>
   );
 }
+
+/**
+ * Menú de usuario en la esquina superior derecha. Reúne lo que no cabe en la
+ * fila de pestañas: cuenta y ajustes, el cambio de tema, la sección «Más»
+ * (Teoría, Glosario y el resto de recursos) y «Cerrar sesión».
+ */
+function UserMenu({ pathname, name, email }: { pathname: string; name: string; email: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { settings, update } = useSettings();
+  const initial = name.trim()[0]?.toUpperCase();
+  const accountActive = isActive(pathname, "/account") || isActive(pathname, "/settings");
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  return (
+    <div
+      ref={ref}
+      className="relative"
+      onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Menú de ${name}`}
+        title={name}
+        onClick={() => setOpen((v) => !v)}
+        className={`grid place-items-center w-10 h-10 rounded-xl text-sm font-bold transition-colors ${
+          open || accountActive ? "bg-ink text-bg" : "bg-ash text-ink hover:opacity-80"
+        }`}
+      >
+        {initial}
+      </button>
+
+      {open && (
+        <div role="menu" className="absolute right-0 top-full pt-2 w-72 z-50">
+          <div className="card p-2 shadow-lg">
+            <div className="px-3 py-2">
+              <p className="text-sm font-semibold truncate">{name}</p>
+              <p className="text-xs text-ink-3 truncate">{email}</p>
+            </div>
+
+            <Divider />
+            <MenuItem href="/account" active={isActive(pathname, "/account")}>
+              <UserIcon />
+              Mi cuenta
+            </MenuItem>
+            <MenuItem href="/settings" active={isActive(pathname, "/settings")}>
+              <GearIcon />
+              Ajustes
+            </MenuItem>
+
+            <Divider />
+            <div className="px-2 py-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-3 mb-1.5">Tema</p>
+              <div role="radiogroup" aria-label="Tema" className="flex gap-1">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={settings.theme === t.value}
+                    onClick={() => update({ theme: t.value })}
+                    className={`pill flex-1 justify-center text-xs py-1.5 px-2 ${settings.theme === t.value ? "pill-active" : ""}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Divider />
+            <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Más</p>
+            {MORE_LINKS.map((l) => (
+              <MenuItem key={l.href} href={l.href} active={isActive(pathname, l.href)}>
+                {l.label}
+              </MenuItem>
+            ))}
+
+            <Divider />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                void logout();
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-sm text-ink hover:bg-surface-2 transition-colors"
+            >
+              <LogoutIcon />
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const Divider = () => <hr className="my-1.5 border-line" />;
+
+const UserIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 20c0-3.5 3.5-6 8-6s8 2.5 8 6" strokeLinecap="round" />
+  </svg>
+);
+
+const GearIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>
+    <circle cx="12" cy="12" r="3" />
+    <path
+      d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>
+    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" strokeLinecap="round" />
+    <path d="M20 12H10M16 8l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);

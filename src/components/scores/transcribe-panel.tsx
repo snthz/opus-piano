@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { activeTarget, isAiReady, useAiConfig } from "@/lib/ai/config";
-import { cancelJob, dismissJob, startJob, useJob } from "@/lib/ai/jobs";
+import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/ai/jobs";
 import { estimateTranscriptionCost, formatCost, modelById } from "@/lib/ai/models";
 import { transcribeScore, type TranscribeOutcome } from "@/lib/ai/transcribe-client";
 import { MAX_TRANSCRIBE_PAGES } from "@/lib/ai/transcribe";
 import { AiSettings } from "@/components/settings/ai-settings";
-import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
 
 interface Props {
@@ -18,7 +17,6 @@ interface Props {
   pageCount: number;
   /** Ya hay un MusicXML vinculado: usarlo lo sustituye */
   hasXml: boolean;
-  onClose: () => void;
   onUse: (xml: string) => void | Promise<void>;
 }
 
@@ -32,7 +30,7 @@ const XML_TYPE = "application/vnd.recordare.musicxml+xml";
  * compases han salido, qué compases no cuadran y deja descargar el archivo
  * para arreglarlo en MuseScore antes de darlo por bueno.
  */
-export function TranscribePanel({ scoreId, scoreName, pdf, pageCount, hasXml, onClose, onUse }: Props) {
+export function TranscribePanel({ scoreId, scoreName, pdf, pageCount, hasXml, onUse }: Props) {
   const config = useAiConfig();
   const job = useJob("transcribe", scoreId);
   const [from, setFrom] = useState(1);
@@ -100,25 +98,23 @@ export function TranscribePanel({ scoreId, scoreName, pdf, pageCount, hasXml, on
 
   const discard = () => dismissJob("transcribe", scoreId);
 
-  // Al cerrar, lo ya atendido (vinculado o fallido) deja de reclamar atención en el lector.
-  const close = () => {
-    if (job?.status === "error" || (job?.status === "done" && saved)) discard();
-    onClose();
-  };
+  // Al cerrar la hoja (se cierre como se cierre), lo ya atendido —vinculado o
+  // fallido— deja de reclamar atención en el lector.
+  const savedRef = useRef(saved);
+  useEffect(() => {
+    savedRef.current = saved;
+  }, [saved]);
+  useEffect(
+    () => () => {
+      const j = getJob("transcribe", scoreId);
+      if (j?.status === "error" || (j?.status === "done" && savedRef.current)) dismissJob("transcribe", scoreId);
+    },
+    [scoreId],
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={close} className="btn-circle w-10 h-10 shrink-0" aria-label="Cerrar la transcripción">
-          <ChevronIcon dir="left" className="w-5 h-5" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-bold truncate">Transcribir con IA</h2>
-          <p className="text-xs text-ink-2 truncate">{scoreName}</p>
-        </div>
-      </div>
-
-      <section className="card p-5 space-y-4">
+      <section className="px-1 space-y-4">
         <p className="text-sm text-ink-2">
           Un modelo de visión lee las páginas del PDF y escribe el <strong>MusicXML</strong> de la pieza, para poder escucharla y ver
           los nombres de las notas sin buscar el archivo por internet.
@@ -228,7 +224,7 @@ function Result({
 }) {
   const measures = result.score.measures.length;
   return (
-    <section className="card p-5 space-y-4">
+    <section className="mx-1 border-t border-line pt-4 space-y-4">
       <div>
         <h3 className="font-bold text-sm">Transcripción lista</h3>
         <p className="text-xs text-ink-2 mt-1">

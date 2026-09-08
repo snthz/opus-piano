@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { ClientOnly } from "@/components/ui/client-only";
 import { ScoreLibrary } from "@/components/scores/score-library";
@@ -20,7 +21,10 @@ export default function PartiturasPage() {
         intro="Tus PDF y MusicXML. Dibuja encima, y con MusicXML escucha la pieza y ve el nombre de cada nota. Con una cuenta, la biblioteca te sigue a todos tus dispositivos."
       />
       <ClientOnly>
-        <ScoreLibrary />
+        {/* La biblioteca lee `?score=` con useSearchParams: Next pide un Suspense alrededor. */}
+        <Suspense>
+          <ScoreLibrary />
+        </Suspense>
       </ClientOnly>
     </div>
   );

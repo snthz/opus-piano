@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { dismissJob, onJobsChange, useJobs } from "@/lib/ai/jobs";
 import { listScores, deleteScore, onScoresChange, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
@@ -14,19 +15,36 @@ import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PenIcon, PlayIcon } from "./reader-icons";
 import { DotsIcon, EmptyLibraryIcon, SearchIcon } from "./library-icons";
 
+/** Ruta de la biblioteca; la partitura abierta va en `?score=<id>`. */
+const LIBRARY_PATH = "/scores";
+const scorePath = (id: string) => `${LIBRARY_PATH}?score=${encodeURIComponent(id)}`;
+
 export function ScoreLibrary() {
+  const router = useRouter();
+  const params = useSearchParams();
   const [scores, setScores] = useState<ScoreRecord[]>([]);
   const [search, setSearch] = useState("");
-  const [viewing, setViewing] = useState<ScoreRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [added, setAdded] = useState(false);
   const sync = useScoresSync();
   const { user } = useAuth();
 
+  // La partitura abierta la manda la URL: así sobrevive a recargar la página y
+  // el botón «atrás» del navegador vuelve a la biblioteca.
+  const viewingId = params.get("score");
+  const viewing = viewingId ? (scores.find((s) => s.id === viewingId) ?? null) : null;
+  const open = (id: string) => router.push(scorePath(id), { scroll: false });
+  const close = () => router.replace(LIBRARY_PATH, { scroll: false });
+
   const reload = () => listScores().then((s) => { setScores(s); setLoaded(true); });
   useEffect(() => { void reload(); }, []);
   // Lo que llega del servidor (otro dispositivo) aparece sin recargar la página.
   useEffect(() => onScoresChange((c) => { if (c.type !== "put" || c.source === "remote") void reload(); }), []);
+
+  // Un id que ya no existe (borrada, o de otra cuenta) devuelve a la biblioteca.
+  useEffect(() => {
+    if (loaded && viewingId && !scores.some((s) => s.id === viewingId)) router.replace(LIBRARY_PATH, { scroll: false });
+  }, [loaded, viewingId, scores, router]);
 
   const onAdded = (r: ScoreRecord) => {
     setScores((prev) => [r, ...prev]);
@@ -36,12 +54,10 @@ export function ScoreLibrary() {
   const onDelete = async (id: string) => {
     await deleteScore(id);
     setScores((prev) => prev.filter((s) => s.id !== id));
-    if (viewing?.id === id) setViewing(null);
   };
 
   const patch = (id: string, changes: Partial<ScoreRecord>) => {
     setScores((prev) => prev.map((s) => (s.id === id ? { ...s, ...changes } : s)));
-    if (viewing?.id === id) setViewing((v) => (v ? { ...v, ...changes } : v));
   };
 
   // Un plan preparado en segundo plano (la propia tarea ya lo guardó en la base
@@ -54,7 +70,6 @@ export function ScoreLibrary() {
           if (j.kind !== "plan" || j.status !== "done") continue;
           const { scoreId, result: plan } = j;
           setScores((prev) => prev.map((s) => (s.id === scoreId ? { ...s, plan } : s)));
-          setViewing((v) => (v && v.id === scoreId ? { ...v, plan } : v));
           dismissJob("plan", scoreId);
         }
       }),
@@ -66,12 +81,15 @@ export function ScoreLibrary() {
     void updateScoreName(id, name);
   };
 
+  // Con una partitura en la URL, no enseñar la biblioteca mientras se lee la base de datos.
+  if (viewingId && !loaded) return <p className="text-sm text-ink-2 text-center">Cargando…</p>;
+
   if (viewing) {
     return (
       <ScoreViewer
         record={viewing}
         // Al volver se relee la biblioteca: notas, trazos y vínculos guardados mientras se veía.
-        onClose={() => { setViewing(null); void reload(); }}
+        onClose={() => { close(); void reload(); }}
         onDelete={() => void onDelete(viewing.id)}
         onNotesChange={(notes) => patch(viewing.id, { notes })}
         onRename={(name) => patch(viewing.id, { name })}
@@ -149,7 +167,7 @@ export function ScoreLibrary() {
             <ScoreCard
               key={s.id}
               record={s}
-              onOpen={() => setViewing(s)}
+              onOpen={() => open(s.id)}
               onDelete={() => void onDelete(s.id)}
               onRename={(name) => rename(s.id, name)}
             />

@@ -42,6 +42,9 @@ export function Sheet({
      soltar, o vuelve a su sitio o se cierra si se ha bajado bastante o rápido. */
   const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    // Sobre un botón (la X, las acciones) no hay gesto: capturar el puntero
+    // aquí se quedaría con el `click` y el botón nunca lo recibiría.
+    if ((e.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
     drag.current = { y: e.clientY, t: performance.now(), id: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -87,7 +90,7 @@ export function Sheet({
                 type="button"
                 onClick={onClose}
                 aria-label="Cerrar"
-                className="shrink-0 w-9 h-9 rounded-full text-ink-3 hover:text-ink hover:bg-surface-2 grid place-items-center transition-colors"
+                className="shrink-0 w-9 h-9 rounded-full text-ink-3 hover:text-ink hover:bg-surface-2 grid place-items-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden>
                   <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
