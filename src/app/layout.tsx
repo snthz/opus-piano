@@ -12,6 +12,7 @@ import { SiteFooter } from "@/components/nav/site-footer";
 import { JsonLd } from "@/components/seo/json-ld";
 import {
   AUTHOR_NAME,
+  AUTHOR_URL,
   COPYRIGHT_YEAR,
   SITE_DESCRIPTION,
   SITE_KEYWORDS,
@@ -21,7 +22,6 @@ import {
   SITE_TITLE,
   SITE_URL,
   STUDIO_NAME,
-  STUDIO_URL,
   OG_IMAGE,
   siteJsonLd,
 } from "@/lib/seo";
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   // Quién firma la app: el autor y el estudio que la publica. Salen como
   // <meta name="author"|"creator"|"publisher"> y los repite el JSON-LD.
-  authors: [{ name: AUTHOR_NAME, url: STUDIO_URL ?? SITE_URL }],
+  authors: [{ name: AUTHOR_NAME, url: AUTHOR_URL }],
   creator: AUTHOR_NAME,
   publisher: STUDIO_NAME,
   category: "education",

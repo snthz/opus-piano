@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogoMark } from "@/components/ui/logo";
 import {
   AUTHOR_NAME,
+  AUTHOR_URL,
   COPYRIGHT_YEAR,
   SITE_NAME,
   SITE_TAGLINE,
@@ -49,11 +50,20 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   },
 ];
 
-const PRIVATE_LINKS = [
+/**
+ * Enlaces de la zona privada. Van en su propia columna, con `rel="nofollow"`:
+ * robots.txt las bloquea y no tiene sentido gastar rastreo en ellas, pero para
+ * quien ya usa la app son los accesos más rápidos del pie.
+ */
+const ACCOUNT_LINKS = [
   { href: "/scores", label: "Mis partituras" },
   { href: "/account", label: "Cuenta" },
   { href: "/settings", label: "Ajustes" },
+  { href: "/more", label: "Más" },
 ];
+
+/** Lo que resume la app en tres golpes: gratis, sin conexión y en español. */
+const BADGES = ["Gratis", "Funciona sin conexión", "En español"];
 
 /**
  * Pie de página del sitio: la firma (autor y estudio) y el mapa de enlaces
@@ -66,9 +76,16 @@ const PRIVATE_LINKS = [
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-line bg-surface">
+      {/* Teclas: el mismo motivo del logotipo, en una franja de 6 px. Decorativo
+          puro, de ahí el aria-hidden. */}
+      <div
+        aria-hidden
+        className="h-1.5 w-full bg-[repeating-linear-gradient(90deg,var(--line)_0_1px,transparent_1px_14px)]"
+      />
+
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-10 md:py-12">
         {/* En móvil, dos columnas: con una sola, el pie mide tres pantallas. */}
-        <div className="grid gap-8 grid-cols-2 md:grid-cols-[1.2fr_repeat(3,1fr)]">
+        <div className="grid gap-8 grid-cols-2 md:grid-cols-[1.4fr_1.1fr_1.1fr_1fr_0.9fr]">
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2 text-ink">
               <LogoMark className="w-6 h-6" />
@@ -78,6 +95,24 @@ export function SiteFooter() {
               {SITE_TAGLINE}. Curso gratuito de lenguaje musical en español, con ejercicios
               interactivos y sin conexión.
             </p>
+
+            <ul className="mt-4 flex flex-wrap gap-1.5">
+              {BADGES.map((badge) => (
+                <li
+                  key={badge}
+                  className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-ink-2"
+                >
+                  {badge}
+                </li>
+              ))}
+            </ul>
+
+            <Link
+              href="/practice"
+              className="btn-primary mt-5 text-sm py-2.5 px-4 w-full sm:w-auto"
+            >
+              Empezar a practicar
+            </Link>
           </div>
 
           {COLUMNS.map((column) => (
@@ -99,48 +134,65 @@ export function SiteFooter() {
               </ul>
             </nav>
           ))}
-        </div>
 
-        <div className="mt-10 pt-6 border-t border-line flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <p className="text-xs text-ink-3">
-            © {COPYRIGHT_YEAR} {SITE_NAME}. Software libre (MIT). Fuentes musicales Bravura y
-            Academico de Steinberg bajo licencia SIL OFL 1.1.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <ul className="flex items-center gap-4">
-              {PRIVATE_LINKS.map((link) => (
+          <nav aria-label="Tu cuenta">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">
+              Tu cuenta
+            </p>
+            <ul className="mt-3 space-y-1.5">
+              {ACCOUNT_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
                     rel="nofollow"
-                    className="text-xs text-ink-3 hover:text-ink transition-colors"
+                    className="text-sm text-ink-2 hover:text-ink transition-colors"
                   >
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
+          </nav>
+        </div>
 
-            {/* La firma: autor y estudio. `rel="author"` es la pista que usan
-                los buscadores para asociar el sitio con quien lo escribe. */}
+        <div className="mt-10 pt-6 border-t border-line flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-1">
             <p className="text-xs text-ink-2">
-              Desarrollado por{" "}
-              {STUDIO_URL ? (
-                <a
-                  href={STUDIO_URL}
-                  rel="author noopener"
-                  target="_blank"
-                  className="font-semibold text-ink hover:underline"
-                >
-                  {STUDIO_NAME}
-                </a>
-              ) : (
-                <span className="font-semibold text-ink">{STUDIO_NAME}</span>
-              )}{" "}
-              · <span className="whitespace-nowrap">por {AUTHOR_NAME}</span>
+              © {COPYRIGHT_YEAR} {SITE_NAME}. Todos los derechos reservados.
+            </p>
+            {/* La atribución de las fuentes no es cortesía: la licencia SIL OFL
+                obliga a citarlas allá donde se usan. */}
+            <p className="text-[11px] text-ink-3">
+              Fuentes musicales Bravura y Academico © Steinberg, bajo licencia SIL OFL 1.1.
             </p>
           </div>
+
+          {/* La firma: autor y estudio, cada uno enlazado a su web.
+              `rel="author"` es la pista que usan los buscadores para asociar
+              el sitio con quien lo escribe. */}
+          <p className="text-xs text-ink-2 md:text-right">
+            Desarrollado por{" "}
+            <a
+              href={STUDIO_URL}
+              rel="author noopener"
+              target="_blank"
+              className="font-semibold text-ink hover:underline"
+            >
+              {STUDIO_NAME}
+            </a>{" "}
+            ·{" "}
+            <span className="whitespace-nowrap">
+              por{" "}
+              <a
+                href={AUTHOR_URL}
+                rel="author noopener"
+                target="_blank"
+                className="font-medium text-ink hover:underline"
+              >
+                {AUTHOR_NAME}
+              </a>
+            </span>
+          </p>
         </div>
       </div>
     </footer>

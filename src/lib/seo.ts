@@ -29,15 +29,18 @@ export const SITE_TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`;
 /** Autor de la app: firma los metadatos (`authors`, `creator`) y el JSON-LD. */
 export const AUTHOR_NAME = "Axl Santos";
 
+/**
+ * Perfil público del autor. Va en `sameAs` del JSON-LD —el campo con el que
+ * Google enlaza a una persona con sus perfiles— y en la firma del pie.
+ */
+export const AUTHOR_URL = "https://github.com/snthz";
+
 /** Estudio que la desarrolla y publica: `publisher`, y el pie de página. */
 export const STUDIO_NAME = "FallxnStudio";
 
-/**
- * Web del estudio. Mientras no exista, el JSON-LD apunta al propio sitio: un
- * `url` inventado sería un enlace roto en los datos estructurados.
- */
+/** Web del estudio; `NEXT_PUBLIC_STUDIO_URL` la sobreescribe si algún día cambia. */
 export const STUDIO_URL =
-  (process.env.NEXT_PUBLIC_STUDIO_URL || "").trim().replace(/\/+$/, "") || undefined;
+  (process.env.NEXT_PUBLIC_STUDIO_URL || "").trim().replace(/\/+$/, "") || "https://fallxn.studio";
 
 /** Año del aviso de copyright; el mismo que el del archivo LICENSE. */
 export const COPYRIGHT_YEAR = 2026;
@@ -227,6 +230,7 @@ export function siteJsonLd(): JsonLdObject[] {
       "@id": PERSON_ID,
       name: AUTHOR_NAME,
       url: absoluteUrl("/"),
+      sameAs: [AUTHOR_URL],
       jobTitle: "Desarrollador de software",
       worksFor: { "@id": ORGANIZATION_ID },
       knowsAbout: ["Lenguaje musical", "Solfeo", "Piano", "Notación musical", "Desarrollo web"],
@@ -236,8 +240,7 @@ export function siteJsonLd(): JsonLdObject[] {
       "@type": "Organization",
       "@id": ORGANIZATION_ID,
       name: STUDIO_NAME,
-      // Sin web propia del estudio, la del producto: es la única real.
-      url: STUDIO_URL ?? absoluteUrl("/"),
+      url: STUDIO_URL,
       description: `Estudio de desarrollo de software, autor de ${SITE_NAME}.`,
       logo: absoluteUrl("/icons/icon-512.png"),
       founder: { "@id": PERSON_ID },
@@ -280,7 +283,6 @@ export function siteJsonLd(): JsonLdObject[] {
       creator: { "@id": PERSON_ID },
       publisher: { "@id": ORGANIZATION_ID },
       isPartOf: { "@id": WEBSITE_ID },
-      license: "https://opensource.org/licenses/MIT",
       featureList: [
         "Lecciones de lenguaje musical en español",
         "Ejercicios de lectura de notas, ritmo, solfeo y oído",

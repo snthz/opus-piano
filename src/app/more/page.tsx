@@ -45,8 +45,8 @@ export default function MasPage() {
           Google espera de un sitio educativo (E-E-A-T). */}
       <p className="mt-8 text-xs text-ink-3">
         Opus Piano lo desarrolla <span className="text-ink-2 font-medium">{STUDIO_NAME}</span>, el
-        estudio de {AUTHOR_NAME}. Es software libre (MIT). Fuentes musicales Bravura y Academico de
-        Steinberg bajo licencia SIL OFL 1.1.
+        estudio de {AUTHOR_NAME}. Todos los derechos reservados. Fuentes musicales Bravura y
+        Academico de Steinberg bajo licencia SIL OFL 1.1.
       </p>
     </div>
   );
