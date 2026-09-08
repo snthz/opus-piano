@@ -14,6 +14,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit -p tsconfig.test.json",
+    "gen:icons": "node scripts/gen-icons.mjs",
     "test": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
     "db:reset": "prisma migrate reset --force"

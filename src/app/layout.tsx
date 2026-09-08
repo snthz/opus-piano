@@ -79,10 +79,9 @@ export const metadata: Metadata = {
     title: SITE_NAME,
   },
   formatDetection: { telephone: false },
-  icons: {
-    icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }],
-    apple: "/apple-touch-icon.png",
-  },
+  // Los íconos (favicon.ico, icon.svg, apple-icon.png) van por convención de
+  // archivo en src/app: Next añade solo las etiquetas <link>. Se generan con
+  // `bun run gen:icons` a partir de src/lib/brand.ts.
 };
 
 export const viewport: Viewport = {

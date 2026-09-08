@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { LOGO_MARK_PATH, LOGO_MARK_VIEWBOX } from "@/lib/brand";
 import { SITE_NAME } from "@/lib/seo";
 
 export const alt = "Opus Piano — aprende a leer partituras y a tocar el piano";
@@ -30,22 +31,9 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 64,
-              height: 64,
-              borderRadius: 999,
-              background: "#17171a",
-              color: "#f6f5f2",
-              fontSize: 38,
-              fontWeight: 700,
-            }}
-          >
-            ♪
-          </div>
+          <svg viewBox={LOGO_MARK_VIEWBOX} width={64} height={64}>
+            <path fill="#17171a" fillRule="evenodd" d={LOGO_MARK_PATH} />
+          </svg>
           <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: -0.5 }}>{SITE_NAME}</div>
         </div>
 
