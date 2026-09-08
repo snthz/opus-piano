@@ -101,6 +101,7 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
               bassTies={grand ? perStaff[1].ties : undefined}
               highlight={perStaff[0].highlight}
               bassHighlight={grand ? perStaff[1].highlight : undefined}
+              highlightBand
               width={perSystem >= 4 ? 760 : 540}
               endBar={si === systems.length - 1 ? "end" : "single"}
               repeats={repeats}

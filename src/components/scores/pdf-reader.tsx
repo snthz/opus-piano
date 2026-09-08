@@ -555,7 +555,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   // Con requestAnimationFrame en vez de un intervalo fijo, queda al mismo ritmo
   // que el resaltado de notas y no se nota un desfase entre el sonido y la guía.
   useEffect(() => {
-    if (!player.playing || !map || !guideOn) return;
+    // Con un mapa aproximado ni la guía ni el paso de página son de fiar.
+    if (!player.playing || !map || map.approximate || !guideOn) return;
     let raf = 0;
     const tick = () => {
       const pos = playerRef.current.position();
@@ -687,14 +688,19 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     );
   };
 
-  const guideFor = (p: number) =>
-    cursor && map && map.boxes[cursor.measure]?.page === p ? { box: map.boxes[cursor.measure], frac: cursor.frac } : null;
+  // Si las barras de compás no cuadraron con la partitura, la guía iría por
+  // donde no toca: mejor no dibujarla y decirlo.
+  const guideFor = (p: number) => {
+    if (!cursor || !map || map.approximate) return null;
+    const box = map.boxes[cursor.measure];
+    return box?.page === p ? { box, frac: cursor.frac } : null;
+  };
 
   const statusLine =
     parsed && guideOn && !map
       ? "Buscando los compases en la página…"
       : map?.approximate && guideOn && view === "pdf"
-        ? "Guía aproximada: no se pudieron contar bien las barras de compás."
+        ? "Sin guía: no se pudieron cuadrar los compases con la página. Puedes seguir la pieza con los nombres de las notas."
         : null;
   // Con su panel cerrado, la tarea en marcha se resume abajo, además del anillo de arriba.
   const backgroundJob = !transcribeOpen && !planOpen ? [transcribeJob, omrJob, planJob].find((j) => j?.status === "running") : undefined;
@@ -980,7 +986,16 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                 {linkedXml && (
                   <Group>
                     {view === "pdf" && (
-                      <ToolButton label="Guía que sigue el sonido sobre la página" active={guideOn} onClick={() => setGuideOn((v) => !v)}>
+                      <ToolButton
+                        label={
+                          map?.approximate
+                            ? "No hay guía: los compases de este PDF no se pudieron cuadrar con la partitura"
+                            : "Guía que sigue el sonido sobre la página"
+                        }
+                        active={guideOn && !map?.approximate}
+                        disabled={!!map?.approximate}
+                        onClick={() => setGuideOn((v) => !v)}
+                      >
                         <GuideIcon />
                       </ToolButton>
                     )}

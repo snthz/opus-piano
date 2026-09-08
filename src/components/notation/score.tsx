@@ -59,6 +59,12 @@ export interface ScoreProps {
   /** Ídem para el pentagrama inferior */
   bassHighlight?: number | number[];
   highlightColor?: string;
+  /**
+   * Además del color, una banda de fondo tras la nota resaltada. Con los
+   * nombres puestos el color solo no se distingue: la banda dice de un vistazo
+   * por dónde va la reproducción.
+   */
+  highlightBand?: boolean;
   /** Ligaduras de prolongación en el pentagrama inferior */
   bassTies?: [number, number][];
   /** Dibujar la indicación de compás en el primer compás (en los sistemas siguientes no se repite) */
@@ -100,6 +106,7 @@ export function Score({
   highlight,
   bassHighlight,
   highlightColor,
+  highlightBand = false,
   noteStyles,
   bassTies,
   showTime = true,
@@ -157,6 +164,7 @@ export function Score({
               highlight,
               bassHighlight,
               highlightColor: highlightColor ?? getAccentColor(el),
+              highlightBand,
               noteStyles,
               bassTies,
               showTime,
@@ -200,7 +208,7 @@ export function Score({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measuresKey, clef, time, keySignature, width, beams, highlightKey, highlightColor, endBar, computedHeight, render, labelsKey, labelPosition, showTime]);
+  }, [measuresKey, clef, time, keySignature, width, beams, highlightKey, highlightColor, highlightBand, endBar, computedHeight, render, labelsKey, labelPosition, showTime]);
 
   return (
     <div className={`score-box ${scale > 1 ? "w-full" : ""} ${className}`}>
@@ -239,6 +247,7 @@ interface DrawOptions {
   highlight?: number | number[];
   bassHighlight?: number | number[];
   highlightColor: string;
+  highlightBand: boolean;
   noteStyles?: Record<number, string>;
   bassTies?: [number, number][];
   showTime: boolean;
@@ -264,6 +273,8 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
   const allTreble: StemmableNote[] = [];
   const allBass: StemmableNote[] = [];
   const beamsToDraw: InstanceType<VexFlowModule["Beam"]>[] = [];
+  const asSet = (which?: number | number[]) => new Set(which === undefined ? [] : Array.isArray(which) ? which : [which]);
+  const lit = { treble: asSet(o.highlight), bass: asSet(o.bassHighlight) };
 
   const buildStave = (
     x: number,
@@ -303,8 +314,12 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
         notes.forEach((n, i) => {
           const text = labelList[offset + i];
           if (!text) return;
+          // El nombre de la nota que suena va en negrita y del color del
+          // resaltado: es lo que se está mirando al leer con los nombres.
+          const on = (collect ? lit.treble : lit.bass).has(offset + i);
           const ann = new vf.Annotation(text);
-          ann.setFont("Academico", 13);
+          ann.setFont("Academico", on ? 15 : 13, on ? "bold" : "normal");
+          if (on) ann.setStyle({ fillStyle: o.highlightColor, strokeStyle: o.highlightColor });
           ann.setVerticalJustification(
             o.labelPosition === "above" ? vf.Annotation.VerticalJustify.TOP : vf.Annotation.VerticalJustify.BOTTOM,
           );
@@ -390,5 +405,69 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
 
   factory.draw();
   for (const b of beamsToDraw) b.setContext(ctx).draw();
+  if (o.highlightBand) {
+    drawBands(o, [...pick(allTreble, o.highlight), ...pick(allBass, o.bassHighlight)], vf.Annotation.CATEGORY);
+  }
   o.onNotes?.(allTreble);
+}
+
+function pick(list: StemmableNote[], which?: number | number[]): StemmableNote[] {
+  if (which === undefined) return [];
+  return (Array.isArray(which) ? which : [which]).map((i) => list[i]).filter(Boolean);
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Caja dibujada de un elemento de VexFlow, o null si aún no está en el layout. */
+function boxOf(el: { getSVGElement(suffix?: string): SVGElement | undefined }): Box | null {
+  try {
+    const g = el.getSVGElement();
+    if (!g || !("getBBox" in g)) return null;
+    const b = (g as SVGGraphicsElement).getBBox();
+    return b.width > 0 && b.height > 0 ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+function union(boxes: (Box | null)[]): Box | null {
+  const list = boxes.filter((b): b is Box => !!b);
+  if (!list.length) return null;
+  const x = Math.min(...list.map((b) => b.x));
+  const y = Math.min(...list.map((b) => b.y));
+  const right = Math.max(...list.map((b) => b.x + b.width));
+  const bottom = Math.max(...list.map((b) => b.y + b.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * Banda de color tras las notas resaltadas, con su nombre dentro si lo llevan.
+ * Se inserta al principio del SVG para que quede por debajo del dibujo (en SVG
+ * pinta antes lo que va antes).
+ */
+function drawBands(o: DrawOptions, notes: StemmableNote[], labelCategory: string) {
+  const svg = document.getElementById(o.elementId)?.querySelector("svg");
+  if (!svg) return;
+  for (const n of notes) {
+    // El nombre se dibuja fuera del grupo de la nota: se une su caja a mano.
+    const box = union([n, ...n.getModifiersByType(labelCategory)].map(boxOf));
+    if (!box) continue;
+    const pad = 5;
+    const rect = document.createElementNS(SVG_NS, "rect");
+    rect.setAttribute("x", String(box.x - pad));
+    rect.setAttribute("y", String(box.y - pad));
+    rect.setAttribute("width", String(box.width + pad * 2));
+    rect.setAttribute("height", String(box.height + pad * 2));
+    rect.setAttribute("rx", "5");
+    rect.setAttribute("fill", o.highlightColor);
+    rect.setAttribute("opacity", "0.16");
+    svg.insertBefore(rect, svg.firstChild);
+  }
 }
