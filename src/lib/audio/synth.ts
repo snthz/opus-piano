@@ -133,6 +133,8 @@ export interface MetronomeOptions {
   beatsPerBar: number;
   /** Subdivisiones por pulso que se marcan con un clic más suave (1 = ninguna). */
   subdivision?: number;
+  /** Marca el pulso sin sonar: sigue avisando por `onBeat` para el pulso visual. */
+  muted?: boolean;
   onBeat?: (beat: number, subdivision: number, time: number) => void;
 }
 
@@ -181,8 +183,10 @@ export class Metronome {
     while (this.nextTime < c.currentTime + 0.12) {
       const isMainBeat = this.sub === 0;
       const accent = isMainBeat && this.opts.beatsPerBar > 0 && this.beat === 0;
-      if (isMainBeat) playClick(this.nextTime, accent);
-      else this.playSubClick(this.nextTime);
+      if (!this.opts.muted) {
+        if (isMainBeat) playClick(this.nextTime, accent);
+        else this.playSubClick(this.nextTime);
+      }
       const t = this.nextTime;
       const b = this.beat;
       const s = this.sub;
