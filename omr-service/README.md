@@ -130,11 +130,13 @@ used». El pico real está donde lo ponía la medición local, en torno a 4,5 GB
 oemer reescala por dentro a unos 3,6 millones de píxeles pase lo que pase, así que mandar la
 imagen más pequeña **no** baja la memoria: baja la calidad y deja el gasto igual.
 
-Se despliega con `--cpu 8` aunque el trabajo quepa en menos: lo que queda es casi todo inferencia,
-que sí se reparte entre núcleos, y en un servicio que cobra por vCPU-segundo doblar la CPU sale por
-lo mismo en la mitad de tiempo. Con esos números, el nivel gratuito de Cloud Run (180.000 vCPU-s y
-360.000 GiB-s al mes) da para unas **200 páginas al mes**, y una página que se pase de ahí cuesta
-unos 3 céntimos. No es «coste cero» pero sí «coste de bolsillo», siempre que la alerta de
+Se despliega con `--cpu 4`. Con ocho iría más rápido por el mismo gasto —lo que queda es casi todo
+inferencia, que sí se reparte, y se paga por vCPU-segundo— pero onnxruntime reserva memoria por
+hilo: con ocho, esta misma página se pasó de los 6 GiB y Cloud Run mató la instancia a media
+página. Si algún día se sube la CPU, hay que subir la memoria con ella.
+
+Con esos números, el nivel gratuito de Cloud Run (180.000 vCPU-s y 360.000 GiB-s al mes) da para
+unas **200 páginas al mes**, y una página que se pase de ahí cuesta unos 3 céntimos. No es «coste cero» pero sí «coste de bolsillo», siempre que la alerta de
 presupuesto esté puesta.
 
 ### Qué se puede esperar del resultado

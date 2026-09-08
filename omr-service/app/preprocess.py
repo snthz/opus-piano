@@ -44,8 +44,6 @@ class Normalized:
     source: str
     #: Se redujo el ancho para llegar a MAX_WIDTH
     resized: bool
-    #: Grados que se giró la página para dejarla recta (0 si ya lo estaba)
-    rotated: float = 0.0
 
 
 def _first_pdf_page(data: bytes) -> Image.Image:
@@ -70,6 +68,23 @@ _MIN_SKEW_DEGREES = 0.2
 #: Y por encima de esto no es una partitura inclinada, es otra cosa (una foto
 #: de lado, una página en vertical); girarla sería empeorarla.
 _MAX_SKEW_DEGREES = 12.0
+
+
+def deskew_file(path: str) -> float:
+    """
+    Endereza la página guardada en `path` y devuelve los grados que la giró.
+
+    Se llama desde el proceso que ejecuta oemer, no desde el servidor: OpenCV
+    ocupa un par de cientos de megas y el servidor vive entre peticiones,
+    mientras que el hijo se muere con cada página y además ya lo tiene cargado.
+    """
+    with Image.open(path) as image:
+        image.load()
+        skew = estimate_skew(image)
+        if abs(skew) < _MIN_SKEW_DEGREES:
+            return 0.0
+        image.rotate(skew, resample=Image.BICUBIC, expand=True, fillcolor=255).save(path, format="PNG")
+    return round(skew, 2)
 
 
 def estimate_skew(image: Image.Image) -> float:
@@ -147,15 +162,6 @@ def normalize(data: bytes, workdir: str) -> Normalized:
         width = config.MAX_WIDTH
         image = image.resize((width, height), Image.LANCZOS)
 
-    # Enderezar aquí, de una vez y sobre una sola imagen, para poder ahorrarse
-    # el enderezado de oemer, que hace lo mismo ocho veces y tarda minutos.
-    skew = estimate_skew(image)
-    rotated = 0.0
-    if abs(skew) >= _MIN_SKEW_DEGREES:
-        image = image.rotate(skew, resample=Image.BICUBIC, expand=True, fillcolor=255)
-        width, height = image.size
-        rotated = skew
-
     path = os.path.join(workdir, "page.png")
     image.convert("RGB").save(path, format="PNG", optimize=False)
-    return Normalized(path=path, width=width, height=height, source=source, resized=resized, rotated=round(rotated, 2))
+    return Normalized(path=path, width=width, height=height, source=source, resized=resized)

@@ -17,6 +17,7 @@ import traceback
 from types import SimpleNamespace
 
 from . import config
+from .preprocess import deskew_file
 
 EXIT_UNREADABLE = 3
 
@@ -82,6 +83,13 @@ def main() -> int:
     from oemer.exceptions import StafflineException
 
     _set_step_size(ete, config.STEP_SIZE)
+
+    # Enderezar la página antes de leerla. Aquí y no en el servidor: OpenCV se
+    # queda cargado en el proceso que lo importa, y este se muere con la página.
+    if not config.DEWARP:
+        rotated = deskew_file(image_path)
+        if rotated:
+            print(f"page rotated {rotated} degrees", file=sys.stderr)
 
     ete.clear_data()
     args = SimpleNamespace(

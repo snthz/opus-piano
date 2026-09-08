@@ -110,7 +110,6 @@ def _process(data: bytes, dewarp: Optional[bool] = None) -> JSONResponse:
                 "source": image.source,
                 "width": image.width,
                 "height": image.height,
-                "rotated": image.rotated,
                 "dewarp": config.DEWARP if dewarp is None else dewarp,
                 "omr_seconds": round(result.seconds, 1),
                 "total_seconds": round(time.monotonic() - started, 1),
@@ -121,13 +120,7 @@ def _process(data: bytes, dewarp: Optional[bool] = None) -> JSONResponse:
             {
                 "musicxml": result.musicxml,
                 "seconds": round(result.seconds, 1),
-                "image": {
-                    "width": image.width,
-                    "height": image.height,
-                    "source": image.source,
-                    "resized": image.resized,
-                    "rotated": image.rotated,
-                },
+                "image": {"width": image.width, "height": image.height, "source": image.source, "resized": image.resized},
                 "engine": f"oemer (Opus Piano OMR {VERSION})",
             }
         )

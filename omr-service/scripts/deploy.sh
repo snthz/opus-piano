@@ -25,14 +25,15 @@ fi
 
 # Los valores salen de medir una página A4 de piano en este mismo servicio (ver
 # README): 7 minutos de reloj, 1,5 vCPU de media y un pico de 2,9 GB.
-# --cpu 8: lo que queda del reconocimiento es casi todo inferencia, y esa sí se
-#   reparte entre núcleos. Doblar la CPU baja el tiempo casi a la mitad por el
-#   mismo gasto (se pagan vCPU-segundos, y son los mismos en la mitad de
-#   tiempo), y aquí el tiempo lo espera una persona mirando la pantalla.
-# --memory 6Gi: el pico real ronda los 4,5 GB. Ojo con la métrica de memoria
-#   de Cloud Run: es la media de cada minuto, y con 4 GiB parecía sobrar sitio
-#   —marcaba 2,9 GB— hasta que una página tumbó la instancia. Si se queda
-#   corta, el contenedor muere entero y la petición se cae a media página.
+# --cpu 8: lo que queda es casi todo inferencia y sí se reparte, así que doblar
+#   la CPU baja el tiempo casi a la mitad por un gasto parecido (se pagan
+#   vCPU-segundos, y son los mismos en la mitad de tiempo).
+# --memory 8Gi: el pico ronda los 6 GB, y sube con los hilos de inferencia
+#   porque onnxruntime reserva memoria por hilo. Ojo con la métrica de memoria
+#   de Cloud Run para ajustarla: es la media de cada minuto, no el pico, y con
+#   ella parecía que sobraba sitio en 4 GiB —marcaba 2,9 GB— hasta que una
+#   página tumbó la instancia. Cuando se queda corta, el contenedor muere
+#   entero y la página se cae a mitad, sin error que explique nada.
 # --concurrency 1: oemer ocupa la CPU entera, dos páginas a la vez en la misma
 #   instancia tardan más que dos seguidas.
 # --min-instances 0: en reposo no se paga nada; a cambio, el primer uso del día
@@ -44,7 +45,7 @@ gcloud run deploy "${SERVICE}" \
   --source . \
   --region "${REGION}" \
   --cpu 8 \
-  --memory 6Gi \
+  --memory 8Gi \
   --concurrency 1 \
   --min-instances 0 \
   --max-instances 3 \

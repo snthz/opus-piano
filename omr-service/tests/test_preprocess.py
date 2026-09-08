@@ -5,7 +5,7 @@ from PIL import Image
 
 from app import config
 from app.errors import ImageTooSmall, UnsupportedType
-from app.preprocess import normalize, sniff
+from app.preprocess import deskew_file, normalize, sniff
 
 
 def png(width: int, height: int) -> bytes:
@@ -80,3 +80,32 @@ def test_un_pdf_roto_no_pasa_por_imagen(tmp_path):
 
     with pytest.raises(BadPdf):
         normalize(b"%PDF-1.7\nesto no es un pdf", str(tmp_path))
+
+
+def test_una_pagina_recta_no_se_gira(tmp_path):
+    # Girar cuesta nitidez: si no hace falta, no se toca.
+    path = str(tmp_path / "recta.png")
+    staves(0).save(path)
+    assert deskew_file(path) == 0.0
+
+
+def test_una_pagina_torcida_se_endereza(tmp_path):
+    path = str(tmp_path / "torcida.png")
+    staves(3).save(path)
+    # Se mide la inclinación de las líneas y se corrige; luego ya no queda nada.
+    assert deskew_file(path) == pytest.approx(3, abs=0.4)
+    assert deskew_file(path) == 0.0
+
+
+def staves(degrees: float) -> Image.Image:
+    """Una página con cinco pentagramas dibujados, girada los grados que se pidan."""
+    from PIL import ImageDraw
+
+    image = Image.new("L", (1200, 1600), "white")
+    draw = ImageDraw.Draw(image)
+    for system in range(5):
+        top = 150 + system * 280
+        for line in range(5):
+            y = top + line * 14
+            draw.line((100, y, 1100, y), fill=0, width=2)
+    return image.rotate(-degrees, resample=Image.BICUBIC, expand=True, fillcolor=255)
