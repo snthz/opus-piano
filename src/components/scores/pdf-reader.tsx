@@ -15,10 +15,10 @@ import {
 } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
 import type { PlanState } from "@/lib/study-plan";
-import { useJob } from "@/lib/ai/jobs";
+import { useJob } from "@/lib/jobs";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Sheet } from "@/components/ui/sheet";
-import { JobIndicator } from "./job-indicator";
+import { JobIndicator, jobLabel } from "./job-indicator";
 import { PdfPage } from "./pdf-page";
 import {
   EraserIcon,
@@ -196,8 +196,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [linkedXml, setLinkedXml] = useState<Blob | undefined>(record.linkedXml);
   const [askXml, setAskXml] = useState(false);
   const [transcribeOpen, setTranscribeOpen] = useState(false);
-  // Tareas de IA de esta partitura: siguen en marcha con los paneles cerrados.
+  // Tareas largas de esta partitura: siguen en marcha con los paneles cerrados.
   const transcribeJob = useJob("transcribe", record.id);
+  const omrJob = useJob("omr", record.id);
   const planJob = useJob("plan", record.id);
   const [issue, setIssue] = useState<string | null>(null);
   const [view, setView] = useState<"pdf" | "xml">("pdf");
@@ -695,9 +696,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       : map?.approximate && guideOn && view === "pdf"
         ? "Guía aproximada: no se pudieron contar bien las barras de compás."
         : null;
-  // Con su panel cerrado, la tarea de IA en marcha se resume abajo, además del anillo de arriba.
-  const backgroundJob = !transcribeOpen && !planOpen ? [transcribeJob, planJob].find((j) => j?.status === "running") : undefined;
-  const footnote = statusLine ?? (backgroundJob ? `${backgroundJob.kind === "transcribe" ? "Transcripción" : "Plan de estudio"} · ${backgroundJob.label}` : null);
+  // Con su panel cerrado, la tarea en marcha se resume abajo, además del anillo de arriba.
+  const backgroundJob = !transcribeOpen && !planOpen ? [transcribeJob, omrJob, planJob].find((j) => j?.status === "running") : undefined;
+  const footnote = statusLine ?? (backgroundJob ? `${jobLabel(backgroundJob.kind)} · ${backgroundJob.label}` : null);
 
   // El lector ocupa toda la pantalla en móvil; en escritorio arranca bajo la
   // cabecera para no tapar la navegación. Sus controles van dentro (absolute).
@@ -801,6 +802,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                 </p>
               </div>
               {transcribeJob && <JobIndicator job={transcribeJob} onOpen={openTranscribe} />}
+              {omrJob && <JobIndicator job={omrJob} onOpen={openTranscribe} />}
               {planJob && <JobIndicator job={planJob} onOpen={() => { player.stop(); setNotesOpen(false); setPlanOpen(true); }} />}
               <button
                 type="button"
@@ -845,7 +847,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                 ) : (
                   <button type="button" onClick={() => { setAskXml(true); setNotesOpen(false); }} className="pill py-1">Vincular MusicXML</button>
                 )}
-                <button type="button" onClick={openTranscribe} className="pill py-1">Transcribir con IA</button>
+                <button type="button" onClick={openTranscribe} className="pill py-1">Transcribir a MusicXML</button>
                 <span className="ml-auto">
                   {!confirmDelete ? (
                     <button type="button" onClick={() => setConfirmDelete(true)} className="text-bad hover:underline">Eliminar partitura</button>
@@ -1022,8 +1024,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
       </Sheet>
 
-      {/* ---- Transcripción del PDF con IA: otra hoja, sin salir de la partitura ---- */}
-      <Sheet open={transcribeOpen} onClose={() => setTranscribeOpen(false)} title="Transcribir con IA" subtitle={name}>
+      {/* ---- Transcripción del PDF a MusicXML: otra hoja, sin salir de la partitura ---- */}
+      <Sheet open={transcribeOpen} onClose={() => setTranscribeOpen(false)} title="Transcribir la partitura" subtitle={name}>
         <TranscribePanel scoreId={record.id} scoreName={record.name} pdf={record.file} pageCount={record.pageCount} hasXml={!!linkedXml} onUse={applyXml} />
       </Sheet>
 
@@ -1053,13 +1055,14 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
               </button>
             </div>
             <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-              <p className="text-sm font-semibold">O transcribirla con IA</p>
+              <p className="text-sm font-semibold">O transcribirla desde el PDF</p>
               <p className="text-xs text-ink-2">
-                Un modelo de visión lee las páginas y escribe el MusicXML. Sale un borrador con fallos de ritmo, así que Opus Piano
-                te señala los compases que no cuadran; con tu clave de API y unos céntimos por página.
+                Las páginas se leen y se escribe el MusicXML: el reconocedor del servidor es gratis y tarda unos minutos por
+                página; un modelo de visión lee mejor lo apretado y lo pagas tú con tu clave de API. Sale un borrador con fallos de
+                ritmo en los dos casos, así que Opus Piano te señala los compases que no cuadran.
               </p>
               <button type="button" onClick={openTranscribe} className="pill text-xs py-1.5">
-                Transcribir con IA
+                Transcribir la partitura
               </button>
             </div>
             {issue && <p className="text-xs text-bad">{issue}</p>}

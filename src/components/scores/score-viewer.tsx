@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { updateScoreNotes, type ScoreRecord } from "@/lib/scores-db";
 import type { PlanState } from "@/lib/study-plan";
-import { useJob } from "@/lib/ai/jobs";
+import { useJob } from "@/lib/jobs";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Sheet } from "@/components/ui/sheet";
 import { JobIndicator } from "./job-indicator";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { activeTarget, isAiReady, useAiConfig } from "@/lib/ai/config";
 import { AiError, isAbort, type ChatTurn } from "@/lib/ai/errors";
-import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/ai/jobs";
+import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/jobs";
 import { estimatePlanCost, formatCost, modelById } from "@/lib/ai/models";
 import { askTeacher, generatePlan, MAX_PAGES } from "@/lib/ai/study-plan-client";
 import { EXERCISES } from "@/data/exercises";

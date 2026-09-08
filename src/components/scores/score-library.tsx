@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { dismissJob, onJobsChange, useJobs } from "@/lib/ai/jobs";
+import { dismissJob, onJobsChange, useJobs } from "@/lib/jobs";
 import { listScores, deleteScore, onScoresChange, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
 import { useScoresSync } from "@/lib/scores-sync";
 import { useAuth } from "@/lib/auth";
@@ -215,7 +215,7 @@ function ScoreCard({
   const [draft, setDraft] = useState(record.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
-  // Tarea de IA de esta partitura (en marcha, lista o fallida): se ve desde la biblioteca.
+  // Tarea larga de esta partitura (en marcha, lista o fallida): se ve desde la biblioteca.
   const job = useJobs().find((j) => j.scoreId === record.id);
 
   const isXml = record.kind === "musicxml";

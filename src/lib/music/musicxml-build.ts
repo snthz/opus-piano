@@ -118,6 +118,20 @@ export function checkDurations(score: ParsedScore): DurationIssue[] {
   return out;
 }
 
+/**
+ * Los mismos compases descuadrados, ya en frases para el usuario. Lo usan las
+ * dos formas de transcribir —el modelo de visión y el OMR—, que enseñan la
+ * misma lista de avisos.
+ */
+export function durationWarnings(score: ParsedScore): string[] {
+  const expected = measureBeats(score.time);
+  return checkDurations(score).map(
+    (issue) => `Compás ${issue.measure}, pentagrama ${issue.staff + 1}: dura ${round(issue.beats)} en vez de ${round(expected)} negras`,
+  );
+}
+
+const round = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
+
 /* ---------- Escritura de MusicXML ---------- */
 
 /** Negra = 48: entran puntillos, semifusas y tresillos de corchea sin decimales. */

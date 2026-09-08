@@ -1,9 +1,12 @@
 "use client";
 
-import type { Job } from "@/lib/ai/jobs";
+import type { Job } from "@/lib/jobs";
 import { ProgressRing } from "@/components/ui/progress-ring";
 
-const KIND_LABEL = { transcribe: "Transcripción", plan: "Plan de estudio" } as const;
+const KIND_LABEL = { transcribe: "Transcripción", omr: "Reconocimiento", plan: "Plan de estudio" } as const;
+
+/** Cómo se llama cada tarea de cara al usuario. */
+export const jobLabel = (kind: Job["kind"]) => KIND_LABEL[kind];
 
 /** Texto corto de la tarea para un título o un lector de pantalla. */
 export function describeJob(job: Job): string {

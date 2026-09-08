@@ -1,5 +1,7 @@
+import { UserError } from "@/lib/user-error";
+
 /** Error de una petición a la IA, con mensaje ya pensado para mostrarlo tal cual. */
-export class AiError extends Error {
+export class AiError extends UserError {
   constructor(message: string, public status = 0) {
     super(message);
   }

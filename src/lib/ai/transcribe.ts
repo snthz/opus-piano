@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { keysWithFifths } from "@/lib/music/keys";
-import { checkDurations, linkTies, measureBeats, parseStaffCode } from "@/lib/music/musicxml-build";
+import { durationWarnings, linkTies, parseStaffCode } from "@/lib/music/musicxml-build";
 import type { ParsedScore, XmlMeasure } from "@/lib/music/musicxml";
 import type { ClefName } from "@/components/notation/score";
 import { arr, en, int, obj, str, type SchemaNode } from "./schema";
@@ -208,11 +208,6 @@ export function assemble(pages: Transcription[]): Assembled {
     measures,
   };
 
-  const expected = measureBeats(score.time);
-  for (const issue of checkDurations(score)) {
-    warnings.push(`Compás ${issue.measure}, pentagrama ${issue.staff + 1}: dura ${round(issue.beats)} en vez de ${round(expected)} negras`);
-  }
+  warnings.push(...durationWarnings(score));
   return { score, composer: head.composer.trim(), warnings };
 }
-
-const round = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");

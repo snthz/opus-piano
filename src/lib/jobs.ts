@@ -2,20 +2,24 @@
 
 import { useSyncExternalStore } from "react";
 import type { PlanState } from "@/lib/study-plan";
-import { AiError, isAbort } from "./errors";
-import type { TranscribeOutcome } from "./transcribe-client";
+import type { OmrOutcome } from "@/lib/omr/client";
+import { UserError } from "@/lib/user-error";
+import { isAbort } from "@/lib/ai/errors";
+import type { TranscribeOutcome } from "@/lib/ai/transcribe-client";
 
 /**
- * Tareas de IA que corren en segundo plano: la transcripción de un PDF y el
- * plan de estudio. Viven fuera de React para que cerrar el panel, o el lector
- * entero, no las interrumpa: el usuario sigue leyendo la partitura y un anillo
- * de progreso le dice por dónde va. Hay como mucho una tarea de cada tipo por
- * partitura; empezar otra cancela la anterior.
+ * Tareas largas de una partitura que corren en segundo plano: el plan de
+ * estudio, la transcripción con IA y el reconocimiento con OMR. Viven fuera de
+ * React para que cerrar el panel, o el lector entero, no las interrumpa: el
+ * usuario sigue leyendo la partitura y un anillo de progreso le dice por dónde
+ * va. Hay como mucho una tarea de cada tipo por partitura; empezar otra
+ * cancela la anterior.
  */
-export type JobKind = "transcribe" | "plan";
+export type JobKind = "transcribe" | "omr" | "plan";
 
 interface JobResult {
   transcribe: TranscribeOutcome;
+  omr: OmrOutcome;
   plan: PlanState;
 }
 
@@ -117,7 +121,7 @@ export function startJob<K extends JobKind>(
         return;
       }
       // Solo los errores pensados para el usuario se enseñan tal cual.
-      const error = e instanceof AiError ? e.message : fallbackError;
+      const error = e instanceof UserError ? e.message : fallbackError;
       set<K>({ ...base, status: "error", label: "Ha fallado", progress: null, error });
     });
 }
