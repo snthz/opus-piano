@@ -3,22 +3,18 @@
 import { useSyncExternalStore } from "react";
 import type { PlanState } from "@/lib/study-plan";
 import type { OmrOutcome } from "@/lib/omr/client";
-import { UserError } from "@/lib/user-error";
-import { isAbort } from "@/lib/ai/errors";
-import type { TranscribeOutcome } from "@/lib/ai/transcribe-client";
+import { isAbort, UserError } from "@/lib/user-error";
 
 /**
  * Tareas largas de una partitura que corren en segundo plano: el plan de
- * estudio, la transcripción con IA y el reconocimiento con OMR. Viven fuera de
- * React para que cerrar el panel, o el lector entero, no las interrumpa: el
- * usuario sigue leyendo la partitura y un anillo de progreso le dice por dónde
- * va. Hay como mucho una tarea de cada tipo por partitura; empezar otra
- * cancela la anterior.
+ * estudio y el reconocimiento de la partitura (OMR). Viven fuera de React para
+ * que cerrar el panel, o el lector entero, no las interrumpa: el usuario sigue
+ * leyendo la partitura y un anillo de progreso le dice por dónde va. Hay como
+ * mucho una tarea de cada tipo por partitura; empezar otra cancela la anterior.
  */
-export type JobKind = "transcribe" | "omr" | "plan";
+export type JobKind = "omr" | "plan";
 
 interface JobResult {
-  transcribe: TranscribeOutcome;
   omr: OmrOutcome;
   plan: PlanState;
 }

@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   if (!omrEnabled()) return Response.json({ error: "El reconocimiento de partituras no está disponible en este servidor." }, { status: 503 });
 
   // Con cuenta: el reconocimiento gasta CPU de verdad y la paga el servidor,
-  // no el usuario con su clave como en la transcripción con IA.
+  // igual que el plan de estudio (ver `/api/study-plan`).
   const me = await userFromRequest(req);
   if (!me) return unauthorized();
   if (rateLimited(`omr:${me.id}`, Date.now(), omrLimit())) {

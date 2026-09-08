@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { ParsedScore } from "@/lib/music/musicxml";
-import { readSse, splitDataUrl } from "@/lib/ai/errors";
-import { AI_MODELS, defaultModel, estimatePlanCost, modelsOf } from "@/lib/ai/models";
-import { toJsonSchema } from "@/lib/ai/schema";
+import { toJsonSchema } from "@/lib/plan/schema";
 import {
+  askRequestSchema,
+  dedupeGoalIds,
   goalRange,
+  planRequestSchema,
   planStateSchema,
   planUserMessage,
   studyPlanSchema,
@@ -96,16 +97,11 @@ describe("esquema del plan", () => {
     expect(studyPlanSchema.safeParse({ ...plan, goals: [] }).success).toBe(false);
   });
 
-  test("el JSON Schema para OpenAI usa tipos en array y para Anthropic anyOf, ambos estrictos", () => {
-    const openai = toJsonSchema(STUDY_PLAN_SCHEMA, "typeArray") as { properties: Record<string, { items: { properties: Record<string, unknown> } }> };
-    const anthropic = toJsonSchema(STUDY_PLAN_SCHEMA, "anyOf") as typeof openai;
-    const from = (s: typeof openai) => s.properties.goals.items.properties.from;
-    const hands = (s: typeof openai) => s.properties.goals.items.properties.hands as Record<string, unknown>;
-    expect(from(openai)).toMatchObject({ type: ["integer", "null"] });
-    expect(hands(openai)).toMatchObject({ type: ["string", "null"], enum: ["derecha", "izquierda", "separadas", "juntas", null] });
-    expect(from(anthropic)).toMatchObject({ anyOf: [{ type: "integer" }, { type: "null" }] });
-    expect(JSON.stringify(openai)).not.toContain("anyOf");
-    expect(JSON.stringify(anthropic)).not.toContain('"type":["');
+  test("el JSON Schema que se le manda al modelo es estricto y expresa «o null» con anyOf", () => {
+    const schema = toJsonSchema(STUDY_PLAN_SCHEMA) as { properties: Record<string, { items: { properties: Record<string, unknown> } }> };
+    expect(schema.properties.goals.items.properties.from).toMatchObject({ anyOf: [{ type: "integer" }, { type: "null" }] });
+    // Anthropic no admite tipos en array como ["integer","null"].
+    expect(JSON.stringify(schema)).not.toContain('"type":["');
 
     // Modo estricto: todos los objetos cierran propiedades y las exigen todas.
     const walk = (node: Record<string, unknown>) => {
@@ -117,8 +113,12 @@ describe("esquema del plan", () => {
       if (node.type === "array") walk(node.items as Record<string, unknown>);
       for (const v of (node.anyOf as Record<string, unknown>[] | undefined) ?? []) walk(v);
     };
-    walk(openai as unknown as Record<string, unknown>);
-    walk(anthropic as unknown as Record<string, unknown>);
+    walk(schema as unknown as Record<string, unknown>);
+  });
+
+  test("los objetivos con id repetido se renumeran", () => {
+    // El modelo devuelve dos «g1»; sin renumerar, marcar uno marcaría los dos.
+    expect(dedupeGoalIds(studyPlanSchema.parse(plan)).goals.map((g) => g.id)).toEqual(["g1", "g2"]);
   });
 
   test("tramo de un objetivo en texto", () => {
@@ -128,38 +128,43 @@ describe("esquema del plan", () => {
   });
 });
 
-describe("catálogo de modelos", () => {
-  test("cada proveedor tiene exactamente un recomendado y precios coherentes", () => {
-    for (const provider of ["openai", "anthropic"] as const) {
-      const models = modelsOf(provider);
-      expect(models.filter((m) => m.recommended)).toHaveLength(1);
-      expect(defaultModel(provider)).toBe(models.find((m) => m.recommended)!.id);
-    }
-    for (const m of AI_MODELS) {
-      expect(m.output).toBeGreaterThan(m.input);
-      for (const v of [m.speed, m.precision, m.economy]) expect(v >= 1 && v <= 5).toBe(true);
-      expect(estimatePlanCost(m)).toBeGreaterThan(0);
-    }
-  });
-});
+/**
+ * Lo que manda el navegador llega al servidor como JSON cualquiera: la clave de
+ * API es la del servidor, así que aquí se acota lo que puede acabar en la
+ * petición al modelo.
+ */
+describe("lo que el navegador puede pedirle al servidor", () => {
+  const request = {
+    level: "principiante",
+    minutesPerDay: 20,
+    daysPerWeek: 4,
+    goal: "",
+    naming: "latino",
+    scoreName: "Minueto",
+    notes: "",
+    summary: "",
+    pages: { sent: 2, total: 5 },
+  };
 
-describe("utilidades de red", () => {
-  test("separa una data URL de imagen", () => {
-    expect(splitDataUrl("data:image/jpeg;base64,AAAA")).toEqual({ mediaType: "image/jpeg", data: "AAAA" });
-    expect(() => splitDataUrl("http://x")).toThrow();
+  test("acepta una petición normal", () => {
+    expect(planRequestSchema.safeParse(request).success).toBe(true);
+    expect(planRequestSchema.safeParse({ ...request, pages: null }).success).toBe(true);
   });
 
-  test("lee eventos SSE partidos en trozos arbitrarios", async () => {
-    const text = 'event: a\ndata: {"type":"x","delta":"ho"}\n\ndata: {"type":"x","delta":"la"}\n\ndata: [DONE]\n\n';
-    const chunks = [text.slice(0, 17), text.slice(17, 40), text.slice(40)];
-    const stream = new ReadableStream<Uint8Array>({
-      start(c) {
-        for (const ch of chunks) c.enqueue(new TextEncoder().encode(ch));
-        c.close();
-      },
-    });
-    const got: string[] = [];
-    await readSse(new Response(stream), (ev) => got.push(ev.delta as string));
-    expect(got).toEqual(["ho", "la"]);
+  test("rechaza tiempos imposibles, sistemas de nombres inventados y textos desmedidos", () => {
+    expect(planRequestSchema.safeParse({ ...request, minutesPerDay: 4000 }).success).toBe(false);
+    expect(planRequestSchema.safeParse({ ...request, daysPerWeek: 0 }).success).toBe(false);
+    expect(planRequestSchema.safeParse({ ...request, naming: "solfeo" }).success).toBe(false);
+    expect(planRequestSchema.safeParse({ ...request, goal: "x".repeat(2000) }).success).toBe(false);
+    expect(planRequestSchema.safeParse({ ...request, summary: "x".repeat(SUMMARY_MAX_CHARS * 2) }).success).toBe(false);
+  });
+
+  test("una pregunta al profesor lleva el plan y una conversación acotada", () => {
+    const ask = { naming: "latino", scoreName: "Minueto", plan, progress: { g1: true }, summary: "", history: [{ role: "user", content: "¿Y la izquierda?" }] };
+    expect(askRequestSchema.safeParse(ask).success).toBe(true);
+    expect(askRequestSchema.safeParse({ ...ask, history: [] }).success).toBe(false);
+    expect(askRequestSchema.safeParse({ ...ask, plan: { ...plan, goals: [] } }).success).toBe(false);
+    const long = Array.from({ length: 20 }, () => ({ role: "user", content: "x" }));
+    expect(askRequestSchema.safeParse({ ...ask, history: long }).success).toBe(false);
   });
 });

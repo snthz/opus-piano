@@ -23,6 +23,7 @@
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
     "@prisma/client": "6",
     "arctic": "^3.7.0",
     "fflate": "^0.8.3",

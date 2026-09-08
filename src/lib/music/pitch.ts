@@ -4,7 +4,8 @@
  */
 
 export type Letter = "C" | "D" | "E" | "F" | "G" | "A" | "B";
-export type NamingSystem = "latino" | "anglosajon";
+export const NAMING_SYSTEMS = ["latino", "anglosajon"] as const;
+export type NamingSystem = (typeof NAMING_SYSTEMS)[number];
 
 export interface Pitch {
   letter: Letter;

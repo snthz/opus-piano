@@ -2,18 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { activeTarget, isAiReady, useAiConfig } from "@/lib/ai/config";
-import { AiError, isAbort, type ChatTurn } from "@/lib/ai/errors";
+import { useAuth } from "@/lib/auth";
+import { openAuthModal } from "@/lib/auth-modal";
 import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/jobs";
-import { estimatePlanCost, formatCost, modelById } from "@/lib/ai/models";
-import { askTeacher, generatePlan, MAX_PAGES } from "@/lib/ai/study-plan-client";
+import { askTeacher, generatePlan, planService, type PlanService } from "@/lib/plan/client";
 import { EXERCISES } from "@/data/exercises";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { exercisePath, lessonPath } from "@/lib/routes";
 import { updateScorePlan, type ScoreRecord } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
-import { goalRange, LEVEL_LABELS, LEVELS, type Goal, type Level, type PlanState } from "@/lib/study-plan";
-import { AiSettings } from "@/components/settings/ai-settings";
+import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, type ChatTurn, type Goal, type Level, type PlanState } from "@/lib/study-plan";
+import { isAbort, UserError } from "@/lib/user-error";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
@@ -51,11 +50,13 @@ function readPrefs(): FormPrefs {
 /**
  * Plan de estudio de una partitura hecho con IA: análisis, qué saber antes,
  * objetivos por compases con digitaciones, rutina y un chat con el profesor.
- * Se genera en el dispositivo con la clave del usuario y se guarda con la
- * partitura (y en la cuenta, si la hay).
+ * Lo prepara el servidor con su propia clave de API —el alumno no paga ni
+ * configura nada, solo hace falta cuenta— y se guarda con la partitura (y en
+ * la cuenta).
  */
 export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
-  const config = useAiConfig();
+  const { user } = useAuth();
+  const [service, setService] = useState<PlanService | null>(null);
   const { settings } = useSettings();
   const { parsed } = useParsedXml(xml);
   const job = useJob("plan", record.id);
@@ -85,9 +86,18 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
     [record.id],
   );
 
-  const ready = isAiReady(config);
-  const target = activeTarget(config);
-  const model = modelById(target.provider, target.model);
+  // Sin clave de API en el servidor no hay profesor, y eso no se sabe hasta preguntarle.
+  useEffect(() => {
+    let alive = true;
+    void planService().then((s) => {
+      if (alive) setService(s);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const ready = !!service?.enabled && !!user;
   /** Con un MusicXML a medio leer, el profesor vería la pieza a medias. */
   const waitingXml = !!xml && !parsed;
 
@@ -113,7 +123,6 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
       { id: record.id, name: record.name },
       async ({ signal, report }) => {
         const next = await generatePlan({
-          target,
           scoreName: record.name,
           notes: record.notes,
           level: prefs.level,
@@ -150,17 +159,27 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
 
   /**
    * El formulario, igual dentro del panel (primer plan) que en el modal
-   * (rehacer): sin clave de API, en su lugar se pide la clave.
+   * (rehacer). Antes del formulario hay dos cosas que pueden faltar: que el
+   * servidor tenga configurado el profesor y que haya una cuenta con la que
+   * contar los planes.
    */
   const form = (inModal: boolean) =>
-    !ready ? (
-      <div className="space-y-4">
+    service === null ? (
+      <p className="text-sm text-ink-3">Comprobando si el profesor está disponible…</p>
+    ) : !service.enabled ? (
+      <p className="text-sm text-ink-2">
+        El plan de estudio con IA no está disponible en este servidor. Todo lo demás de la partitura —lectura, reproducción, anotaciones y
+        notas— sigue funcionando igual.
+      </p>
+    ) : !user ? (
+      <div className="space-y-3">
         <p className="text-sm">
-          Para preparar el plan hace falta la clave de API de <strong>ChatGPT (OpenAI)</strong> o de <strong>Claude (Anthropic)</strong>.
-          Se guarda solo en este dispositivo y el coste (céntimos por plan) lo pagas tú al proveedor. También puedes cambiarla en{" "}
-          <Link href="/settings" className="underline">Ajustes</Link>.
+          El plan lo prepara Opus Piano, sin coste para ti. Solo hace falta <strong>iniciar sesión</strong>: así se guarda con la partitura
+          en tu cuenta y se reparten los {service.perDay} planes al día que puede hacer cada persona.
         </p>
-        <AiSettings compact />
+        <button type="button" onClick={() => openAuthModal()} className="btn-primary text-sm w-full">
+          Iniciar sesión o crear cuenta
+        </button>
       </div>
     ) : (
       <form
@@ -228,13 +247,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           )}
           {!pdf && xml && <p>La partitura MusicXML, nota a nota.</p>}
           {record.notes.trim() && <p>Tus notas personales sobre la partitura.</p>}
-          {model && (
-            <p>
-              Modelo: {model.name}{model.recommended ? " (recomendado)" : ""} · {formatCost(estimatePlanCost(model))}.{" "}
-              <Link href="/settings" className="underline">Cambiar</Link>
-            </p>
-          )}
-          {!model && <p>Modelo: {target.model}</p>}
+          <p>Es gratis; puedes preparar {service.perDay} planes al día.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -324,10 +337,13 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
               </span>
               <div className="space-y-1">
                 <h3 className="font-bold">Esta partitura todavía no tiene plan</h3>
-                <p className="text-sm text-ink-2">
-                  Un profesor con IA lee la pieza y prepara el análisis, los objetivos por compases con sus digitaciones y una rutina a tu
-                  medida. El plan se guarda en la partitura y puedes ir marcando lo que cumples.
-                </p>
+                {/* Con el profesor apagado en el servidor, el reclamo sobra: lo dice el propio formulario. */}
+                {service?.enabled !== false && (
+                  <p className="text-sm text-ink-2">
+                    Un profesor con IA lee la pieza y prepara el análisis, los objetivos por compases con sus digitaciones y una rutina a tu
+                    medida. Es gratis; el plan se guarda en la partitura y puedes ir marcando lo que cumples.
+                  </p>
+                )}
               </div>
             </div>
             {form(false)}
@@ -517,7 +533,6 @@ function GoalItem({ index, goal, done, onToggle }: { index: number; goal: Goal; 
 /* ---------- Chat con el profesor ---------- */
 
 function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanState; parsed: ReturnType<typeof useParsedXml>["parsed"] }) {
-  const config = useAiConfig();
   const { settings } = useSettings();
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [question, setQuestion] = useState("");
@@ -543,7 +558,6 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
     abort.current = ac;
     try {
       await askTeacher({
-        target: activeTarget(config),
         scoreName: record.name,
         naming: settings.naming,
         state,
@@ -560,7 +574,7 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
       if (isAbort(e)) {
         setTurns((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -1)));
       } else {
-        setError(e instanceof AiError ? e.message : "No se pudo obtener respuesta.");
+        setError(e instanceof UserError ? e.message : "No se pudo obtener respuesta.");
         setTurns((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -1)));
       }
     } finally {

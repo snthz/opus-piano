@@ -5,17 +5,17 @@ import { parseMusicXml, type ParsedScore } from "@/lib/music/musicxml";
 import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
 import { UserError } from "@/lib/user-error";
 import { mergePages } from "./merge";
-import { readNdjson } from "./ndjson";
+import { readNdjson } from "@/lib/ndjson";
 
 /**
- * Reconocimiento de una partitura escaneada sin IA ni claves de API: el
+ * Reconocimiento de una partitura escaneada sin modelos de lenguaje: el
  * servidor pasa cada página por oemer (modelos de OMR ya entrenados) y devuelve
  * su MusicXML.
  *
- * El recorrido del PDF lo lleva el navegador, como en la transcripción con IA:
- * dibuja una página, la manda, espera y sigue con la siguiente. Así el servicio
- * de reconocimiento no necesita saber nada de PDF y las páginas nunca salen del
- * dispositivo enteras, solo la que se está mirando.
+ * El recorrido del PDF lo lleva el navegador: dibuja una página, la manda,
+ * espera y sigue con la siguiente. Así el servicio de reconocimiento no
+ * necesita saber nada de PDF y las páginas nunca salen del dispositivo enteras,
+ * solo la que se está mirando.
  *
  * Lo que vuelve del servicio es MusicXML de verdad, pero puede traer cosas que
  * Opus Piano no dibuja (más de dos pentagramas, varias voces). Se lee con el

@@ -105,7 +105,7 @@ export function TranscribeWithOmr({
             <p className="text-sm font-semibold">Hace falta una cuenta</p>
             <p className="text-xs text-ink-2">
               El reconocimiento corre en el servidor de Opus Piano y gasta un buen rato de máquina por página, así que se reserva a
-              quien tiene cuenta. Es gratis. La transcripción con IA, en cambio, funciona sin cuenta porque la pagas tú al proveedor.
+              quien tiene cuenta. Es gratis, y con ella tus partituras se guardan también en el servidor.
             </p>
             <div className="flex items-center gap-2 pt-1">
               <button type="button" onClick={() => openAuthModal("register")} className="pill pill-active text-xs py-1.5">

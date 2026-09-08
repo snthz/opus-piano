@@ -14,12 +14,10 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 - **Plan de estudio con IA** para cada partitura: análisis (tonalidad, escala que dominar, tempo, forma),
   qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
   con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
-  Funciona con la clave de API del propio usuario (ChatGPT / OpenAI o Claude / Anthropic).
-- **Transcripción de un PDF a MusicXML**, por dos caminos: el **reconocimiento automático** (OMR) de un
-  servicio propio, gratis para el usuario y sin claves, y un **modelo de visión** con la clave del propio
-  usuario, que lee mejor lo apretado pero se paga por página. En los dos casos es un borrador —el ritmo es
-  donde más se falla—, así que se comprueba compás a compás que las figuras sumen lo que pide el compás y
-  se señalan los que no.
+  Lo prepara Claude con la clave de API del servidor: el usuario no configura ni paga nada, solo necesita cuenta.
+- **Transcripción de un PDF a MusicXML** con el **reconocimiento automático** (OMR) de un servicio propio,
+  gratis para el usuario y sin claves. Es un borrador —el ritmo es donde más se falla—, así que se comprueba
+  compás a compás que las figuras sumen lo que pide el compás y se señalan los que no.
 
 ## Arquitectura
 
@@ -122,6 +120,10 @@ GitHub Container Registry (ghcr.io) y avisa a Dokploy, que hace `pull` y reinici
    Opcionales: `WEB_PORT` (puerto publicado, 3000 por defecto), `WEB_MEMORY`, `DB_MEMORY`, `WEB_IMAGE`,
    `SCORES_QUOTA_MB` (espacio de partituras por usuario).
 
+   Para el plan de estudio con IA, `ANTHROPIC_API_KEY` (la clave del servidor; el usuario no pone
+   ninguna) y, si quieres cambiarlos, `STUDY_PLAN_MODEL`, `PLANS_PER_DAY` y `PLAN_QUESTIONS_PER_HOUR`.
+   Sin la clave, la app no ofrece la opción y todo lo demás funciona igual.
+
    Para el botón de Google añade también `APP_URL=https://tu-dominio`, `GOOGLE_CLIENT_ID` y
    `GOOGLE_CLIENT_SECRET` (ver `.env.example`): en Google Cloud, un *ID de cliente OAuth* de aplicación
    web con URI de redirección `https://tu-dominio/api/auth/oauth/google/callback`. Sin esas variables el
@@ -151,62 +153,49 @@ Dokploy también ofrece copias programadas a S3 en el servicio `db`.
 
 ## Plan de estudio con IA
 
-No hay ninguna clave de IA en el servidor: cada usuario pone la suya en **Ajustes → Plan de estudio con IA**
-(proveedor, clave y modelo). La clave se guarda solo en su navegador (`localStorage`) y las peticiones salen
-directamente del navegador a `api.openai.com` o `api.anthropic.com`; el servidor de Opus Piano nunca la ve.
-El coste lo paga el usuario al proveedor: un plan suele costar céntimos (se muestra una estimación por modelo).
+Lo prepara Claude con **la clave de API del servidor** (`ANTHROPIC_API_KEY`): el alumno no configura ni paga
+nada. Como el gasto es del servidor, hace falta cuenta y hay un tope de `PLANS_PER_DAY` planes por usuario y
+día (3 por defecto) y `PLAN_QUESTIONS_PER_HOUR` preguntas al profesor por hora. Sin la clave, `/api/study-plan`
+responde `{ enabled: false }` y la app no ofrece la opción.
 
-Cómo funciona (todo en [`src/lib/ai/`](src/lib/ai/) y [`src/lib/study-plan.ts`](src/lib/study-plan.ts)):
+El reparto: [`src/lib/study-plan.ts`](src/lib/study-plan.ts) es lo compartido (esquema del plan, resumen de la
+partitura e instrucciones), [`src/lib/plan/client.ts`](src/lib/plan/client.ts) el navegador,
+[`src/lib/server/study-plan.ts`](src/lib/server/study-plan.ts) la llamada al modelo.
 
+- **Modelo**: `claude-sonnet-5` por defecto (`STUDY_PLAN_MODEL`). Lee bien una partitura escaneada y cuesta
+  una fracción de lo que cuesta Opus; Haiku es más barato pero se le escapan alteraciones y figuras. Un plan
+  ronda los 10-15 céntimos.
 - **Qué ve el modelo**: si la partitura es MusicXML (o un PDF con MusicXML vinculado), un resumen textual
-  nota a nota compás por compás (`summarizeScore`). Si es PDF, las primeras 12 páginas dibujadas en PNG al
-  lado largo que cada modelo procesa sin reescalar (`maxImageEdge`). Además, nivel, tiempo disponible y
-  objetivo personal del alumno y sus notas.
-- **Salida estructurada**: el plan se pide como JSON con un esquema (`STUDY_PLAN_SCHEMA`, descrito una sola
-  vez y emitido en la variante que exige cada proveedor) y se valida con zod antes de guardarlo.
+  nota a nota compás por compás (`summarizeScore`). Si es PDF, las primeras 12 páginas dibujadas en PNG a
+  1568 px de lado largo (`PAGE_EDGE`): las imágenes son la mayor parte del coste y a esa resolución una A4
+  sale por unos 2300 tokens. Además, nivel, tiempo disponible y objetivo personal del alumno y sus notas.
+- **Salida estructurada**: el plan se pide como JSON con un esquema estricto (`STUDY_PLAN_SCHEMA`) y se valida
+  con zod en el servidor antes de devolverlo, porque el esquema de la API no puede comprobar que las lecciones
+  enlazadas existan. Las instrucciones y las descripciones del esquema piden un plan **condensado**: frases
+  cortas, de 5 a 9 objetivos y nada de relleno.
+- **Respuesta en flujo**: un plan tarda uno o dos minutos, así que `/api/study-plan` devuelve líneas JSON con
+  señales de vida (igual que `/api/omr`) y la tarea corre en segundo plano: se puede cerrar el panel y seguir
+  leyendo la partitura.
 - **Dónde se guarda**: con la partitura, en IndexedDB y, con cuenta, en la columna `Score.plan` del servidor,
-  sincronizado igual que las notas y los trazos (gana el `updatedAt` más reciente). El servidor solo valida su
-  forma (`planStateSchema`).
-- **Chat**: «Pregunta al profesor» envía el plan, el resumen de la partitura y los últimos 12 turnos; la
-  respuesta llega en streaming. El historial del chat no se guarda.
-- **Modelos**: el catálogo con estrellas (rapidez, precisión, economía), precios y el «recomendado» de cada
-  proveedor está en [`src/lib/ai/models.ts`](src/lib/ai/models.ts). También se puede escribir cualquier otro id.
+  sincronizado igual que las notas y los trazos (gana el `updatedAt` más reciente).
+- **Chat**: «Pregunta al profesor» (`/api/study-plan/ask`) envía el plan, el resumen de la partitura y los
+  últimos 12 turnos; la respuesta llega palabra a palabra. El historial del chat no se guarda.
 
-### Transcribir un PDF a MusicXML
+### Transcribir un PDF a MusicXML (OMR)
 
-Un PDF es solo una imagen: sin MusicXML no se puede tocar la pieza ni mostrar los nombres. Desde el lector,
-«Transcribir con IA» manda cada página al modelo y monta el archivo ([`src/lib/ai/transcribe.ts`](src/lib/ai/transcribe.ts)
-y [`src/lib/music/musicxml-build.ts`](src/lib/music/musicxml-build.ts)).
-
-- **El modelo no escribe XML.** Devuelve JSON con esquema estricto donde cada pentagrama de cada compás es una
-  línea en la notación compacta de la app (`C4/q (D4 G4)/h~ r/8`), la misma que `summarizeScore` usa para
-  contarle al modelo lo que hay en un MusicXML. Ocupa una fracción de los tokens del XML equivalente, el
-  archivo sale siempre bien formado porque lo escribe la app, y se puede comprobar antes de guardarlo.
-- **Lo que se comprueba**: que las figuras de cada compás sumen lo que pide el compás (`checkDurations`; la
-  anacrusa y el compás final pueden ser cortos). Los que no cuadran se listan en el panel: casi siempre son
-  una figura mal leída, y descolocan la reproducción a partir de ahí.
-- **Qué sale**: una parte de piano con uno o dos pentagramas y una voz por pentagrama —lo que Opus Piano sabe
-  dibujar y tocar—, con acordes, silencios, puntillos, ligaduras de unión y las alteraciones impresas
-  calculadas a partir de la armadura. Se puede vincular a la partitura o descargar para arreglarlo en MuseScore.
-- **Límites**: 6 páginas por transcripción, una petición por página, y cuesta bastante más que un plan de
-  estudio (se muestra la estimación). Para una transcripción fiable, el MusicXML de MuseScore sigue siendo mejor.
-
-### Reconocer la partitura sin IA (OMR)
-
-El mismo panel ofrece antes otra vía: **reconocimiento automático**, gratis y sin claves. El navegador
+Un PDF es solo una imagen: sin MusicXML no se puede tocar la pieza ni mostrar los nombres. El navegador
 dibuja cada página, la manda a `/api/omr` y el servidor se la pasa al servicio de
 [`omr-service/`](omr-service/) —[oemer](https://github.com/BreezeWhite/oemer), modelos de OMR ya
 entrenados— que devuelve el MusicXML de esa página. La app lo lee con su propio lector, pega las páginas
 (`src/lib/omr/merge.ts`) y lo vuelve a escribir con su escritor, así que lo que se guarda es el mismo
 dialecto de siempre: una parte de piano, uno o dos pentagramas, una voz por pentagrama.
 
-- **Hace falta cuenta.** Aquí la CPU la paga el servidor, no el usuario con su clave: se exige sesión y hay
-  un límite de `OMR_PAGES_PER_HOUR` páginas por hora y usuario. Sin `OMR_URL` configurada, la opción no
-  aparece y la transcripción con IA sigue funcionando igual (esa sí, sin cuenta).
+- **Hace falta cuenta.** La CPU la paga el servidor: se exige sesión y hay un límite de `OMR_PAGES_PER_HOUR`
+  páginas por hora y usuario. Sin `OMR_URL` configurada, la opción no aparece.
 - **Tarda minutos por página**, así que la petición devuelve un flujo de líneas JSON con señales de vida y
   la tarea corre en segundo plano como las demás: se puede cerrar el panel y seguir leyendo.
 - **Se le da bien lo impreso y aireado**, y mal lo denso, lo torcido y lo manuscrito; cuando no puede,
-  lo dice. Para partituras apretadas, el modelo de visión llega más lejos.
+  lo dice. Para partituras apretadas o manuscritas sigue siendo mejor el MusicXML de MuseScore.
 - Detalles del servicio, contrato HTTP, despliegue y lo que consume: [`omr-service/README.md`](omr-service/README.md).
 
 ## SEO

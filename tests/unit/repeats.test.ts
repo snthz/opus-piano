@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildTimeline, expandRepeats, type ParsedScore, type XmlMeasure } from "@/lib/music/musicxml";
 import { buildMusicXml, linkTies, parseStaffCode } from "@/lib/music/musicxml-build";
-import { assemble, transcriptionSchema } from "@/lib/ai/transcribe";
 import { locate, type MeasureMap } from "@/lib/score-layout";
 
 const m = (code: string, extra: Partial<XmlMeasure> = {}): XmlMeasure => ({ number: "0", staves: [parseStaffCode(code)], ...extra });
@@ -94,32 +93,6 @@ describe("MusicXML con repeticiones", () => {
 
   test("sin repeticiones no aparece ninguna barra", () => {
     expect(buildMusicXml(score([m("C4/w"), m("D4/w")]))).not.toContain("<barline");
-  });
-});
-
-describe("transcripción con repeticiones", () => {
-  const page = {
-    title: "", composer: "", fifths: 0, mode: "major" as const, beats: 4, beatType: 4, tempo: 0, clefs: ["sol" as const],
-    measures: [
-      { number: 1, staves: ["C4/w"], repeat: "start" as const, ending: 0 },
-      { number: 2, staves: ["D4/w"], repeat: "end" as const, ending: 1 },
-      { number: 3, staves: ["E4/w"], repeat: "none" as const, ending: 2 },
-    ],
-  };
-
-  test("el esquema admite las marcas y rellena las que faltan", () => {
-    expect(transcriptionSchema.safeParse(page).success).toBe(true);
-    const old = transcriptionSchema.parse({ ...page, measures: [{ number: 1, staves: ["C4/w"] }] });
-    expect(old.measures[0]).toMatchObject({ repeat: "none", ending: 0 });
-  });
-
-  test("las marcas pasan a la partitura ensamblada", () => {
-    const { score: s } = assemble([page]);
-    expect(s.measures.map((x) => [!!x.repeatStart, !!x.repeatEnd, x.ending ?? 0])).toEqual([
-      [true, false, 0],
-      [false, true, 1],
-      [false, false, 2],
-    ]);
   });
 });
 

@@ -8,7 +8,6 @@ import { useAuth } from "@/lib/auth";
 import { openAuthModal } from "@/lib/auth-modal";
 import { clearScores, scoresSize } from "@/lib/scores-db";
 import { playNote, unlockAudio } from "@/lib/audio/synth";
-import { AiSettings } from "./ai-settings";
 import { THEMES } from "@/lib/theme";
 
 function formatBytes(b: number): string {
@@ -89,11 +88,6 @@ export function SettingsPanel() {
             </button>
           </div>
         </Row>
-      </section>
-
-      <section className="card p-5 space-y-4">
-        <h2 className="font-bold">Plan de estudio con IA</h2>
-        <AiSettings />
       </section>
 
       <section className="card p-5 space-y-4">

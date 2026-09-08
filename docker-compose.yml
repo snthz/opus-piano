@@ -17,6 +17,12 @@ services:
       # Archivos de las partituras (PDF / MusicXML) en un volumen; los metadatos van en Postgres.
       SCORES_DIR: /data/scores
       SCORES_QUOTA_MB: ${SCORES_QUOTA_MB:-300}
+      # Plan de estudio con IA: la clave es la del servidor, el alumno no pone
+      # ninguna. Sin ANTHROPIC_API_KEY la aplicación no ofrece la opción.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STUDY_PLAN_MODEL: ${STUDY_PLAN_MODEL:-claude-sonnet-5}
+      PLANS_PER_DAY: ${PLANS_PER_DAY:-3}
+      PLAN_QUESTIONS_PER_HOUR: ${PLAN_QUESTIONS_PER_HOUR:-40}
       # Reconocimiento de partituras: el servicio de `omr-service/` vive fuera
       # del VPS (Cloud Run) porque necesita 2 GB y la CPU entera por página.
       # Sin OMR_URL, la aplicación no ofrece la opción.

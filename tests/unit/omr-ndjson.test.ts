@@ -5,7 +5,7 @@
  * salto de línea tienen que leerse igual.
  */
 import { describe, expect, test } from "bun:test";
-import { readNdjson } from "@/lib/omr/ndjson";
+import { readNdjson } from "@/lib/ndjson";
 
 /** Un flujo que entrega exactamente los trozos que se le pasan. */
 function stream(chunks: string[]): ReadableStream<Uint8Array> {

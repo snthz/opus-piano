@@ -67,7 +67,9 @@ const BOTTOM_BAR = 88;
 const MAX_ZOOM = 4;
 /** Zoom de partida en escritorio: sobra ancho y la partitura se lee mejor grande. */
 const DESKTOP_ZOOM = 1.5;
-const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 48rem)").matches;
+/** Escritorio de verdad: ancho y con ratón. En un móvil o una tableta —aunque el
+ *  ancho dé de sí— se empieza con la página entera, que es como se ojea. */
+const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches;
 /** Separación entre páginas del carrusel: casi pegadas, para que se lean como
  *  hojas distintas y asomen las vecinas sin robarle el sitio a la centrada. */
 const PAGE_GAP = 24;
@@ -197,7 +199,6 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [askXml, setAskXml] = useState(false);
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   // Tareas largas de esta partitura: siguen en marcha con los paneles cerrados.
-  const transcribeJob = useJob("transcribe", record.id);
   const omrJob = useJob("omr", record.id);
   const planJob = useJob("plan", record.id);
   const [issue, setIssue] = useState<string | null>(null);
@@ -509,6 +510,15 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // En móvil el lector es la pantalla entera: mientras esté abierto, la cabecera
+  // y la barra inferior del sitio se esconden (globals.css) para no taparle la
+  // fila del nombre ni repetir una navegación que aquí no se usa.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute("data-reader", "");
+    return () => root.removeAttribute("data-reader");
+  }, []);
+
   // Ocultar los controles esconde también la cabecera del sitio (globals.css):
   // en escritorio el lector pasa entonces a ocupar toda la pantalla.
   useEffect(() => {
@@ -703,7 +713,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         ? "Sin guía: no se pudieron cuadrar los compases con la página. Puedes seguir la pieza con los nombres de las notas."
         : null;
   // Con su panel cerrado, la tarea en marcha se resume abajo, además del anillo de arriba.
-  const backgroundJob = !transcribeOpen && !planOpen ? [transcribeJob, omrJob, planJob].find((j) => j?.status === "running") : undefined;
+  const backgroundJob = !transcribeOpen && !planOpen ? [omrJob, planJob].find((j) => j?.status === "running") : undefined;
   const footnote = statusLine ?? (backgroundJob ? `${jobLabel(backgroundJob.kind)} · ${backgroundJob.label}` : null);
 
   // El lector ocupa toda la pantalla en móvil; en escritorio arranca bajo la
@@ -807,7 +817,6 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                   {linkedXml && parsed && view === "pdf" ? " · se puede escuchar" : ""}
                 </p>
               </div>
-              {transcribeJob && <JobIndicator job={transcribeJob} onOpen={openTranscribe} />}
               {omrJob && <JobIndicator job={omrJob} onOpen={openTranscribe} />}
               {planJob && <JobIndicator job={planJob} onOpen={() => { player.stop(); setNotesOpen(false); setPlanOpen(true); }} />}
               <button
@@ -921,6 +930,28 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             )}
           </div>
 
+          {/* ---- Zoom: mando aparte, contra el borde ----
+               Se usa a cada rato y no compite por sitio con las herramientas. */}
+          {view === "pdf" && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 card shadow-md p-1 flex flex-col items-center">
+              <ToolButton label="Ampliar" onClick={() => zoomTo(zoom + 0.25)} disabled={zoom >= MAX_ZOOM}>
+                <PlusIcon />
+              </ToolButton>
+              <button
+                type="button"
+                onClick={() => zoomTo(1)}
+                disabled={zoom === 1}
+                title="Ver la página entera"
+                className="w-9 py-0.5 text-center text-[10px] tabular-nums text-ink-2 hover:text-ink disabled:text-ink-3 disabled:pointer-events-none"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <ToolButton label="Reducir" onClick={() => zoomTo(zoom - 0.25)} disabled={zoom === 1}>
+                <MinusIcon />
+              </ToolButton>
+            </div>
+          )}
+
           {/* ---- Panel de herramientas ---- */}
           <div className="absolute inset-x-3 flex justify-center pointer-events-none" style={{ bottom: "calc(0.75rem + var(--safe-b))" }}>
             <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1.5 min-w-0 max-w-full">
@@ -943,24 +974,6 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                         </ToolButton>
                       </Group>
                     )}
-
-                    <Group>
-                      <ToolButton label="Reducir" onClick={() => zoomTo(zoom - 0.25)} disabled={zoom === 1}>
-                        <MinusIcon />
-                      </ToolButton>
-                      <button
-                        type="button"
-                        onClick={() => zoomTo(1)}
-                        disabled={zoom === 1}
-                        title="Ver la página entera"
-                        className="w-11 text-center text-xs tabular-nums text-ink-2 hover:text-ink disabled:text-ink-3 disabled:pointer-events-none"
-                      >
-                        {Math.round(zoom * 100)}%
-                      </button>
-                      <ToolButton label="Ampliar" onClick={() => zoomTo(zoom + 0.25)} disabled={zoom >= MAX_ZOOM}>
-                        <PlusIcon />
-                      </ToolButton>
-                    </Group>
 
                     <Group>
                       <ToolButton label="Lápiz" active={tool === "pen"} onClick={() => pickTool("pen")}>
@@ -1072,9 +1085,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
               <p className="text-sm font-semibold">O transcribirla desde el PDF</p>
               <p className="text-xs text-ink-2">
-                Las páginas se leen y se escribe el MusicXML: el reconocedor del servidor es gratis y tarda unos minutos por
-                página; un modelo de visión lee mejor lo apretado y lo pagas tú con tu clave de API. Sale un borrador con fallos de
-                ritmo en los dos casos, así que Opus Piano te señala los compases que no cuadran.
+                El servidor lee las páginas y escribe el MusicXML. Tarda unos minutos por página y sale un borrador, con fallos de
+                ritmo aquí y allá, así que Opus Piano te señala los compases que no cuadran.
               </p>
               <button type="button" onClick={openTranscribe} className="pill text-xs py-1.5">
                 Transcribir la partitura

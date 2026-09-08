@@ -1,10 +1,10 @@
 /**
  * Esquema neutro para pedirle JSON estructurado al modelo.
  *
- * Cada proveedor exige una variante distinta de JSON Schema (OpenAI en modo
- * estricto no admite `anyOf`; Anthropic no admite tipos en array como
- * ["string","null"]), así que el esquema se describe una sola vez de forma
- * neutra y `toJsonSchema` emite la que toque.
+ * Se describe una vez con estos ayudantes y `toJsonSchema` lo emite en la
+ * variante que admite la API de Anthropic (`anyOf` para «o null», objetos
+ * cerrados y con todas las propiedades obligatorias, que es lo que exige el
+ * modo estricto).
  */
 
 export type SchemaNode =
@@ -21,10 +21,7 @@ export const arr = (items: SchemaNode, description?: string): SchemaNode => ({ k
 export const obj = (properties: Record<string, SchemaNode>): SchemaNode => ({ kind: "object", properties });
 export const nullable = (inner: SchemaNode, description?: string): SchemaNode => ({ kind: "nullable", inner, description });
 
-/** Cómo expresar «o null»: OpenAI estricto quiere `"type": [..., "null"]`; Anthropic quiere `anyOf`. */
-export type NullableStyle = "typeArray" | "anyOf";
-
-export function toJsonSchema(node: SchemaNode, style: NullableStyle): Record<string, unknown> {
+export function toJsonSchema(node: SchemaNode): Record<string, unknown> {
   const desc = (d?: string) => (d ? { description: d } : {});
   switch (node.kind) {
     case "string":
@@ -32,17 +29,14 @@ export function toJsonSchema(node: SchemaNode, style: NullableStyle): Record<str
     case "integer":
       return { type: "integer", ...desc(node.description) };
     case "array":
-      return { type: "array", items: toJsonSchema(node.items, style), ...desc(node.description) };
+      return { type: "array", items: toJsonSchema(node.items), ...desc(node.description) };
     case "object": {
       const properties: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(node.properties)) properties[k] = toJsonSchema(v, style);
+      for (const [k, v] of Object.entries(node.properties)) properties[k] = toJsonSchema(v);
       return { type: "object", additionalProperties: false, properties, required: Object.keys(node.properties) };
     }
-    case "nullable": {
-      const inner = toJsonSchema(node.inner, style);
-      if (style === "anyOf") return { anyOf: [inner, { type: "null" }], ...desc(node.description) };
-      const { type, enum: values, ...rest } = inner as { type: string; enum?: string[] };
-      return { ...rest, type: [type, "null"], ...(values ? { enum: [...values, null] } : {}), ...desc(node.description) };
-    }
+    case "nullable":
+      // Anthropic no admite tipos en array como ["string","null"].
+      return { anyOf: [toJsonSchema(node.inner), { type: "null" }], ...desc(node.description) };
   }
 }
