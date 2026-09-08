@@ -8,14 +8,20 @@ import { ProgressSync } from "@/components/ui/progress-sync";
 import { AuthModal } from "@/components/account/auth-modal";
 import { ThemeEffect } from "@/components/ui/theme-effect";
 import { THEME_COLORS, THEME_INIT_SCRIPT } from "@/lib/theme";
+import { SiteFooter } from "@/components/nav/site-footer";
 import { JsonLd } from "@/components/seo/json-ld";
 import {
+  AUTHOR_NAME,
+  COPYRIGHT_YEAR,
   SITE_DESCRIPTION,
   SITE_KEYWORDS,
   SITE_LOCALE,
   SITE_NAME,
   SITE_TAGLINE,
+  SITE_TITLE,
   SITE_URL,
+  STUDIO_NAME,
+  STUDIO_URL,
   OG_IMAGE,
   siteJsonLd,
 } from "@/lib/seo";
@@ -36,15 +42,19 @@ export const metadata: Metadata = {
   // buscadores y las redes sociales no saben resolver.
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — ${SITE_TAGLINE} gratis y en español`,
+    // Corto a propósito: Google corta el título del resultado sobre los 60
+    // caracteres, y «gratis y en español» ya va en la descripción.
+    default: SITE_TITLE,
     template: `%s · ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
   keywords: SITE_KEYWORDS,
   applicationName: SITE_NAME,
-  authors: [{ name: SITE_NAME, url: SITE_URL }],
-  creator: SITE_NAME,
-  publisher: SITE_NAME,
+  // Quién firma la app: el autor y el estudio que la publica. Salen como
+  // <meta name="author"|"creator"|"publisher"> y los repite el JSON-LD.
+  authors: [{ name: AUTHOR_NAME, url: STUDIO_URL ?? SITE_URL }],
+  creator: AUTHOR_NAME,
+  publisher: STUDIO_NAME,
   category: "education",
   alternates: { canonical: "/" },
   robots: {
@@ -79,6 +89,12 @@ export const metadata: Metadata = {
     title: SITE_NAME,
   },
   formatDetection: { telephone: false },
+  // Etiquetas sueltas que la API de metadatos no cubre: la firma del estudio
+  // y el aviso de copyright que leen algunos agregadores.
+  other: {
+    developer: STUDIO_NAME,
+    copyright: `© ${COPYRIGHT_YEAR} ${SITE_NAME} · ${STUDIO_NAME}`,
+  },
   // Los íconos (favicon.ico, icon.svg, apple-icon.png) van por convención de
   // archivo en src/app: Next añade solo las etiquetas <link>. Se generan con
   // `bun run gen:icons` a partir de src/lib/brand.ts.
@@ -110,6 +126,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-8 pb-10">
           {children}
         </main>
+        <SiteFooter />
         <AppNav />
         <ServiceWorkerInit />
         <ProgressSync />

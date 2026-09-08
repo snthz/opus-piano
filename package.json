@@ -2,6 +2,9 @@
   "name": "opus-piano",
   "version": "0.1.0",
   "private": true,
+  "description": "Opus Piano — aprende a leer partituras y a tocar el piano. Curso gratuito de lenguaje musical en español.",
+  "author": "Axl Santos (FallxnStudio)",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "gen:smufl": "node scripts/gen-smufl.mjs",
