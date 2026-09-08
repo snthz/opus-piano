@@ -14,7 +14,7 @@ export const metadata = pageMetadata({
   keywords: ["teoría musical", "lenguaje musical", "curso de solfeo", "aprender teoría musical gratis"],
 });
 
-const COLORS = ["bg-yellow", "bg-mint", "bg-lavender", "bg-pink", "bg-blue", "bg-peach"];
+const COLORS = ["bg-yellow", "bg-mint", "bg-ash", "bg-pink", "bg-blue", "bg-peach"];
 
 export default function TeoriaPage() {
   return (

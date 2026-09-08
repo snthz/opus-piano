@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { activeTarget, isAiReady, useAiConfig } from "@/lib/ai/config";
 import { AiError, isAbort, type ChatTurn } from "@/lib/ai/errors";
+import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/ai/jobs";
 import { estimatePlanCost, formatCost, modelById } from "@/lib/ai/models";
 import { askTeacher, generatePlan, MAX_PAGES } from "@/lib/ai/study-plan-client";
 import { EXERCISES } from "@/data/exercises";
@@ -14,6 +15,10 @@ import { useSettings } from "@/lib/settings";
 import { goalRange, LEVEL_LABELS, LEVELS, type Goal, type Level, type PlanState } from "@/lib/study-plan";
 import { AiSettings } from "@/components/settings/ai-settings";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { PlanIcon } from "./reader-icons";
 import { useParsedXml } from "./use-score-player";
 
 interface Props {
@@ -22,7 +27,6 @@ interface Props {
   xml?: Blob;
   /** PDF de la pieza: sus páginas se envían como imágenes */
   pdf?: Blob;
-  onClose?: () => void;
   /** Avisa al padre para que su copia del registro tenga el plan al día */
   onPlanChange?: (plan: PlanState | undefined) => void;
 }
@@ -50,24 +54,42 @@ function readPrefs(): FormPrefs {
  * Se genera en el dispositivo con la clave del usuario y se guarda con la
  * partitura (y en la cuenta, si la hay).
  */
-export function StudyPlanPanel({ record, xml, pdf, onClose, onPlanChange }: Props) {
+export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
   const config = useAiConfig();
   const { settings } = useSettings();
   const { parsed } = useParsedXml(xml);
+  const job = useJob("plan", record.id);
+  const running = job?.status === "running" ? job : null;
+  const error = job?.status === "error" ? job.error : null;
   const [state, setState] = useState<PlanState | undefined>(record.plan);
-  const [editing, setEditing] = useState(!record.plan);
+  /** Rehacer un plan que ya existe se pide en un modal; sin plan, el formulario va en el propio panel. */
+  const [formOpen, setFormOpen] = useState(false);
   // El panel solo se monta tras una acción del usuario, así que el almacenamiento ya está disponible.
   const [prefs, setPrefs] = useState<FormPrefs>(readPrefs);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const abort = useRef<AbortController | null>(null);
 
-  useEffect(() => () => abort.current?.abort(), []);
+  // El plan generado llega por el registro: lo aplica la biblioteca cuando la
+  // tarea acaba, esté este panel abierto o no. Al cambiar, se enseña.
+  const [seenPlan, setSeenPlan] = useState(record.plan);
+  if (record.plan !== seenPlan) {
+    setSeenPlan(record.plan);
+    setState(record.plan);
+    if (record.plan) setFormOpen(false);
+  }
+
+  // Un fallo ya visto deja de reclamar atención en el lector al cerrar el panel.
+  useEffect(
+    () => () => {
+      if (getJob("plan", record.id)?.status === "error") dismissJob("plan", record.id);
+    },
+    [record.id],
+  );
 
   const ready = isAiReady(config);
   const target = activeTarget(config);
   const model = modelById(target.provider, target.model);
+  /** Con un MusicXML a medio leer, el profesor vería la pieza a medias. */
+  const waitingXml = !!xml && !parsed;
 
   const save = async (next: PlanState | undefined) => {
     setState(next);
@@ -75,41 +97,42 @@ export function StudyPlanPanel({ record, xml, pdf, onClose, onPlanChange }: Prop
     await updateScorePlan(record.id, next);
   };
 
-  const create = async () => {
-    if (!ready) return;
+  const create = () => {
+    if (!ready || waitingXml) return;
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     } catch {
       /* sin almacenamiento */
     }
-    setError(null);
-    setStatus("Empezando…");
-    abort.current?.abort();
-    const ac = new AbortController();
-    abort.current = ac;
-    try {
-      const next = await generatePlan({
-        target,
-        scoreName: record.name,
-        notes: record.notes,
-        level: prefs.level,
-        minutesPerDay: prefs.minutesPerDay,
-        daysPerWeek: prefs.daysPerWeek,
-        goal: prefs.goal,
-        naming: settings.naming,
-        parsed,
-        pdf: pdf ? { blob: pdf, pageCount: record.pageCount } : null,
-        onStatus: setStatus,
-        signal: ac.signal,
-      });
-      await save(next);
-      setEditing(false);
-    } catch (e) {
-      if (!isAbort(e)) setError(e instanceof AiError ? e.message : "No se pudo crear el plan. Vuelve a intentarlo.");
-    } finally {
-      if (abort.current === ac) abort.current = null;
-      setStatus(null);
-    }
+    // El formulario solo recoge los datos: el avance se sigue desde el panel,
+    // que es lo que queda si se cierra todo.
+    setFormOpen(false);
+    if (job?.status === "error") dismissJob("plan", record.id);
+    startJob(
+      "plan",
+      { id: record.id, name: record.name },
+      async ({ signal, report }) => {
+        const next = await generatePlan({
+          target,
+          scoreName: record.name,
+          notes: record.notes,
+          level: prefs.level,
+          minutesPerDay: prefs.minutesPerDay,
+          daysPerWeek: prefs.daysPerWeek,
+          goal: prefs.goal,
+          naming: settings.naming,
+          parsed,
+          pdf: pdf ? { blob: pdf, pageCount: record.pageCount } : null,
+          onStatus: (label) => report({ label }),
+          onProgress: (progress) => report({ progress }),
+          signal,
+        });
+        // Se guarda aquí y no en el panel, que puede estar cerrado cuando acabe.
+        await updateScorePlan(record.id, next);
+        return next;
+      },
+      "No se pudo crear el plan. Vuelve a intentarlo.",
+    );
   };
 
   const toggleGoal = (id: string) => {
@@ -123,136 +146,152 @@ export function StudyPlanPanel({ record, xml, pdf, onClose, onPlanChange }: Prop
   const remove = async () => {
     setConfirmDelete(false);
     await save(undefined);
-    setEditing(true);
   };
 
-  const waitingXml = !!xml && !parsed;
+  /**
+   * El formulario, igual dentro del panel (primer plan) que en el modal
+   * (rehacer): sin clave de API, en su lugar se pide la clave.
+   */
+  const form = (inModal: boolean) =>
+    !ready ? (
+      <div className="space-y-4">
+        <p className="text-sm">
+          Para preparar el plan hace falta la clave de API de <strong>ChatGPT (OpenAI)</strong> o de <strong>Claude (Anthropic)</strong>.
+          Se guarda solo en este dispositivo y el coste (céntimos por plan) lo pagas tú al proveedor. También puedes cambiarla en{" "}
+          <Link href="/settings" className="underline">Ajustes</Link>.
+        </p>
+        <AiSettings compact />
+      </div>
+    ) : (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          create();
+        }}
+        className="space-y-4"
+      >
+        {inModal && state && (
+          <p className="rounded-2xl bg-yellow text-ink px-4 py-3 text-xs">
+            Ya tienes un plan. Si creas otro, el actual y sus objetivos cumplidos se sustituyen.
+          </p>
+        )}
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">Tu nivel</span>
+          <Select
+            value={prefs.level}
+            onChange={(level) => setPrefs({ ...prefs, level })}
+            options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1">
+            <span className="text-sm font-medium">Minutos al día</span>
+            <input
+              type="number"
+              min={5}
+              max={240}
+              value={prefs.minutesPerDay}
+              onChange={(e) => setPrefs({ ...prefs, minutesPerDay: Math.max(5, Math.min(240, Number(e.target.value) || 0)) })}
+              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm font-medium">Días por semana</span>
+            <input
+              type="number"
+              min={1}
+              max={7}
+              value={prefs.daysPerWeek}
+              onChange={(e) => setPrefs({ ...prefs, daysPerWeek: Math.max(1, Math.min(7, Number(e.target.value) || 0)) })}
+              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </label>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">¿Qué quieres conseguir?</span>
+          <textarea
+            value={prefs.goal}
+            onChange={(e) => setPrefs({ ...prefs, goal: e.target.value.slice(0, 1000) })}
+            rows={3}
+            placeholder="Por ejemplo: «aprender hasta el compás 16 para tocarla en la reunión familiar del mes que viene» o «mejorar la mano izquierda»…"
+            className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+          />
+        </label>
+
+        <div className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2 space-y-1">
+          <p className="font-medium text-ink">Qué verá el profesor</p>
+          {pdf && (
+            <p>
+              {record.pageCount <= MAX_PAGES ? `Las ${record.pageCount} páginas del PDF` : `Las primeras ${MAX_PAGES} páginas del PDF (de ${record.pageCount})`}
+              {xml ? " y el MusicXML vinculado, nota a nota." : "."}
+            </p>
+          )}
+          {!pdf && xml && <p>La partitura MusicXML, nota a nota.</p>}
+          {record.notes.trim() && <p>Tus notas personales sobre la partitura.</p>}
+          {model && (
+            <p>
+              Modelo: {model.name}{model.recommended ? " (recomendado)" : ""} · {formatCost(estimatePlanCost(model))}.{" "}
+              <Link href="/settings" className="underline">Cambiar</Link>
+            </p>
+          )}
+          {!model && <p>Modelo: {target.model}</p>}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="submit" disabled={waitingXml} className="btn-primary text-sm flex-1 disabled:opacity-50">
+            {state ? "Crear un plan nuevo" : "Crear mi plan de estudio"}
+          </button>
+          {inModal && (
+            <button type="button" onClick={() => setFormOpen(false)} className="pill text-xs py-1.5 shrink-0">
+              Cancelar
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-ink-3">
+          {waitingXml ? "Leyendo la partitura…" : "Tarda uno o dos minutos. Se prepara en segundo plano, así que puedes seguir con la partitura mientras."}
+        </p>
+      </form>
+    );
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        {onClose && (
-          <button type="button" onClick={onClose} className="btn-circle w-10 h-10 shrink-0" aria-label="Cerrar el plan">
-            <ChevronIcon dir="left" className="w-5 h-5" />
-          </button>
-        )}
-        <div className="min-w-0 flex-1">
-          <h2 className="font-bold truncate">Plan de estudio</h2>
-          <p className="text-xs text-ink-2 truncate">{record.name}</p>
-        </div>
-        {state && !editing && (
-          <button type="button" onClick={() => setEditing(true)} className="pill text-xs py-1.5">
-            Rehacer
-          </button>
-        )}
-      </div>
-
-      {!ready ? (
-        <section className="card p-5 space-y-4">
-          <p className="text-sm">
-            Para preparar el plan hace falta la clave de API de <strong>ChatGPT (OpenAI)</strong> o de <strong>Claude (Anthropic)</strong>.
-            Se guarda solo en este dispositivo y el coste (céntimos por plan) lo pagas tú al proveedor. También puedes cambiarla en{" "}
-            <Link href="/settings" className="underline">Ajustes</Link>.
+      {running && (
+        <section className="rounded-2xl bg-surface-2 p-4 space-y-2">
+          <div className="flex items-center gap-3">
+            <ProgressRing progress={running.progress} className="w-9 h-9 shrink-0 text-ink" />
+            <p className="text-sm text-ink-2 flex-1">{running.label}</p>
+            <button type="button" onClick={() => cancelJob("plan", record.id)} className="pill text-xs py-1.5 shrink-0">
+              Cancelar
+            </button>
+          </div>
+          <p className="text-xs text-ink-3">
+            Puedes cerrar este panel y seguir con la partitura: el plan se prepara en segundo plano y el anillo del lector te avisa cuando esté.
           </p>
-          <AiSettings compact />
         </section>
-      ) : editing ? (
-        <section className="card p-5 space-y-4">
-          {state && <p className="text-xs text-ink-2">Ya tienes un plan. Si creas otro, el actual y sus objetivos cumplidos se sustituyen.</p>}
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Tu nivel</span>
-            <select
-              value={prefs.level}
-              onChange={(e) => setPrefs({ ...prefs, level: e.target.value as Level })}
-              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              {LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  {LEVEL_LABELS[l]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Minutos al día</span>
-              <input
-                type="number"
-                min={5}
-                max={240}
-                value={prefs.minutesPerDay}
-                onChange={(e) => setPrefs({ ...prefs, minutesPerDay: Math.max(5, Math.min(240, Number(e.target.value) || 0)) })}
-                className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </label>
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Días por semana</span>
-              <input
-                type="number"
-                min={1}
-                max={7}
-                value={prefs.daysPerWeek}
-                onChange={(e) => setPrefs({ ...prefs, daysPerWeek: Math.max(1, Math.min(7, Number(e.target.value) || 0)) })}
-                className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </label>
-          </div>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">¿Qué quieres conseguir?</span>
-            <textarea
-              value={prefs.goal}
-              onChange={(e) => setPrefs({ ...prefs, goal: e.target.value.slice(0, 1000) })}
-              rows={3}
-              placeholder="Por ejemplo: «aprender hasta el compás 16 para tocarla en la reunión familiar del mes que viene» o «mejorar la mano izquierda»…"
-              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-            />
-          </label>
+      )}
 
-          <div className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2 space-y-1">
-            <p className="font-medium text-ink">Qué verá el profesor</p>
-            {pdf && (
-              <p>
-                {record.pageCount <= MAX_PAGES ? `Las ${record.pageCount} páginas del PDF` : `Las primeras ${MAX_PAGES} páginas del PDF (de ${record.pageCount})`}
-                {xml ? " y el MusicXML vinculado, nota a nota." : "."}
-              </p>
-            )}
-            {!pdf && xml && <p>La partitura MusicXML, nota a nota.</p>}
-            {record.notes.trim() && <p>Tus notas personales sobre la partitura.</p>}
-            {model && (
-              <p>
-                Modelo: {model.name}{model.recommended ? " (recomendado)" : ""} · {formatCost(estimatePlanCost(model))}.{" "}
-                <Link href="/settings" className="underline">Cambiar</Link>
-              </p>
-            )}
-            {!model && <p>Modelo: {target.model}</p>}
-          </div>
-
-          {error && <p className="text-sm text-bad">{error}</p>}
-
-          {status ? (
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-ink-2 flex-1 animate-pulse">{status}</p>
-              <button type="button" onClick={() => abort.current?.abort()} className="pill text-xs py-1.5">
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 flex-wrap">
-              <button type="button" onClick={() => void create()} disabled={waitingXml} className="btn-primary text-sm disabled:opacity-50">
-                {state ? "Crear un plan nuevo" : "Crear mi plan de estudio"}
-              </button>
-              {state && (
-                <button type="button" onClick={() => setEditing(false)} className="pill text-xs py-1.5">
-                  Volver al plan
-                </button>
-              )}
-              {waitingXml && <span className="text-xs text-ink-3">Leyendo la partitura…</span>}
-            </div>
-          )}
+      {error && !running && (
+        <section className="rounded-2xl bg-bad-soft px-4 py-3 flex items-center gap-3">
+          <p className="text-sm text-bad flex-1">{error}</p>
+          <button type="button" onClick={() => dismissJob("plan", record.id)} className="pill text-xs py-1.5 shrink-0">
+            Descartar
+          </button>
         </section>
-      ) : state ? (
+      )}
+
+      {state ? (
         <>
-          <PlanView state={state} onToggle={toggleGoal} />
+          <PlanView
+            state={state}
+            onToggle={toggleGoal}
+            action={
+              !running && (
+                <button type="button" onClick={() => setFormOpen(true)} className="pill text-xs py-1.5 shrink-0">
+                  Rehacer
+                </button>
+              )
+            }
+          />
           <Teacher record={record} state={state} parsed={parsed} />
           <p className="text-xs text-ink-3 px-1 flex items-center gap-2 flex-wrap">
             <span>
@@ -270,15 +309,38 @@ export function StudyPlanPanel({ record, xml, pdf, onClose, onPlanChange }: Prop
               )}
             </span>
           </p>
+
+          {/* ---- Rehacer: los datos se piden en un modal para no tapar el plan ---- */}
+          <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Crear un plan nuevo" subtitle={record.name}>
+            {form(true)}
+          </Modal>
         </>
-      ) : null}
+      ) : (
+        !running && (
+          <section className="px-1 space-y-5">
+            <div className="flex items-start gap-3">
+              <span className="w-11 h-11 shrink-0 rounded-full bg-ash text-ink grid place-items-center" aria-hidden>
+                <PlanIcon className="w-5 h-5" />
+              </span>
+              <div className="space-y-1">
+                <h3 className="font-bold">Esta partitura todavía no tiene plan</h3>
+                <p className="text-sm text-ink-2">
+                  Un profesor con IA lee la pieza y prepara el análisis, los objetivos por compases con sus digitaciones y una rutina a tu
+                  medida. El plan se guarda en la partitura y puedes ir marcando lo que cumples.
+                </p>
+              </div>
+            </div>
+            {form(false)}
+          </section>
+        )
+      )}
     </div>
   );
 }
 
 /* ---------- El plan ---------- */
 
-function PlanView({ state, onToggle }: { state: PlanState; onToggle: (id: string) => void }) {
+function PlanView({ state, onToggle, action }: { state: PlanState; onToggle: (id: string) => void; action?: React.ReactNode }) {
   const { plan, progress } = state;
   const done = plan.goals.filter((g) => progress[g.id]).length;
   const pct = plan.goals.length ? Math.round((done / plan.goals.length) * 100) : 0;
@@ -288,9 +350,12 @@ function PlanView({ state, onToggle }: { state: PlanState; onToggle: (id: string
   return (
     <div className="space-y-4">
       <section className="card p-5 space-y-3">
-        <div>
-          <h3 className="font-bold text-lg leading-tight">{plan.title}</h3>
-          {plan.composer && <p className="text-sm text-ink-2">{plan.composer}</p>}
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold text-lg leading-tight">{plan.title}</h3>
+            {plan.composer && <p className="text-sm text-ink-2">{plan.composer}</p>}
+          </div>
+          {action}
         </div>
         <div className="flex flex-wrap gap-1.5 text-xs">
           <span className="pill py-1">{plan.analysis.key}</span>

@@ -26,6 +26,8 @@ export interface TranscribeInput {
   from: number;
   to: number;
   onStatus?: (text: string) => void;
+  /** Fracción hecha (0 a 1) para un indicador de progreso */
+  onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
 }
 
@@ -70,9 +72,12 @@ export async function transcribeScore(input: TranscribeInput): Promise<Transcrib
   for (let page = input.from; page <= input.to; page++) {
     const index = page - input.from + 1;
     input.onStatus?.(total > 1 ? `Preparando la página ${index} de ${total}…` : "Preparando la página…");
+    input.onProgress?.((index - 1) / total);
     const image = await pageImage(input.pdf, page, edge);
 
     input.onStatus?.(`Leyendo la página ${index} de ${total}… suele tardar entre medio minuto y dos minutos.`);
+    // La lectura es casi todo el tiempo de la página: el arco avanza un poco al empezarla.
+    input.onProgress?.((index - 1 + 0.15) / total);
     const message = transcribeUserMessage({ scoreName: input.scoreName, page, index, total, firstMeasure, header });
     const content: InputPart[] = [{ type: "text", text: message }, { type: "image", dataUrl: image }];
     const text = await requestJson(
@@ -95,6 +100,7 @@ export async function transcribeScore(input: TranscribeInput): Promise<Transcrib
     pages.push(parsed.data);
     header ??= headerOf(parsed.data);
     firstMeasure += parsed.data.measures.length;
+    input.onProgress?.(index / total);
   }
 
   input.onStatus?.("Montando el MusicXML…");

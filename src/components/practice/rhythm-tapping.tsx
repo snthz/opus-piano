@@ -217,7 +217,7 @@ export function RhythmTapping() {
           <span
             key={i}
             className={`w-3 h-3 rounded-full transition-colors ${
-              (phase === "countin" || phase === "playing") && beatFlash === i ? "bg-accent" : "bg-surface-3"
+              (phase === "countin" || phase === "playing") && beatFlash === i ? "bg-ok" : "bg-surface-3"
             }`}
           />
         ))}

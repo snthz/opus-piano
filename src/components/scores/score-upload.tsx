@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { renderThumbnail } from "@/lib/pdf-thumbnail";
 import { parseMusicXml, unpackMxl } from "@/lib/music/musicxml";
 import { addScore, type ScoreRecord } from "@/lib/scores-db";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { AddScoreIcon } from "./library-icons";
 
 interface Props {
   onAdded: (record: ScoreRecord) => void;
@@ -62,9 +64,11 @@ export function ScoreUpload({ onAdded }: Props) {
 
   return (
     <div className="space-y-2">
-      <div
-        className={`border-2 border-dashed rounded-3xl p-8 text-center transition-colors cursor-pointer ${
-          drag ? "border-accent bg-lavender/30" : "border-surface-3 hover:border-accent/50"
+      <button
+        type="button"
+        disabled={loading}
+        className={`w-full rounded-3xl border border-dashed p-4 text-left transition-colors sm:p-5 ${
+          drag ? "border-ink bg-surface-2" : "border-surface-3 bg-surface hover:border-ink-3 hover:bg-surface-2"
         }`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -72,21 +76,29 @@ export function ScoreUpload({ onAdded }: Props) {
         onDrop={(e) => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}
       >
         <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
-        {loading ? (
-          <p className="text-ink-2 text-sm">Procesando…</p>
-        ) : (
-          <>
-            <p className="text-2xl mb-2" aria-hidden>📄</p>
-            <p className="font-semibold text-sm">Añadir partitura</p>
-            <p className="text-xs text-ink-2 mt-1">Toca para seleccionar o arrastra aquí un PDF o un MusicXML (.musicxml, .mxl)</p>
-            <p className="text-xs text-ink-3 mt-2">
-              Con MusicXML, Opus Piano puede tocar la pieza y mostrarte el nombre de cada nota. MuseScore lo exporta desde
-              «Archivo → Exportar».
-            </p>
-          </>
-        )}
-      </div>
-      {error && <p className="text-xs text-bad px-2">{error}</p>}
+        <div className="flex items-center gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-line bg-surface-2 text-ink">
+            {loading ? <ProgressRing progress={null} className="h-6 w-6" /> : <AddScoreIcon className="h-6 w-6" />}
+          </span>
+          <div className="min-w-0">
+            {loading ? (
+              <>
+                <p className="text-sm font-semibold">Procesando…</p>
+                <p className="mt-0.5 text-xs text-ink-2">Leyendo el archivo y preparando la miniatura.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold">Añadir partitura</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-ink-2">
+                  Arrastra aquí o toca para elegir un PDF o un MusicXML (.musicxml, .mxl). Con MusicXML, Opus Piano toca la
+                  pieza y te muestra el nombre de cada nota.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </button>
+      {error && <p className="px-2 text-xs text-bad">{error}</p>}
     </div>
   );
 }

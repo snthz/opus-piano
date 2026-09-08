@@ -163,7 +163,7 @@ export default function Page() {
             ["sol♯", "la♭"],
             ["la♯", "si♭"],
           ].map(([a, b]) => (
-            <div key={a} className="card-pastel bg-lavender py-3">
+            <div key={a} className="card-pastel bg-ash py-3">
               <span className="block font-semibold">{a}</span>
               <span className="block text-ink-2 text-xs">=</span>
               <span className="block font-semibold">{b}</span>

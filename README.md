@@ -62,6 +62,28 @@ bun run build             # build de producción (genera sw.js y salida standalo
 Los tests de integración necesitan una base de datos vacía o de pruebas: usan las rutas de la
 API directamente (sin levantar el servidor) y limpian las cuentas `@opus.test` al terminar.
 
+### Probar la imagen final en Docker
+
+El día a día es `bun run dev` (recarga en caliente). Esto otro levanta lo mismo que corre en el
+VPS —la imagen de producción más Postgres— para comprobar el build standalone, las migraciones
+al arrancar o el healthcheck antes de desplegar.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+curl localhost:3001/api/health       # {"ok":true} cuando la base de datos responde
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f web
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down          # parar (los datos siguen)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v       # parar y borrar datos
+```
+
+`WEB_PORT` y `DB_PORT` (en `.env`) eligen los puertos publicados; por defecto 3000 y 5432, que
+en local suele ocupar ya otro proyecto. `SITE_URL` se incrusta al compilar (canónicas, sitemap,
+Open Graph), así que debe coincidir con `WEB_PORT`; al cambiarlo hay que reconstruir (`--build`).
+
+Ojo con dos diferencias frente a `bun run dev`: al ser `NODE_ENV=production` la cookie de sesión
+lleva `Secure`, que los navegadores solo aceptan en `localhost` (por la IP de la red local el
+login no funciona); y el código va compilado, así que cada cambio necesita `--build`.
+
 ## Instalación en un VPS (Hostinger + Dokploy)
 
 La idea: **GitHub construye, el VPS solo descarga**. Compilar Next.js en un VPS de 1–2 GB se

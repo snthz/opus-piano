@@ -49,7 +49,7 @@ export function PlayButton({
       disabled={!settings.sound}
       title={settings.sound ? undefined : "El sonido está desactivado en Ajustes"}
       className={`inline-flex items-center gap-2 rounded-full font-medium transition-colors disabled:opacity-50 ${pad} ${
-        playing ? "bg-ink text-paper" : "bg-accent text-white hover:brightness-110"
+        playing ? "bg-bad text-bg" : "bg-accent text-bg hover:opacity-85"
       } ${className}`}
     >
       <span aria-hidden="true">{playing ? "■" : "▶"}</span>

@@ -51,7 +51,7 @@ export function SignupNudge({ when, title, text }: { when: boolean; title: strin
   return (
     <dialog ref={ref} onClose={close} onClick={(e) => e.target === e.currentTarget && close()} aria-labelledby="nudge-title" className="modal w-[min(100%-2rem,24rem)]">
       <div className="p-6 space-y-4">
-        <div className="w-12 h-12 rounded-full bg-lavender grid place-items-center text-2xl" aria-hidden>
+        <div className="w-12 h-12 rounded-full bg-ash grid place-items-center text-2xl" aria-hidden>
           🎹
         </div>
         <div>

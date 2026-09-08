@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Score } from "./score";
 import { PianoKeyboard } from "./piano-keyboard";
 import { PlayButton } from "@/components/audio/play-button";
+import { Select } from "@/components/ui/select";
 import { SCALES, buildScale } from "@/lib/music/scales";
 import { toMidi, toEasyScore, noteName, parsePitch } from "@/lib/music/pitch";
 import { useSettings } from "@/lib/settings";
@@ -41,23 +42,16 @@ export function ScaleExplorer() {
       <div className="flex flex-wrap gap-3">
         <label className="flex items-center gap-2 text-sm">
           <span className="text-ink-2">Tónica</span>
-          <select value={tonic} onChange={(e) => setTonic(e.target.value)} className="pill py-1.5">
-            {TONICS.map((t) => (
-              <option key={t} value={t}>
-                {noteName(parsePitch(t), settings.naming)}
-              </option>
-            ))}
-          </select>
+          <Select
+            variant="pill"
+            value={tonic}
+            onChange={setTonic}
+            options={TONICS.map((t) => ({ value: t, label: noteName(parsePitch(t), settings.naming) }))}
+          />
         </label>
         <label className="flex items-center gap-2 text-sm">
           <span className="text-ink-2">Escala</span>
-          <select value={scaleId} onChange={(e) => setScaleId(e.target.value)} className="pill py-1.5">
-            {SCALES.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <Select variant="pill" value={scaleId} onChange={setScaleId} options={SCALES.map((s) => ({ value: s.id, label: s.name }))} />
         </label>
       </div>
       <p className="text-sm text-ink-2">

@@ -141,7 +141,7 @@ export default async function GlossaryTermPage({ params }: Props) {
       </nav>
 
       <p className="mt-8 text-sm text-ink-2">
-        <Link href="/glossary" className="text-accent hover:underline">
+        <Link href="/glossary" className="text-accent underline underline-offset-2 decoration-ink-3 hover:decoration-ink transition-colors">
           ← Volver al glosario completo
         </Link>
       </p>

@@ -18,7 +18,8 @@
 }
 
 /* Sistema de diseño: fondo gris claro, superficies blancas muy redondeadas,
-   tarjetas pastel, píldoras negras para lo activo. */
+   tarjetas pastel, negro (--accent / --ink) para lo activo y las acciones
+   principales. Sin color de marca: el acento es la propia tinta. */
 :root {
   --bg: #f3f3f6;
   --surface: #ffffff;
@@ -29,20 +30,40 @@
   --ink-3: #9a9aa5;
   --line: #e5e5ea;
   --staff: #8e8e99;
-  --accent: #6b5fd6;
-  --accent-soft: #e9e5fa;
+  --accent: #111114;
+  --accent-soft: #ececf1;
   --ok: #2f9d68;
   --ok-soft: #d8f0e3;
   --bad: #d9534f;
   --bad-soft: #fbe0df;
   --yellow: #fbe9a6;
   --mint: #d5e8dd;
-  --lavender: #ddd5f1;
+  --ash: #e3e3ea;
   --pink: #f9d6e2;
   --blue: #e2e8fb;
   --peach: #fde1cf;
   --shadow: 0 1px 2px rgb(17 17 20 / 0.04), 0 10px 30px -14px rgb(17 17 20 / 0.18);
   --radius: 28px;
+  /* Alto de la cabecera fija (fila de marca + su borde). Lo usan las vistas a
+     pantalla completa —el lector de partituras— para no taparla. Si cambia el
+     alto en app-header.tsx, hay que cambiarlo aquí. */
+  --header-h: calc(4rem + 1px);
+}
+
+/* En escritorio la cabecera suma la fila de pestañas: 72 + 1 + 48 + 1. */
+@media (min-width: 48rem) {
+  :root {
+    --header-h: 122px;
+  }
+}
+
+/* Modo inmersivo: al ocultar los controles del lector, la cabecera se va con
+   ellos y la partitura se queda con toda la pantalla. */
+:root[data-immersive] {
+  --header-h: 0px;
+}
+:root[data-immersive] [data-app-header] {
+  display: none;
 }
 
 /* Paleta oscura. `data-theme` lo marca el script de arranque del layout a
@@ -58,15 +79,15 @@
   --ink-3: #7c7c88;
   --line: #2e2e36;
   --staff: #6e6e7b;
-  --accent: #9d93f0;
-  --accent-soft: #2d2850;
+  --accent: #f2f2f5;
+  --accent-soft: #2c2c34;
   --ok: #5fc48f;
   --ok-soft: #1f3a2c;
   --bad: #f07f7a;
   --bad-soft: #43242a;
   --yellow: #4d4218;
   --mint: #1f3a2d;
-  --lavender: #2e2750;
+  --ash: #31313a;
   --pink: #4a2535;
   --blue: #232b48;
   --peach: #4a3223;
@@ -90,7 +111,7 @@
   --color-bad-soft: var(--bad-soft);
   --color-yellow: var(--yellow);
   --color-mint: var(--mint);
-  --color-lavender: var(--lavender);
+  --color-ash: var(--ash);
   --color-pink: var(--pink);
   --color-blue: var(--blue);
   --color-peach: var(--peach);
@@ -183,23 +204,35 @@ body {
   transition: transform 0.15s ease;
 }
 
-/* Píldora (pestaña/filtro) */
+/* Píldora (pestaña/filtro): contorno fino en lugar de sombra, para que la
+   opción sin seleccionar se distinga del fondo de la tarjeta. */
 @utility pill {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 1.1rem;
+  padding: calc(0.6rem - 1px) calc(1.1rem - 1px);
   border-radius: 9999px;
   font-size: 0.875rem;
   font-weight: 500;
   background: var(--surface);
   color: var(--ink-2);
-  box-shadow: var(--shadow);
-  transition: background 0.15s ease, color 0.15s ease;
+  border: 1px solid var(--line);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+/* `:not(.pill-active)`: la regla de hover queda fuera de capa y, sin esa
+   exclusión, ganaría por especificidad al fondo negro de la píldora activa. */
+.pill:hover:not(:disabled):not(.pill-active) {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--ink) 20%, var(--line));
 }
 @utility pill-active {
   background: var(--ink);
   color: var(--bg);
+  border-color: var(--ink);
+}
+/* Píldora en rojo (confirmaciones destructivas): el contorno acompaña al fondo. */
+.pill.bg-bad {
+  border-color: var(--bad);
 }
 
 /* Suma (no max): en Android el gesto del sistema a veces se solapa aunque
@@ -241,6 +274,45 @@ body {
   border-radius: inherit;
 }
 
+/* Hoja inferior (<dialog>): sube desde abajo pegada al borde, esquinas redondas
+   solo arriba, y en pantallas anchas se queda centrada con un ancho máximo. */
+@utility sheet {
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  max-width: 44rem;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -20px 60px -20px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+  max-height: 92vh;
+  max-height: 92dvh;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet[open] {
+  animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet::backdrop {
+  background: rgb(17 17 20 / 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.sheet > * {
+  max-height: inherit;
+  display: flex;
+  flex-direction: column;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
 /* Botón principal (acento) y secundario (superficie), a todo el ancho cuando toca. */
 @utility btn-primary {
   display: inline-flex;
@@ -252,11 +324,11 @@ body {
   font-size: 0.9375rem;
   font-weight: 600;
   background: var(--accent);
-  color: #fff;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  color: var(--bg);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 .btn-primary:hover {
-  filter: brightness(1.08);
+  opacity: 0.85;
 }
 .btn-primary:active {
   transform: translateY(1px);
@@ -336,4 +408,88 @@ body {
   outline: none;
   border-color: var(--ink);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+/* Botón discreto: superficie con borde fino, sin sombra flotante (la sombra de
+   `pill` flota mal cuando el botón va dentro de una tarjeta blanca). */
+@utility btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.btn-quiet:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: color-mix(in srgb, var(--ink) 20%, var(--line));
+}
+.btn-quiet:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-quiet:disabled {
+  opacity: 0.45;
+}
+
+/* Acción destructiva: contorno rojo que se rellena al pasar por encima. */
+@utility btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent);
+  background: transparent;
+  color: var(--bad);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+}
+.btn-danger:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-danger:disabled {
+  opacity: 0.45;
+}
+
+/* Confirmación destructiva: rojo macizo. */
+@utility btn-danger-solid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 9999px;
+  border: 1px solid var(--bad);
+  background: var(--bad);
+  color: var(--bg);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.btn-danger-solid:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.btn-danger-solid:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-danger-solid:disabled {
+  opacity: 0.45;
 }

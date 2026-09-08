@@ -56,6 +56,8 @@ export interface GenerateInput {
   parsed: ParsedScore | null;
   pdf: { blob: Blob; pageCount: number } | null;
   onStatus?: (text: string) => void;
+  /** Fracción hecha (0 a 1) mientras se preparan las páginas; null mientras responde el modelo, que no avisa de su avance */
+  onProgress?: (fraction: number | null) => void;
   signal?: AbortSignal;
 }
 
@@ -66,7 +68,10 @@ export async function generatePlan(input: GenerateInput): Promise<PlanState> {
   if (input.pdf) {
     input.onStatus?.("Preparando las páginas de la partitura…");
     const edge = maxImageEdge(input.target.provider, input.target.model);
-    pages = await renderPagesForAi(input.pdf.blob, input.pdf.pageCount, edge, (n, t) => input.onStatus?.(`Preparando la página ${n} de ${t}…`));
+    pages = await renderPagesForAi(input.pdf.blob, input.pdf.pageCount, edge, (n, t) => {
+      input.onStatus?.(`Preparando la página ${n} de ${t}…`);
+      input.onProgress?.(n / t);
+    });
   }
   const req = {
     level: input.level,
@@ -81,6 +86,7 @@ export async function generatePlan(input: GenerateInput): Promise<PlanState> {
   };
   const content: InputPart[] = [{ type: "text", text: planUserMessage(req) }, ...pages.map((p): InputPart => ({ type: "image", dataUrl: p }))];
   input.onStatus?.("El profesor está estudiando la partitura y preparando el plan… suele tardar uno o dos minutos.");
+  input.onProgress?.(null);
   const text = await requestJson(
     input.target,
     { instructions: planInstructions(req), content, schemaName: "plan_de_estudio", schema: STUDY_PLAN_SCHEMA, effort: "medium", maxOutputTokens: 16_000 },

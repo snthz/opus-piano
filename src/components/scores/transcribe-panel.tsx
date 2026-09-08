@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { activeTarget, isAiReady, useAiConfig } from "@/lib/ai/config";
-import { AiError, isAbort } from "@/lib/ai/errors";
+import { cancelJob, dismissJob, startJob, useJob } from "@/lib/ai/jobs";
 import { estimateTranscriptionCost, formatCost, modelById } from "@/lib/ai/models";
 import { transcribeScore, type TranscribeOutcome } from "@/lib/ai/transcribe-client";
 import { MAX_TRANSCRIBE_PAGES } from "@/lib/ai/transcribe";
 import { AiSettings } from "@/components/settings/ai-settings";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { ProgressRing } from "@/components/ui/progress-ring";
 
 interface Props {
+  scoreId: string;
   scoreName: string;
   pdf: Blob;
   pageCount: number;
@@ -24,26 +26,28 @@ const XML_TYPE = "application/vnd.recordare.musicxml+xml";
 
 /**
  * Transcribe las páginas de un PDF a MusicXML con el modelo de visión del
- * usuario. El resultado es un borrador y el panel no lo disimula: enseña
- * cuántos compases han salido, qué compases no cuadran y deja descargar el
- * archivo para arreglarlo en MuseScore antes de darlo por bueno.
+ * usuario. La tarea corre en segundo plano (ver `lib/ai/jobs`): se puede
+ * cerrar el panel y volver cuando el anillo del lector diga que ha acabado.
+ * El resultado es un borrador y el panel no lo disimula: enseña cuántos
+ * compases han salido, qué compases no cuadran y deja descargar el archivo
+ * para arreglarlo en MuseScore antes de darlo por bueno.
  */
-export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, onUse }: Props) {
+export function TranscribePanel({ scoreId, scoreName, pdf, pageCount, hasXml, onClose, onUse }: Props) {
   const config = useAiConfig();
+  const job = useJob("transcribe", scoreId);
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(Math.min(pageCount, MAX_TRANSCRIBE_PAGES));
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<TranscribeOutcome | null>(null);
   const [saved, setSaved] = useState(false);
-  const abort = useRef<AbortController | null>(null);
-
-  useEffect(() => () => abort.current?.abort(), []);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const ready = isAiReady(config);
   const target = activeTarget(config);
   const model = modelById(target.provider, target.model);
   const pages = Math.max(0, to - from + 1);
+
+  const running = job?.status === "running" ? job : null;
+  const result = job?.status === "done" ? job.result : null;
+  const error = linkError ?? (job?.status === "error" ? job.error : null);
 
   const clampFrom = (v: number) => {
     const next = Math.max(1, Math.min(pageCount, v || 1));
@@ -52,23 +56,26 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
   };
   const clampTo = (v: number) => setTo(Math.max(from, Math.min(pageCount, from + MAX_TRANSCRIBE_PAGES - 1, v || 1)));
 
-  const run = async () => {
+  const run = () => {
     if (!ready || !pages) return;
-    setError(null);
-    setResult(null);
     setSaved(false);
-    setStatus("Empezando…");
-    abort.current?.abort();
-    const ac = new AbortController();
-    abort.current = ac;
-    try {
-      setResult(await transcribeScore({ target, scoreName, pdf, from, to, onStatus: setStatus, signal: ac.signal }));
-    } catch (e) {
-      if (!isAbort(e)) setError(e instanceof AiError ? e.message : "No se pudo transcribir la partitura. Vuelve a intentarlo.");
-    } finally {
-      if (abort.current === ac) abort.current = null;
-      setStatus(null);
-    }
+    setLinkError(null);
+    startJob(
+      "transcribe",
+      { id: scoreId, name: scoreName },
+      ({ signal, report }) =>
+        transcribeScore({
+          target,
+          scoreName,
+          pdf,
+          from,
+          to,
+          onStatus: (label) => report({ label }),
+          onProgress: (progress) => report({ progress }),
+          signal,
+        }),
+      "No se pudo transcribir la partitura. Vuelve a intentarlo.",
+    );
   };
 
   const use = async () => {
@@ -77,7 +84,7 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
       await onUse(result.xml);
       setSaved(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo vincular la transcripción.");
+      setLinkError(e instanceof Error ? e.message : "No se pudo vincular la transcripción.");
     }
   };
 
@@ -91,10 +98,18 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
     URL.revokeObjectURL(url);
   };
 
+  const discard = () => dismissJob("transcribe", scoreId);
+
+  // Al cerrar, lo ya atendido (vinculado o fallido) deja de reclamar atención en el lector.
+  const close = () => {
+    if (job?.status === "error" || (job?.status === "done" && saved)) discard();
+    onClose();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button type="button" onClick={onClose} className="btn-circle w-10 h-10 shrink-0" aria-label="Cerrar la transcripción">
+        <button type="button" onClick={close} className="btn-circle w-10 h-10 shrink-0" aria-label="Cerrar la transcripción">
           <ChevronIcon dir="left" className="w-5 h-5" />
         </button>
         <div className="min-w-0 flex-1">
@@ -133,8 +148,9 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
                   min={1}
                   max={pageCount}
                   value={from}
+                  disabled={!!running}
                   onChange={(e) => clampFrom(Number(e.target.value))}
-                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
                 />
               </label>
               <label className="block space-y-1">
@@ -144,8 +160,9 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
                   min={from}
                   max={pageCount}
                   value={to}
+                  disabled={!!running}
                   onChange={(e) => clampTo(Number(e.target.value))}
-                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
                 />
               </label>
             </div>
@@ -169,15 +186,19 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
 
             {error && <p className="text-sm text-bad">{error}</p>}
 
-            {status ? (
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-ink-2 flex-1 animate-pulse">{status}</p>
-                <button type="button" onClick={() => abort.current?.abort()} className="pill text-xs py-1.5">
-                  Cancelar
-                </button>
+            {running ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <ProgressRing progress={running.progress} className="w-9 h-9 shrink-0 text-ink" />
+                  <p className="text-sm text-ink-2 flex-1">{running.label}</p>
+                  <button type="button" onClick={() => cancelJob("transcribe", scoreId)} className="pill text-xs py-1.5">
+                    Cancelar
+                  </button>
+                </div>
+                <p className="text-xs text-ink-3">Puedes cerrar este panel y seguir leyendo: la transcripción continúa en segundo plano y el anillo del lector te avisa cuando esté lista.</p>
               </div>
             ) : (
-              <button type="button" onClick={() => void run()} disabled={!pages} className="btn-primary text-sm disabled:opacity-50">
+              <button type="button" onClick={run} disabled={!pages} className="btn-primary text-sm disabled:opacity-50">
                 {result ? "Transcribir otra vez" : "Transcribir"}
               </button>
             )}
@@ -185,7 +206,7 @@ export function TranscribePanel({ scoreName, pdf, pageCount, hasXml, onClose, on
         )}
       </section>
 
-      {result && <Result result={result} hasXml={hasXml} saved={saved} onUse={() => void use()} onDownload={download} />}
+      {result && <Result result={result} hasXml={hasXml} saved={saved} onUse={() => void use()} onDownload={download} onDiscard={discard} />}
     </div>
   );
 }
@@ -196,12 +217,14 @@ function Result({
   saved,
   onUse,
   onDownload,
+  onDiscard,
 }: {
   result: TranscribeOutcome;
   hasXml: boolean;
   saved: boolean;
   onUse: () => void;
   onDownload: () => void;
+  onDiscard: () => void;
 }) {
   const measures = result.score.measures.length;
   return (
@@ -242,7 +265,13 @@ function Result({
         <button type="button" onClick={onDownload} className="pill text-xs py-1.5">
           Descargar .musicxml
         </button>
-        {saved && <span className="text-xs text-ink-2">Vinculado. Ya puedes cerrar y darle a reproducir.</span>}
+        {saved ? (
+          <span className="text-xs text-ink-2">Vinculado. Ya puedes cerrar y darle a reproducir.</span>
+        ) : (
+          <button type="button" onClick={onDiscard} className="text-xs text-ink-2 hover:underline">
+            Descartar
+          </button>
+        )}
       </div>
     </section>
   );

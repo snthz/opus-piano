@@ -3,7 +3,10 @@
 import { useRef, useState } from "react";
 import { updateScoreNotes, type ScoreRecord } from "@/lib/scores-db";
 import type { PlanState } from "@/lib/study-plan";
+import { useJob } from "@/lib/ai/jobs";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { Sheet } from "@/components/ui/sheet";
+import { JobIndicator } from "./job-indicator";
 import { MusicXmlViewer } from "./musicxml-viewer";
 import { PdfReader } from "./pdf-reader";
 import { StudyPlanPanel } from "./study-plan";
@@ -27,6 +30,7 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
   const [notes, setNotes] = useState(record.notes);
   const [showNotes, setShowNotes] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
+  const planJob = useJob("plan", record.id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -44,6 +48,7 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
           <ChevronIcon dir="left" className="w-5 h-5" />
         </button>
         <h1 className="font-bold truncate flex-1 min-w-0">{record.name}</h1>
+        {planJob && <JobIndicator job={planJob} onOpen={() => setShowPlan(true)} />}
         <button type="button" onClick={() => setShowPlan((v) => !v)} className={`pill text-xs py-1.5 ${showPlan ? "pill-active" : ""}`}>
           Plan{record.plan ? " ✓" : ""}
         </button>
@@ -71,11 +76,12 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
         />
       )}
 
-      {showPlan ? (
-        <StudyPlanPanel record={record} xml={record.file} onClose={() => setShowPlan(false)} onPlanChange={onPlanChange} />
-      ) : (
-        <MusicXmlViewer file={record.file} />
-      )}
+      <MusicXmlViewer file={record.file} />
+
+      {/* El plan se abre como hoja sobre la partitura, igual que en el lector de PDF. */}
+      <Sheet open={showPlan} onClose={() => setShowPlan(false)} title="Plan de estudio" subtitle={record.name}>
+        <StudyPlanPanel record={record} xml={record.file} onPlanChange={onPlanChange} />
+      </Sheet>
     </div>
   );
 }

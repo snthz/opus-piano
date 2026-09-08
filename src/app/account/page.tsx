@@ -13,7 +13,7 @@ export const metadata = pageMetadata({
 
 export default function CuentaPage() {
   return (
-    <div className="max-w-md">
+    <div className="max-w-2xl">
       <PageHeader
         eyebrow="Cuenta"
         title="Tu progreso, en todos tus dispositivos"

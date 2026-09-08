@@ -41,7 +41,7 @@ export default function FaqPage() {
             <h2 className="font-semibold text-lg tracking-tight leading-snug">{item.question}</h2>
             <p className="mt-2 text-ink-2 leading-relaxed">{item.answer}</p>
             {item.link && (
-              <Link href={item.link.href} className="inline-block mt-3 text-sm text-accent hover:underline">
+              <Link href={item.link.href} className="inline-block mt-3 text-sm text-accent underline underline-offset-2 decoration-ink-3 hover:decoration-ink transition-colors">
                 {item.link.label} →
               </Link>
             )}
@@ -49,7 +49,7 @@ export default function FaqPage() {
         ))}
       </div>
 
-      <section className="mt-10 card-pastel bg-lavender p-6">
+      <section className="mt-10 card-pastel bg-ash p-6">
         <h2 className="text-xl font-semibold tracking-tight">¿Empezamos?</h2>
         <p className="mt-2 text-ink-2 leading-relaxed">
           La primera lección son seis minutos y no hace falta instrumento.

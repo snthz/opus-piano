@@ -98,7 +98,7 @@ export function KeyboardReading() {
       stats={stats}
       feedback={feedback}
       onNext={next}
-      color="bg-lavender"
+      color="bg-ash"
       settings={
         <>
           <SettingRow label="Clave">

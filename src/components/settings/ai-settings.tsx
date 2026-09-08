@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
 import { clearAiConfig, setKey, setModel, setProvider, useAiConfig } from "@/lib/ai/config";
 import { estimatePlanCost, formatCost, modelById, modelsOf, providerById, PROVIDERS, type AiModel, type Provider } from "@/lib/ai/models";
+
+/** Valor de la opción que abre el campo de identificador libre. */
+const CUSTOM = "__custom__";
 
 /**
  * Proveedor, clave de API y modelo para el plan de estudio con IA. Todo se
@@ -17,7 +21,9 @@ export function AiSettings({ compact = false }: { compact?: boolean }) {
   const model = config.models[config.provider];
   const [show, setShow] = useState(false);
   const known = modelById(config.provider, model);
-  const [custom, setCustom] = useState(!known && model !== "");
+  // Un modelo guardado que ya no está en el catálogo abre el campo libre solo.
+  const [customOpen, setCustomOpen] = useState(false);
+  const custom = customOpen || !known;
 
   return (
     <div className="space-y-4">
@@ -36,7 +42,10 @@ export function AiSettings({ compact = false }: { compact?: boolean }) {
             <button
               key={p.id}
               type="button"
-              onClick={() => setProvider(p.id)}
+              onClick={() => {
+                setCustomOpen(false);
+                setProvider(p.id);
+              }}
               className={`pill text-xs py-1.5 ${config.provider === p.id ? "pill-active" : ""}`}
               aria-pressed={config.provider === p.id}
             >
@@ -75,36 +84,39 @@ export function AiSettings({ compact = false }: { compact?: boolean }) {
       </label>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">Modelo</p>
-        <div className="grid gap-2" role="radiogroup" aria-label="Modelo">
-          {modelsOf(config.provider).map((m) => (
-            <ModelCard
-              key={m.id}
-              model={m}
-              selected={!custom && model === m.id}
-              onSelect={() => {
-                setCustom(false);
-                setModel(config.provider, m.id);
-              }}
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">Modelo</span>
+          <Select
+            value={custom ? CUSTOM : model}
+            onChange={(next) => {
+              if (next === CUSTOM) {
+                setCustomOpen(true);
+                return;
+              }
+              setCustomOpen(false);
+              setModel(config.provider, next);
+            }}
+            options={[
+              ...modelsOf(config.provider).map((m) => ({ value: m.id, label: m.name, hint: m.recommended ? "recomendado" : undefined })),
+              { value: CUSTOM, label: "Otro modelo…" },
+            ]}
+          />
+        </label>
+
+        {custom ? (
+          <label className="block space-y-1">
+            <span className="block text-xs text-ink-3">Escribe el identificador exacto del modelo en {provider.name}.</span>
+            <input
+              value={known ? "" : model}
+              onChange={(e) => setModel(config.provider, e.target.value)}
+              placeholder={config.provider === "openai" ? "gpt-…" : "claude-…"}
+              spellCheck={false}
+              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 font-mono focus:outline-none focus:ring-2 focus:ring-accent"
             />
-          ))}
-          <label className={`rounded-2xl px-4 py-3 border-2 cursor-pointer ${custom ? "border-accent bg-accent-soft/40" : "border-transparent bg-surface-2"}`}>
-            <span className="flex items-center gap-2">
-              <input type="radio" name="ai-model" checked={custom} onChange={() => setCustom(true)} className="accent-(--accent)" />
-              <span className="text-sm font-medium">Otro modelo</span>
-              <span className="text-xs text-ink-3">escribe su identificador exacto</span>
-            </span>
-            {custom && (
-              <input
-                value={known ? "" : model}
-                onChange={(e) => setModel(config.provider, e.target.value)}
-                placeholder={config.provider === "openai" ? "gpt-…" : "claude-…"}
-                spellCheck={false}
-                className="mt-2 w-full rounded-2xl px-3 py-2 text-sm bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            )}
           </label>
-        </div>
+        ) : (
+          known && <ModelInfo model={known} />
+        )}
       </div>
 
       {!compact && (config.keys.openai || config.keys.anthropic) && (
@@ -118,26 +130,22 @@ export function AiSettings({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function ModelCard({ model, selected, onSelect }: { model: AiModel; selected: boolean; onSelect: () => void }) {
+function ModelInfo({ model }: { model: AiModel }) {
   return (
-    <label className={`rounded-2xl px-4 py-3 border-2 cursor-pointer ${selected ? "border-accent bg-accent-soft/40" : "border-transparent bg-surface-2"}`}>
-      <span className="flex items-start gap-3">
-        <input type="radio" name="ai-model" checked={selected} onChange={onSelect} className="accent-(--accent) mt-1" />
-        <span className="min-w-0 flex-1 space-y-1.5">
-          <span className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold">{model.name}</span>
-            {model.recommended && <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-accent text-white">Recomendado</span>}
-            <span className="text-xs text-ink-3 ml-auto">{formatCost(estimatePlanCost(model))} por plan</span>
-          </span>
-          <span className="block text-xs text-ink-2">{model.tagline}</span>
-          <span className="grid grid-cols-3 gap-2 text-xs">
-            <Stars label="Rapidez" value={model.speed} />
-            <Stars label="Precisión" value={model.precision} />
-            <Stars label="Economía" value={model.economy} />
-          </span>
-        </span>
+    <div className="rounded-2xl px-4 py-3 bg-surface-2 space-y-1.5">
+      <span className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-semibold">{model.name}</span>
+        {model.recommended && <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-accent text-bg">Recomendado</span>}
+        <span className="text-xs text-ink-3 ml-auto">{formatCost(estimatePlanCost(model))} por plan</span>
       </span>
-    </label>
+      <span className="block text-xs text-ink-2">{model.tagline}</span>
+      <span className="grid grid-cols-3 gap-2 text-xs">
+        <Stars label="Rapidez" value={model.speed} />
+        <Stars label="Precisión" value={model.precision} />
+        <Stars label="Economía" value={model.economy} />
+      </span>
+      <span className="block text-xs text-ink-3 font-mono">{model.id}</span>
+    </div>
   );
 }
 

@@ -31,7 +31,7 @@ export function MusicXmlViewer({ file }: Props) {
           type="button"
           onClick={() => void player.toggle()}
           disabled={!settings.sound}
-          className={`pill py-1.5 text-sm ${player.playing ? "pill-active" : "bg-accent text-white"} disabled:opacity-50`}
+          className={`pill py-1.5 text-sm ${player.playing ? "bg-bad text-bg" : "bg-accent text-bg"} disabled:opacity-50`}
         >
           {player.playing ? "■ Detener" : "▶ Escuchar"}
         </button>

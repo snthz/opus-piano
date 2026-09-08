@@ -42,7 +42,7 @@ export function GlossaryList() {
             href={`#letra-${l}`}
             aria-disabled={!available.has(l)}
             className={`w-8 h-8 grid place-items-center rounded-full text-xs font-semibold transition-colors ${
-              available.has(l) ? "bg-surface-2 hover:bg-lavender" : "text-ink-3 pointer-events-none opacity-40"
+              available.has(l) ? "bg-surface-2 hover:bg-ash" : "text-ink-3 pointer-events-none opacity-40"
             }`}
           >
             {l}
@@ -75,7 +75,7 @@ export function GlossaryList() {
                   </h3>
                   <p className="text-sm text-ink-2 mt-0.5">{e.definition}</p>
                   {e.href && (
-                    <Link href={normalizePath(e.href)} className="text-xs text-accent hover:underline mt-1 inline-block">
+                    <Link href={normalizePath(e.href)} className="text-xs text-accent underline underline-offset-2 decoration-ink-3 hover:decoration-ink transition-colors mt-1 inline-block">
                       Ver la lección →
                     </Link>
                   )}

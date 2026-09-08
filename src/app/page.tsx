@@ -7,7 +7,7 @@ import { lessonPath } from "@/lib/routes";
 const modules = [
   { href: "/theory", title: "Teoría", text: "Leer partituras paso a paso", glyph: "gClef", color: "bg-yellow" },
   { href: "/practice", title: "Práctica", text: "Notas, ritmo, solfeo y símbolos", glyph: "noteQuarterUp", color: "bg-mint" },
-  { href: "/scores", title: "Partituras", text: "Tus PDF y MusicXML, en todos tus dispositivos", glyph: "fClef", color: "bg-lavender" },
+  { href: "/scores", title: "Partituras", text: "Tus PDF y MusicXML, en todos tus dispositivos", glyph: "fClef", color: "bg-ash" },
   { href: "/glossary", title: "Glosario", text: "Términos de la A a la Z", glyph: "dynamicForte", color: "bg-pink" },
 ];
 

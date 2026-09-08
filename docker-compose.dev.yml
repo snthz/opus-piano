@@ -3,15 +3,21 @@
 # de esperar la que ya existe en el servidor.
 # Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 #      docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build web   # probar la imagen final
+# Los puertos son variables (WEB_PORT / DB_PORT en .env) porque en local es
+# habitual tener ya algo escuchando en 3000 o en 5432.
 services:
   web:
-    build: .
+    build:
+      context: .
+      # El dominio se incrusta al compilar; en local apunta a la máquina, no a producción.
+      args:
+        SITE_URL: ${SITE_URL:-http://localhost:3000}
     pull_policy: build
     ports:
       - "${WEB_PORT:-3000}:3000"
   db:
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
 
 networks:
   dokploy-network:

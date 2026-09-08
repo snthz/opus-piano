@@ -55,7 +55,7 @@ export interface AiModel {
   recommended?: boolean;
   /** Anthropic: admite `thinking: adaptive` y `output_config.effort` */
   adaptive?: boolean;
-  /** Anthropic: usar `fallbacks: "default"` por si el modelo rehúsa (Opus 5 y Fable) */
+  /** Anthropic: usar `fallbacks: "default"` por si el modelo rehúsa (Opus 5) */
   fallbacks?: boolean;
   /** Lado largo en píxeles que procesa sin reescalar, si no es el de su proveedor */
   imageEdge?: number;
@@ -65,15 +65,11 @@ export const AI_MODELS: AiModel[] = [
   /* ---- OpenAI (developers.openai.com/api/docs/pricing) ---- */
   { provider: "openai", id: "gpt-5.6-terra", name: "GPT-5.6 Terra", tagline: "Equilibrio entre precisión, rapidez y precio.", speed: 4, precision: 4, economy: 3, input: 2, output: 12, recommended: true },
   { provider: "openai", id: "gpt-5.6-sol", name: "GPT-5.6 Sol", tagline: "Máxima precisión leyendo la partitura; más lento y caro.", speed: 3, precision: 5, economy: 2, input: 4, output: 20 },
-  { provider: "openai", id: "gpt-6-astra", name: "GPT-6 Astra", tagline: "El modelo más capaz de OpenAI. Muy caro para un plan de estudio.", speed: 2, precision: 5, economy: 1, input: 10, output: 50 },
   { provider: "openai", id: "gpt-5.6-luna", name: "GPT-5.6 Luna", tagline: "Rápido y muy barato; puede equivocarse en detalles de la partitura.", speed: 5, precision: 3, economy: 5, input: 0.2, output: 1.2 },
-  { provider: "openai", id: "gpt-5.4-mini", name: "GPT-5.4 mini", tagline: "Generación anterior, ligero y económico.", speed: 4, precision: 3, economy: 4, input: 0.75, output: 4.5 },
-  { provider: "openai", id: "gpt-5-mini", name: "GPT-5 mini", tagline: "El más barato de OpenAI; para probar sin gastar.", speed: 4, precision: 2, economy: 5, input: 0.25, output: 2 },
 
   /* ---- Anthropic (platform.claude.com/docs/en/about-claude/pricing) ---- */
   { provider: "anthropic", id: "claude-sonnet-5", name: "Claude Sonnet 5", tagline: "Equilibrio entre precisión, rapidez y precio.", speed: 4, precision: 4, economy: 3, input: 2, output: 10, recommended: true, adaptive: true },
   { provider: "anthropic", id: "claude-opus-5", name: "Claude Opus 5", tagline: "Máxima precisión leyendo la partitura; más lento y caro.", speed: 3, precision: 5, economy: 2, input: 5, output: 25, adaptive: true, fallbacks: true },
-  { provider: "anthropic", id: "claude-fable-5-1", name: "Claude Fable 5.1", tagline: "El modelo más capaz de Anthropic. Muy caro para un plan de estudio.", speed: 2, precision: 5, economy: 1, input: 10, output: 50, adaptive: true, fallbacks: true },
   { provider: "anthropic", id: "claude-haiku-4-5", name: "Claude Haiku 4.5", tagline: "Rápido y barato; puede equivocarse en detalles de la partitura.", speed: 5, precision: 3, economy: 4, input: 1, output: 5, imageEdge: 1568 },
 ];
 

@@ -85,7 +85,7 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
       {guide && (
         <>
           <div
-            className="absolute rounded-sm pointer-events-none bg-accent/15 transition-[left,top,width,height] duration-150"
+            className="absolute rounded-sm pointer-events-none bg-ok/20 transition-[left,top,width,height] duration-150"
             style={{
               left: guide.box.x0 * cssW,
               top: guide.box.top * cssH,
@@ -94,7 +94,7 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
             }}
           />
           <div
-            className="absolute w-0.5 pointer-events-none bg-accent"
+            className="absolute w-0.5 pointer-events-none bg-ok"
             style={{
               left: (guide.box.x0 + guide.frac * (guide.box.x1 - guide.box.x0)) * cssW,
               top: guide.box.top * cssH,

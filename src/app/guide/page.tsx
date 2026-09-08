@@ -375,7 +375,7 @@ function WeekItem({
       <p className="text-xs text-ink-3 uppercase tracking-wider">{week}</p>
       <h3 className="font-semibold mt-0.5">{title}</h3>
       <p className="text-sm text-ink-2 mt-1 leading-relaxed">{text}</p>
-      <Link href={href} className="inline-block mt-2 text-sm text-accent hover:underline">
+      <Link href={href} className="inline-block mt-2 text-sm text-accent underline underline-offset-2 decoration-ink-3 hover:decoration-ink transition-colors">
         {cta} →
       </Link>
     </li>

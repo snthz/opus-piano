@@ -26,6 +26,10 @@ export interface PianoKeyboardProps {
   aspect?: number;
 }
 
+/* Las teclas llevan colores fijos (un piano es un piano en cualquier tema),
+   así que el resaltado también: ámbar, legible sobre blanca y negra. */
+const HIGHLIGHT = "#f0a92b";
+
 const WHITE_W = 24;
 const BLACK_W = 14;
 
@@ -77,7 +81,7 @@ export function PianoKeyboard({
   };
 
   const fillFor = (midi: number, black: boolean) => {
-    if (highlight.includes(midi)) return "var(--accent)";
+    if (highlight.includes(midi)) return HIGHLIGHT;
     if (highlightAlt.includes(midi)) return "var(--ok)";
     if (pressed === midi) return black ? "#4a4650" : "#e6e6ee";
     return black ? "#1c1917" : "#fbf7ef";
@@ -117,14 +121,14 @@ export function PianoKeyboard({
               textAnchor="middle"
               fontSize={k.midi === 60 && markMiddleC ? 6.5 : 5.5}
               fontWeight={k.midi === 60 && markMiddleC ? 700 : 500}
-              fill={highlight.includes(k.midi) ? "#ffffff" : "#57534e"}
+              fill={highlight.includes(k.midi) ? "#3b2a08" : "#57534e"}
               fontFamily="var(--font-sans)"
             >
               {labelFor(k.midi)}
             </text>
           )}
           {markMiddleC && k.midi === 60 && (
-            <circle cx={k.x + WHITE_W / 2} cy={height - 16} r={2} fill="var(--accent)" />
+            <circle cx={k.x + WHITE_W / 2} cy={height - 16} r={2} fill="#57534e" />
           )}
         </g>
       ))}

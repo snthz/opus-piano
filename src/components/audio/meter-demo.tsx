@@ -78,7 +78,7 @@ export function MeterDemo({ ts, initialBpm = 90 }: { ts: TimeSignature; initialB
             <div key={i} className="flex flex-col items-center gap-1">
               <div
                 className={`rounded-full transition-all duration-75 ${
-                  active ? "bg-accent scale-110" : acc === 1 ? "bg-ink" : acc === 0.5 ? "bg-ink-2" : "bg-surface-3"
+                  active ? "bg-ok scale-110" : acc === 1 ? "bg-ink" : acc === 0.5 ? "bg-ink-2" : "bg-surface-3"
                 }`}
                 style={{ width: size, height: size }}
               />
@@ -88,7 +88,7 @@ export function MeterDemo({ ts, initialBpm = 90 }: { ts: TimeSignature; initialB
                   {Array.from({ length: subdivision }).map((_, s) => (
                     <span
                       key={s}
-                      className={`w-1.5 h-1.5 rounded-full ${active && sub === s ? "bg-accent" : "bg-surface-3"}`}
+                      className={`w-1.5 h-1.5 rounded-full ${active && sub === s ? "bg-ok" : "bg-surface-3"}`}
                     />
                   ))}
                 </div>

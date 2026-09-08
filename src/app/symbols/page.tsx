@@ -22,7 +22,7 @@ export const metadata = pageMetadata({
   ],
 });
 
-const COLORS = ["bg-yellow", "bg-mint", "bg-lavender", "bg-pink", "bg-blue", "bg-peach"];
+const COLORS = ["bg-yellow", "bg-mint", "bg-ash", "bg-pink", "bg-blue", "bg-peach"];
 
 /** El glifo más alto de la familia: el que mejor se lee ampliado y difuminado. */
 function watermarkGlyph(category: SymbolCategory): string {

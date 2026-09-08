@@ -22,7 +22,7 @@ export function SymbolCard({ s, compact = false }: { s: SymbolEntry; compact?: b
         <h3 className="font-semibold leading-tight">{s.name}</h3>
         {s.alt && s.alt.length > 0 && <p className="text-xs text-ink-3 mt-0.5">{s.alt.join(" · ")}</p>}
         {!compact && <p className="text-sm text-ink-2 mt-2 leading-relaxed">{s.meaning}</p>}
-        {!compact && s.tip && <p className="text-sm mt-2 text-accent">Al piano: {s.tip}</p>}
+        {!compact && s.tip && <p className="text-sm mt-2 font-medium text-ink">Al piano: {s.tip}</p>}
       </div>
     </div>
   );

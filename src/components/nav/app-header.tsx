@@ -29,6 +29,8 @@ const AUTH_PATHS = ["/login", "/register"];
  * secciones con el desplegable «Explorar» que lista lecciones y ejercicios.
  * En móvil solo se ve la fila de arriba: la navegación está abajo (AppNav).
  * En /login y /register la fila de pestañas se oculta para no distraer.
+ * Su alto vive también en `--header-h` (globals.css): al cambiarlo aquí, hay
+ * que ajustarlo allí para que el lector de partituras siga cuadrando.
  */
 export function AppHeader() {
   const pathname = usePathname();
@@ -36,7 +38,8 @@ export function AppHeader() {
   const authPage = AUTH_PATHS.includes(pathname);
 
   return (
-    <header className="sticky top-0 z-40 bg-surface border-b border-line">
+    // data-app-header: el lector de partituras la esconde al ocultar sus controles.
+    <header data-app-header className="sticky top-0 z-40 bg-surface border-b border-line">
       <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 md:h-[72px] flex items-center gap-2 md:gap-3">
         <Logo />
         <div className="flex-1" />
@@ -57,7 +60,7 @@ export function AppHeader() {
             aria-label={`Cuenta de ${user.name}`}
             title={user.name}
             className={`grid place-items-center w-10 h-10 rounded-xl text-sm font-bold transition-colors ${
-              isActive(pathname, "/account") ? "bg-ink text-bg" : "bg-lavender text-ink hover:opacity-80"
+              isActive(pathname, "/account") ? "bg-ink text-bg" : "bg-ash text-ink hover:opacity-80"
             }`}
           >
             {user.name.trim()[0]?.toUpperCase()}
