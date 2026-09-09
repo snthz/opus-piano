@@ -22,7 +22,11 @@ describe("digitaciones de escalas", () => {
 
   test("el arpegio solo se digita con la tónica en tecla blanca", () => {
     expect(arpeggioFingering(keyByVex("G"))).toEqual({ rh: [1, 2, 3, 5], lh: [5, 3, 2, 1] });
-    expect(arpeggioFingering(keyByVex("Eb"))).toBeNull();
+    // black-key tonics: thumb on the first white chord tone
+    expect(arpeggioFingering(keyByVex("Eb"))).toEqual({ rh: [2, 1, 2, 4], lh: [2, 1, 4, 2] });
+    expect(arpeggioFingering(keyByVex("Bb"))).toEqual({ rh: [2, 1, 2, 4], lh: [3, 2, 1, 3] });
+    expect(arpeggioFingering(keyByVex("F#m"))).toEqual({ rh: [2, 1, 2, 4], lh: [2, 1, 4, 2] });
+    for (const k of ALL_KEYS) expect(arpeggioFingering(k).rh).toHaveLength(4);
   });
 });
 

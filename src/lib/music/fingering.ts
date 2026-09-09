@@ -64,12 +64,21 @@ export function scaleFingering(key: KeyInfo): HandFingering | null {
 
 /**
  * Root-position arpeggio, one octave (4 notes). On a white-key tonic both
- * hands use the same shape; on a black key the fingering depends on which
- * chord tones are black, so nothing is claimed there.
+ * hands use the same shape. On a black-key tonic the thumb avoids the black
+ * key and lands on the first white chord tone, which gives the usual
+ * 2-1-2-4 / 2-1-4-2 (ABRSM, Hanon); B♭ major, with two white notes in the
+ * middle, puts the left thumb on F instead. Schools differ on some of these,
+ * so the card calls them the habitual option, not the only one.
  */
-export function arpeggioFingering(key: KeyInfo): HandFingering | null {
-  if (key.tonicAccidental !== 0) return null;
-  return { rh: [1, 2, 3, 5], lh: [5, 3, 2, 1] };
+const WHITE_ARPEGGIO: HandFingering = { rh: [1, 2, 3, 5], lh: [5, 3, 2, 1] };
+const BLACK_ARPEGGIO: HandFingering = { rh: [2, 1, 2, 4], lh: [2, 1, 4, 2] };
+const BLACK_ARPEGGIO_BY_KEY: Record<string, HandFingering> = {
+  Bb: { rh: [2, 1, 2, 4], lh: [3, 2, 1, 3] },
+};
+
+export function arpeggioFingering(key: KeyInfo): HandFingering {
+  if (key.tonicAccidental === 0) return WHITE_ARPEGGIO;
+  return BLACK_ARPEGGIO_BY_KEY[key.vex] ?? BLACK_ARPEGGIO;
 }
 
 /* ---------- Reading a key name out of text ---------- */

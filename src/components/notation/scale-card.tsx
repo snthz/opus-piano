@@ -11,11 +11,10 @@ import { SCALES, buildScale } from "@/lib/music/scales";
 import { useSettings } from "@/lib/settings";
 
 type Hands = "derecha" | "izquierda" | "separadas" | "juntas" | null | undefined;
-type HandView = "rh" | "lh" | "both";
+type HandView = "rh" | "lh";
 const HAND_VIEWS: { id: HandView; label: string }[] = [
-  { id: "rh", label: "Derecha" },
-  { id: "lh", label: "Izquierda" },
-  { id: "both", label: "Juntas" },
+  { id: "rh", label: "Mano derecha" },
+  { id: "lh", label: "Mano izquierda" },
 ];
 
 /**
@@ -26,18 +25,18 @@ const HAND_VIEWS: { id: HandView; label: string }[] = [
  * Fingering numbers go on the staff and note names on the keyboard: putting
  * both under the notes made the staff unreadable on a phone.
  *
- * Each hand has its own fingering, so with both hands in play a switch shows
- * one hand alone — a single staff, big and clear — or the two together on
- * the grand staff. A goal for one hand shows just that hand, with no switch.
+ * Each hand has its own fingering, so the card shows one hand at a time —
+ * a single staff, big and clear — with two tabs to switch. "Sube" and "Baja"
+ * are the direction of the scale, not the hands. The tabs are always there —
+ * a warm-up is for both hands even when the day's goal is for one — and
+ * `hands` only picks which tab starts open.
  */
 export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands }) {
   const { settings } = useSettings();
   const [current, setCurrent] = useState(-1);
-  const oneHand = hands === "derecha" ? "rh" : hands === "izquierda" ? "lh" : null;
-  const [view, setView] = useState<HandView>("both");
-  const shown = oneHand ?? view;
-  const showRH = shown !== "lh";
-  const showLH = shown !== "rh";
+  const [view, setView] = useState<HandView>(hands === "izquierda" ? "lh" : "rh");
+  const showRH = view === "rh";
+  const showLH = view === "lh";
 
   const scale = useMemo(() => {
     const type = SCALES.find((s) => s.id === (keyInfo.mode === "mayor" ? "mayor" : "menor-armonica"))!;
@@ -81,39 +80,24 @@ export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands 
   const title = `Escala de ${keyName(keyInfo, settings.naming)}${keyInfo.mode === "menor" ? " armónica" : ""}`;
   const noteList = scale.rh.up.slice(0, -1).map((n) => noteName(n, settings.naming)).join(" · ");
 
-  /** A grand staff (or a single one when only one hand plays) for 8 notes. */
+  const handLabel = showRH ? "mano derecha" : "mano izquierda";
+
+  /** One staff for 8 notes of the shown hand, with its fingering above. */
   const panel = (rh: Pitch[], lh: Pitch[], rhF: string[] | undefined, lhF: string[] | undefined, highlight: number | undefined, label: string) => (
     <div className="min-w-0">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-3 mb-1">{label}</p>
-      {showRH && showLH ? (
-        <Score
-          measures={[eighths(rh)]}
-          bassMeasures={[eighths(lh)]}
-          labels={rhF}
-          bassLabels={lhF}
-          labelPosition="above"
-          time="4/4"
-          showTime={false}
-          width={420}
-          highlight={highlight}
-          bassHighlight={highlight}
-          highlightBand
-          title={`${title}, ${label.toLowerCase()}`}
-        />
-      ) : (
-        <Score
-          clef={showRH ? "treble" : "bass"}
-          measures={[eighths(showRH ? rh : lh)]}
-          labels={showRH ? rhF : lhF}
-          labelPosition="above"
-          time="4/4"
-          showTime={false}
-          width={420}
-          highlight={highlight}
-          highlightBand
-          title={`${title}, ${label.toLowerCase()}`}
-        />
-      )}
+      <Score
+        clef={showRH ? "treble" : "bass"}
+        measures={[eighths(showRH ? rh : lh)]}
+        labels={showRH ? rhF : lhF}
+        labelPosition="above"
+        time="4/4"
+        showTime={false}
+        width={420}
+        highlight={highlight}
+        highlightBand
+        title={`${title}, ${label.toLowerCase()}, ${handLabel}`}
+      />
     </div>
   );
 
@@ -121,27 +105,24 @@ export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands 
     // `@container`: the two staves go side by side when the card is wide, not the window —
     // beside a score the card is a narrow column even on a big screen
     <div className="space-y-4 @container">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h4 className="font-bold">{title}</h4>
-          <p className="text-xs text-ink-2">{noteList}</p>
-        </div>
-        {!oneHand && (
-          <div role="radiogroup" aria-label="Mano" className="flex rounded-full bg-surface-2 p-0.5">
-            {HAND_VIEWS.map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                role="radio"
-                aria-checked={view === h.id}
-                onClick={() => setView(h.id)}
-                className={`h-7 px-2.5 rounded-full text-xs font-medium transition-colors ${view === h.id ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"}`}
-              >
-                {h.label}
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h4 className="font-bold">{title}</h4>
+        <p className="text-xs text-ink-2">{noteList}</p>
+      </div>
+
+      <div role="tablist" aria-label="Mano" className="flex rounded-full bg-surface-2 p-1">
+        {HAND_VIEWS.map((h) => (
+          <button
+            key={h.id}
+            type="button"
+            role="tab"
+            aria-selected={view === h.id}
+            onClick={() => setView(h.id)}
+            className={`flex-1 h-9 rounded-full text-sm font-medium transition-colors ${view === h.id ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"}`}
+          >
+            {h.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid gap-4 @3xl:grid-cols-2">
@@ -154,8 +135,7 @@ export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands 
       <div className="flex flex-wrap items-center gap-2">
         <PlayButton events={sequence} bpm={72} label="Escuchar la escala" onEvent={setCurrent} size="sm" />
         <p className="text-xs text-ink-2">
-          Los números son la digitación habitual (1 = pulgar)
-          {showRH && showLH ? ": arriba, mano derecha; abajo, mano izquierda." : showRH ? " de la mano derecha." : " de la mano izquierda."}
+          Los números son la digitación habitual de la {handLabel} (1 = pulgar). «Sube» y «Baja» son la dirección de la escala.
         </p>
       </div>
 
@@ -169,31 +149,19 @@ export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands 
           Arpegio
         </summary>
         <div className="mt-3 max-w-sm">
-          {showRH && showLH ? (
-            <Score
-              measures={[quarters(scale.arpeggio.rh)]}
-              bassMeasures={[quarters(scale.arpeggio.lh)]}
-              labels={labels(scale.arpeggio.fingering?.rh)}
-              bassLabels={labels(scale.arpeggio.fingering?.lh)}
-              labelPosition="above"
-              time="4/4"
-              showTime={false}
-              width={300}
-              title={`Arpegio de ${keyName(keyInfo, settings.naming)}`}
-            />
-          ) : (
-            <Score
-              clef={showRH ? "treble" : "bass"}
-              measures={[quarters(showRH ? scale.arpeggio.rh : scale.arpeggio.lh)]}
-              labels={labels(showRH ? scale.arpeggio.fingering?.rh : scale.arpeggio.fingering?.lh)}
-              labelPosition="above"
-              time="4/4"
-              showTime={false}
-              width={300}
-              title={`Arpegio de ${keyName(keyInfo, settings.naming)}`}
-            />
+          <Score
+            clef={showRH ? "treble" : "bass"}
+            measures={[quarters(showRH ? scale.arpeggio.rh : scale.arpeggio.lh)]}
+            labels={labels(showRH ? scale.arpeggio.fingering.rh : scale.arpeggio.fingering.lh)}
+            labelPosition="above"
+            time="4/4"
+            showTime={false}
+            width={300}
+            title={`Arpegio de ${keyName(keyInfo, settings.naming)}, ${handLabel}`}
+          />
+          {keyInfo.tonicAccidental !== 0 && (
+            <p className="mt-2 text-xs text-ink-3">Con la tónica en tecla negra el pulgar va a la primera nota blanca del acorde; es la digitación habitual, aunque hay escuelas que usan otra.</p>
           )}
-          {!scale.arpeggio.fingering && <p className="text-xs text-ink-3">En esta tonalidad la digitación del arpegio depende de qué teclas negras caen: pregúntale al profesor.</p>}
         </div>
       </details>
     </div>
