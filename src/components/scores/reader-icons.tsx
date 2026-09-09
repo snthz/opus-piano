@@ -123,3 +123,26 @@ export const SessionIcon = ({ className }: Props) => (
     <path d="M12 9.5v4l2.5 1.5M9.5 2.5h5M12 2.5V6M18.5 6.5 20 5" />
   </StrokeIcon>
 );
+
+/** Chat con el profesor: un bocadillo de conversación. */
+export const ChatIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <path d="M12 4.5c-4.7 0-8.5 3.1-8.5 7 0 2 1 3.8 2.7 5.1L5.5 20l4-1.5c.8.2 1.6.3 2.5.3 4.7 0 8.5-3.1 8.5-7s-3.8-7.3-8.5-7.3z" />
+    <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" strokeWidth={2.6} />
+  </StrokeIcon>
+);
+
+/** Enviar un mensaje: flecha hacia arriba. */
+export const SendIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <path d="M12 19V5.5" strokeWidth={2.2} />
+    <path d="m6 11.5 6-6 6 6" strokeWidth={2.2} />
+  </StrokeIcon>
+);
+
+/** Cerrar o plegar: una cruz. */
+export const CloseIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <path d="M6 6l12 12M18 6L6 18" strokeWidth={2} />
+  </StrokeIcon>
+);

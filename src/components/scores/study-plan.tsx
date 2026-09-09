@@ -33,7 +33,7 @@ import { NumberField } from "@/components/ui/number-field";
 import { TimeField } from "@/components/ui/time-field";
 import { Select } from "@/components/ui/select";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { PlanIcon } from "./reader-icons";
+import { ChatIcon, CloseIcon, PlanIcon, SendIcon, StopIcon } from "./reader-icons";
 import { useParsedXml } from "./use-score-player";
 
 interface Props {
@@ -319,7 +319,6 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
               )
             }
           />
-          <Teacher record={record} state={state} parsed={parsed} />
           <p className="text-xs text-ink-3 px-1 flex items-center gap-2 flex-wrap">
             <span>
               Análisis hecho el {new Date(state.createdAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} con {state.model}.
@@ -336,6 +335,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
               )}
             </span>
           </p>
+          <Teacher record={record} state={state} parsed={parsed} />
 
           {/* ---- Analizar de nuevo: los datos se piden en un modal para no tapar el análisis ---- */}
           <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Analizar de nuevo" subtitle={record.name}>
@@ -855,22 +855,51 @@ function GoalItem({ index, goal, done, onToggle }: { index: number; goal: Goal; 
 
 /* ---------- Chat with the teacher ---------- */
 
+const SUGGESTIONS = ["¿Cómo digito el pasaje más difícil?", "¿Qué escala y arpegio caliento hoy?", "¿Cómo estudio la mano izquierda sola?"];
+
+/**
+ * Floating chat, Intercom style: a launcher pinned to the corner of the screen
+ * and, above it, the conversation window. The window stays mounted while
+ * closed so the conversation survives folding it, and a badge on the launcher
+ * says when an answer arrived while it was closed.
+ */
 function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanState; parsed: ReturnType<typeof useParsedXml>["parsed"] }) {
   const { settings } = useSettings();
+  const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
+  const [unread, setUnread] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // mirrors `open` for the request in flight: it decides on the badge once the answer lands
+  const openRef = useRef(false);
+
+  const toggle = (next: boolean) => {
+    openRef.current = next;
+    setOpen(next);
+    if (next) setUnread(false);
+  };
 
   useEffect(() => () => abort.current?.abort(), []);
-  useEffect(() => {
-    if (turns.length) endRef.current?.scrollIntoView({ block: "nearest" });
-  }, [turns]);
 
-  const ask = async () => {
-    const q = question.trim();
+  // follows the answer as it streams in; only the message list scrolls, not the panel behind
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    // after the open transition, so the browser doesn't scroll to an element still moving
+    const t = setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 220);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  const ask = async (text: string) => {
+    const q = text.trim();
     if (!q || busy) return;
     setQuestion("");
     setError(null);
@@ -893,77 +922,144 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
             return [...prev.slice(0, -1), { ...last, content: last.content + t }];
           }),
       });
+      if (!openRef.current) setUnread(true);
     } catch (e) {
-      if (isAbort(e)) {
-        setTurns((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -1)));
-      } else {
-        setError(e instanceof UserError ? e.message : "No se pudo obtener respuesta.");
-        setTurns((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -1)));
-      }
+      if (!isAbort(e)) setError(e instanceof UserError ? e.message : "No se pudo obtener respuesta.");
+      // an answer cut short stays; an empty one goes, so the typing dots don't linger
+      setTurns((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -1)));
     } finally {
       if (abort.current === ac) abort.current = null;
       setBusy(false);
     }
   };
 
-  const suggestions = ["¿Cómo digito el pasaje más difícil?", "¿Qué escala y arpegio caliento hoy?", "¿Cómo estudio la mano izquierda sola?"];
+  const last = turns[turns.length - 1];
+  const typing = busy && last?.role === "assistant" && !last.content;
 
   return (
-    // this one wants a visible card: the rest of the plan is plain text on the
-    // sheet, so the pastel card separates "reading the plan" from "talking to the teacher"
-    <section className="card-pastel bg-blue p-5 space-y-3">
-      <div>
-        <h3 className="font-bold">Pregunta al profesor</h3>
-        <p className="text-xs text-ink-2">Conoce el análisis y la partitura. Pregunta por un compás, una digitación o cómo organizar la sesión de hoy.</p>
-      </div>
+    <>
+      {/* room at the end of the panel so the launcher doesn't cover the last line */}
+      <div aria-hidden className="h-16" />
 
-      {turns.length > 0 && (
-        <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-          {turns.map((t, i) => (
-            <div key={i} className={`text-sm whitespace-pre-wrap rounded-2xl px-3 py-2 ${t.role === "user" ? "bg-accent text-bg ml-8" : "bg-surface mr-4"}`}>
-              {t.content || <span className="animate-pulse">…</span>}
-            </div>
-          ))}
-          <div ref={endRef} />
-        </div>
-      )}
-
-      {turns.length === 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {suggestions.map((s) => (
-            <button key={s} type="button" onClick={() => setQuestion(s)} className="pill text-xs py-1">
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {error && <p className="text-xs text-bad">{error}</p>}
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void ask();
-        }}
-        className="flex gap-2"
+      {/* ---- Window ---- */}
+      <section
+        aria-label="Chat con el profesor"
+        aria-hidden={!open}
+        inert={!open}
+        className={`fixed z-30 right-3 sm:right-5 left-3 sm:left-auto sm:w-[24rem] bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] h-[min(34rem,calc(100dvh-7.5rem))] sm:h-[min(36rem,calc(100dvh-8rem))] flex flex-col overflow-hidden rounded-[var(--radius)] bg-surface border border-line shadow-[0_24px_60px_-20px_rgb(17_17_20/0.35)] origin-bottom-right transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+          open ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-3 scale-95 pointer-events-none"
+        }`}
       >
-        <input
-          value={question}
-          onChange={(e) => setQuestion(e.target.value.slice(0, 2000))}
-          placeholder="Escribe tu pregunta…"
-          disabled={busy}
-          className="flex-1 min-w-0 rounded-2xl px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
-        />
-        {busy ? (
-          <button type="button" onClick={() => abort.current?.abort()} className="pill text-xs py-1.5 shrink-0">
-            Parar
+        <header className="shrink-0 flex items-center gap-3 px-4 py-3 bg-blue">
+          <span className="relative w-10 h-10 rounded-full bg-ink text-bg grid place-items-center shrink-0">
+            <PlanIcon className="w-5 h-5" />
+            <span aria-hidden className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-ok border-2 border-blue" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold leading-tight">Profesor</h3>
+            <p className="text-xs text-ink-2 truncate" aria-live="polite">
+              {typing ? "Escribiendo…" : busy ? "Respondiendo…" : "Conoce el análisis y la partitura"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => toggle(false)}
+            aria-label="Cerrar el chat"
+            className="shrink-0 w-9 h-9 rounded-full text-ink-2 hover:text-ink hover:bg-surface/60 grid place-items-center transition-colors"
+          >
+            <CloseIcon className="w-5 h-5" />
           </button>
-        ) : (
-          <button type="submit" disabled={!question.trim()} className="pill pill-active text-xs py-1.5 shrink-0 disabled:opacity-50">
-            Enviar
-          </button>
+        </header>
+
+        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-2.5 [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent]">
+          <Bubble role="assistant">Hola. Conozco el análisis y la partitura: pregúntame por un compás, una digitación o cómo organizar la sesión de hoy.</Bubble>
+          {turns.length === 0 && (
+            <div className="flex flex-wrap gap-1.5 pl-1 pt-1">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} type="button" onClick={() => void ask(s)} className="pill text-xs py-1">
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {turns.map((t, i) => (
+            <Bubble key={i} role={t.role}>
+              {t.content || <TypingDots />}
+            </Bubble>
+          ))}
+        </div>
+
+        {error && <p className="shrink-0 px-4 pb-1 text-xs text-bad">{error}</p>}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void ask(question);
+          }}
+          className="shrink-0 flex items-center gap-2 px-3 py-3 border-t border-line"
+        >
+          <input
+            ref={inputRef}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value.slice(0, 2000))}
+            placeholder="Escribe tu pregunta…"
+            disabled={busy}
+            className="flex-1 min-w-0 rounded-full px-4 py-2.5 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
+          />
+          {busy ? (
+            <button type="button" onClick={() => abort.current?.abort()} aria-label="Parar la respuesta" title="Parar" className="btn-circle w-10 h-10 shrink-0">
+              <StopIcon className="w-5 h-5" />
+            </button>
+          ) : (
+            <button type="submit" disabled={!question.trim()} aria-label="Enviar" title="Enviar" className="btn-circle w-10 h-10 shrink-0 disabled:opacity-40">
+              <SendIcon className="w-5 h-5" />
+            </button>
+          )}
+        </form>
+      </section>
+
+      {/* ---- Launcher ---- */}
+      <button
+        type="button"
+        onClick={() => toggle(!open)}
+        aria-expanded={open}
+        aria-label={open ? "Cerrar el chat con el profesor" : "Pregunta al profesor"}
+        title={open ? "Cerrar el chat" : "Pregunta al profesor"}
+        className="fixed z-30 right-3 sm:right-5 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] btn-circle w-14 h-14 shadow-[0_12px_30px_-8px_rgb(17_17_20/0.45)] hover:scale-105 active:scale-95"
+      >
+        <span className="relative grid place-items-center w-6 h-6">
+          <ChatIcon className={`absolute w-6 h-6 transition-[opacity,transform] duration-200 ${open ? "opacity-0 rotate-45 scale-75" : "opacity-100 rotate-0 scale-100"}`} />
+          <CloseIcon className={`absolute w-6 h-6 transition-[opacity,transform] duration-200 ${open ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-45 scale-75"}`} />
+        </span>
+        {(unread || (busy && !open)) && (
+          <span aria-hidden className={`absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2 border-bg ${busy ? "bg-ok animate-pulse" : "bg-bad"}`} />
         )}
-      </form>
-    </section>
+      </button>
+    </>
+  );
+}
+
+function Bubble({ role, children }: { role: ChatTurn["role"]; children: React.ReactNode }) {
+  return (
+    <div className={`flex ${role === "user" ? "justify-end pl-8" : "justify-start pr-8"}`}>
+      <div
+        className={`text-sm whitespace-pre-wrap px-3.5 py-2.5 max-w-full [animation:fade-in_0.2s_ease-out] ${
+          role === "user" ? "bg-accent text-bg rounded-2xl rounded-br-md" : "bg-surface-2 rounded-2xl rounded-bl-md"
+        }`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Three dots, pulsing in turn, like the "is typing" indicator of a chat. */
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1 h-5 px-0.5" role="status" aria-label="El profesor está escribiendo">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="typing-dot w-2 h-2 rounded-full bg-ink-3" />
+      ))}
+    </span>
   );
 }
