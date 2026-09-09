@@ -335,7 +335,6 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
               )}
             </span>
           </p>
-          <Teacher record={record} state={state} parsed={parsed} />
 
           {/* ---- Analizar de nuevo: los datos se piden en un modal para no tapar el análisis ---- */}
           <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Analizar de nuevo" subtitle={record.name}>
@@ -858,12 +857,29 @@ function GoalItem({ index, goal, done, onToggle }: { index: number; goal: Goal; 
 const SUGGESTIONS = ["¿Cómo digito el pasaje más difícil?", "¿Qué escala y arpegio caliento hoy?", "¿Cómo estudio la mano izquierda sola?"];
 
 /**
- * Floating chat, Intercom style: a launcher pinned to the corner of the screen
- * and, above it, the conversation window. The window stays mounted while
- * closed so the conversation survives folding it, and a badge on the launcher
- * says when an answer arrived while it was closed.
+ * Floating chat with the teacher, Intercom style: a launcher pinned to the
+ * corner of the screen and, above it, the conversation window. It lives on
+ * the score itself (reader or page), not inside the analysis panel, so it can
+ * be asked while reading. The window stays mounted while closed so the
+ * conversation survives folding it, and a badge on the launcher says when an
+ * answer arrived while it was closed.
+ *
+ * `launcherBottom` / `windowBottom`: distance from the bottom edge (safe area
+ * added here), so each host keeps it clear of its own bars and buttons.
  */
-function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanState; parsed: ReturnType<typeof useParsedXml>["parsed"] }) {
+export function TeacherChat({
+  record,
+  state,
+  parsed,
+  launcherBottom = "1rem",
+  windowBottom = "5.25rem",
+}: {
+  record: ScoreRecord;
+  state: PlanState;
+  parsed: ReturnType<typeof useParsedXml>["parsed"];
+  launcherBottom?: string;
+  windowBottom?: string;
+}) {
   const { settings } = useSettings();
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -937,16 +953,14 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
   const typing = busy && last?.role === "assistant" && !last.content;
 
   return (
-    <>
-      {/* room at the end of the panel so the launcher doesn't cover the last line */}
-      <div aria-hidden className="h-16" />
-
+    // `contents`: no box of its own, just the offsets both pieces read
+    <div className="contents" style={{ "--chat-bottom": launcherBottom, "--chat-window-bottom": windowBottom } as React.CSSProperties}>
       {/* ---- Window ---- */}
       <section
         aria-label="Chat con el profesor"
         aria-hidden={!open}
         inert={!open}
-        className={`fixed z-30 right-3 sm:right-5 left-3 sm:left-auto sm:w-[24rem] bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] h-[min(34rem,calc(100dvh-7.5rem))] sm:h-[min(36rem,calc(100dvh-8rem))] flex flex-col overflow-hidden rounded-[var(--radius)] bg-surface border border-line shadow-[0_24px_60px_-20px_rgb(17_17_20/0.35)] origin-bottom-right transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+        className={`fixed z-30 right-3 sm:right-5 left-3 sm:left-auto sm:w-[24rem] bottom-[calc(var(--chat-window-bottom)+env(safe-area-inset-bottom,0px))] h-[min(34rem,calc(100dvh-var(--chat-window-bottom)-2rem-env(safe-area-inset-bottom,0px)))] sm:h-[min(36rem,calc(100dvh-var(--chat-window-bottom)-8.5rem))] flex flex-col overflow-hidden rounded-[var(--radius)] bg-surface border border-line shadow-[0_24px_60px_-20px_rgb(17_17_20/0.35)] origin-bottom-right transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
           open ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-3 scale-95 pointer-events-none"
         }`}
       >
@@ -1025,7 +1039,7 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
         aria-expanded={open}
         aria-label={open ? "Cerrar el chat con el profesor" : "Pregunta al profesor"}
         title={open ? "Cerrar el chat" : "Pregunta al profesor"}
-        className="fixed z-30 right-3 sm:right-5 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] btn-circle w-14 h-14 shadow-[0_12px_30px_-8px_rgb(17_17_20/0.45)] hover:scale-105 active:scale-95"
+        className="fixed z-30 right-3 sm:right-5 bottom-[calc(var(--chat-bottom)+env(safe-area-inset-bottom,0px))] btn-circle w-12 h-12 sm:w-14 sm:h-14 shadow-[0_12px_30px_-8px_rgb(17_17_20/0.45)] hover:scale-105 active:scale-95"
       >
         <span className="relative grid place-items-center w-6 h-6">
           <ChatIcon className={`absolute w-6 h-6 transition-[opacity,transform] duration-200 ${open ? "opacity-0 rotate-45 scale-75" : "opacity-100 rotate-0 scale-100"}`} />
@@ -1035,7 +1049,7 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
           <span aria-hidden className={`absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2 border-bg ${busy ? "bg-ok animate-pulse" : "bg-bad"}`} />
         )}
       </button>
-    </>
+    </div>
   );
 }
 

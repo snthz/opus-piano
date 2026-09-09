@@ -4,12 +4,14 @@ import { useRef, useState } from "react";
 import { updateScoreNotes, type ScoreRecord } from "@/lib/scores-db";
 import type { PlanState } from "@/lib/study-plan";
 import { useJob } from "@/lib/jobs";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Sheet } from "@/components/ui/sheet";
 import { JobIndicator } from "./job-indicator";
 import { MusicXmlViewer } from "./musicxml-viewer";
 import { PdfReader } from "./pdf-reader";
-import { StudyPlanPanel } from "./study-plan";
+import { StudyPlanPanel, TeacherChat } from "./study-plan";
+import { useParsedXml } from "./use-score-player";
 
 interface Props {
   record: ScoreRecord;
@@ -32,6 +34,9 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
   const [showPlan, setShowPlan] = useState(false);
   const planJob = useJob("plan", record.id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // the teacher reads the piece; below `md` the launcher has to clear the bottom nav bar
+  const { parsed } = useParsedXml(record.file);
+  const desktop = useMediaQuery("(min-width: 48rem)");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveNotes = (v: string) => {
@@ -82,6 +87,10 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
       <Sheet open={showPlan} onClose={() => setShowPlan(false)} title="Análisis de la partitura" subtitle={record.name}>
         <StudyPlanPanel record={record} xml={record.file} onPlanChange={onPlanChange} />
       </Sheet>
+
+      {record.plan && (
+        <TeacherChat record={record} state={record.plan} parsed={parsed} launcherBottom={desktop ? undefined : "7rem"} windowBottom={desktop ? undefined : "10.75rem"} />
+      )}
     </div>
   );
 }

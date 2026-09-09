@@ -40,7 +40,7 @@ import {
 import { DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, FINGERS, FINGER_SIZES, PEN_COLORS, PEN_WIDTHS, type Finger, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { SessionPanel } from "./session-panel";
-import { StudyPlanPanel } from "./study-plan";
+import { StudyPlanPanel, TeacherChat } from "./study-plan";
 import { TranscribePanel } from "./transcribe-panel";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 
@@ -78,6 +78,8 @@ const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min
  * Below this, both open as sheets over the page.
  */
 const WIDE_QUERY = "(min-width: 64rem)";
+/** Tailwind's `sm` from below: where the analysis and play buttons float instead of sitting in the toolbar. */
+const NARROW_QUERY = "(max-width: 39.99rem)";
 const isWide = () => typeof window !== "undefined" && window.matchMedia(WIDE_QUERY).matches;
 type PanelTab = "sesion" | "analisis";
 /** Gap between carousel pages: nearly touching, so neighbors peek in without stealing space from the centered one. */
@@ -206,6 +208,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   // score, open from the start when the piece has a plan; the session tab first
   // when it's scheduled, since that's what's studied today
   const wide = useMediaQuery(WIDE_QUERY);
+  // below `sm`, the actions float as a column of circles and the chat launcher tops it
+  const narrow = useMediaQuery(NARROW_QUERY);
   const [panelOpen, setPanelOpen] = useState(() => isWide() && !!record.plan);
   const [panelTab, setPanelTab] = useState<PanelTab>(() => (record.plan?.schedule ? "sesion" : "analisis"));
   const [notes, setNotes] = useState(record.notes);
@@ -1230,6 +1234,20 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           </div>
         )}
       </div>
+
+      {/* ---- Chat con el profesor, flotando sobre la partitura ----
+           On narrow screens the launcher sits on top of the floating column (play 3.5rem,
+           analysis 3rem, session 3rem, 0.5rem gaps, from 4.75rem up) and the window opens
+           above the toolbar, covering that column. */}
+      {record.plan && (
+        <TeacherChat
+          record={record}
+          state={record.plan}
+          parsed={parsed}
+          launcherBottom={narrow ? (hasSession ? "15.75rem" : "12.25rem") : undefined}
+          windowBottom={narrow ? "5.25rem" : undefined}
+        />
+      )}
 
       {/* ---- Escritorio: sesión y análisis junto a la partitura ----
            Las dos pestañas quedan montadas: el cronómetro sigue mientras se lee el análisis. */}
