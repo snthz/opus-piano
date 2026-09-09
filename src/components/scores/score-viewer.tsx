@@ -50,7 +50,7 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
         <h1 className="font-bold truncate flex-1 min-w-0">{record.name}</h1>
         {planJob && <JobIndicator job={planJob} onOpen={() => setShowPlan(true)} />}
         <button type="button" onClick={() => setShowPlan((v) => !v)} className={`pill text-xs py-1.5 ${showPlan ? "pill-active" : ""}`}>
-          Plan{record.plan ? " ✓" : ""}
+          Análisis{record.plan ? " ✓" : ""}
         </button>
         <button type="button" onClick={() => setShowNotes((v) => !v)} className={`pill text-xs py-1.5 ${showNotes ? "pill-active" : ""}`}>
           Notas
@@ -78,8 +78,8 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
 
       <MusicXmlViewer file={record.file} />
 
-      {/* El plan se abre como hoja sobre la partitura, igual que en el lector de PDF. */}
-      <Sheet open={showPlan} onClose={() => setShowPlan(false)} title="Plan de estudio" subtitle={record.name}>
+      {/* El análisis se abre como hoja sobre la partitura, igual que en el lector de PDF. */}
+      <Sheet open={showPlan} onClose={() => setShowPlan(false)} title="Análisis de la partitura" subtitle={record.name}>
         <StudyPlanPanel record={record} xml={record.file} onPlanChange={onPlanChange} />
       </Sheet>
     </div>

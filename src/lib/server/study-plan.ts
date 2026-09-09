@@ -65,10 +65,10 @@ function translate(e: unknown): PlanError {
     // 400 with "credit" = out of balance; 529 = provider overloaded
     if (e.status === 529 || (e.status ?? 0) >= 500) return new PlanError("El profesor está saturado en este momento. Inténtalo en unos minutos.");
     console.error(`study-plan: API returned ${e.status}`, e.message);
-    return new PlanError("No se ha podido preparar el plan. Vuelve a intentarlo en un rato.");
+    return new PlanError("No se ha podido analizar la partitura. Vuelve a intentarlo en un rato.");
   }
   console.error("study-plan: unexpected failure", e);
-  return new PlanError("No se ha podido preparar el plan. Vuelve a intentarlo en un rato.");
+  return new PlanError("No se ha podido analizar la partitura. Vuelve a intentarlo en un rato.");
 }
 
 /** Reasons the model stopped early; none of them fix themselves with a plain retry. */
@@ -103,12 +103,12 @@ export async function generatePlan(req: PlanRequest, pages: string[], signal?: A
     throw translate(e);
   }
 
-  checkStop(message.stop_reason, "El plan se ha quedado sin espacio a mitad. Prueba con una partitura de menos páginas.");
+  checkStop(message.stop_reason, "El análisis se ha quedado sin espacio a mitad. Prueba con una partitura de menos páginas.");
   const text = message.content
     .filter((b) => b.type === "text")
     .map((b) => b.text)
     .join("");
-  if (!text.trim()) throw new PlanError("El profesor no ha devuelto ningún plan. Vuelve a intentarlo.");
+  if (!text.trim()) throw new PlanError("El profesor no ha devuelto ningún análisis. Vuelve a intentarlo.");
   return text;
 }
 

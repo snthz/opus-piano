@@ -33,7 +33,7 @@ import {
   StopIcon,
   UndoIcon,
 } from "./reader-icons";
-import { PEN_COLORS, type Tool } from "./score-annotator";
+import { DEFAULT_PEN_WIDTH, PEN_COLORS, PEN_WIDTHS, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { StudyPlanPanel } from "./study-plan";
 import { TranscribePanel } from "./transcribe-panel";
@@ -182,6 +182,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [zoom, setZoom] = useState(() => (isDesktop() ? DESKTOP_ZOOM : 1));
   const [tool, setTool] = useState<Tool | null>(null);
   const [color, setColor] = useState(PEN_COLORS[0].value);
+  const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH);
   const [annotations, setAnnotations] = useState<Annotations>(record.annotations ?? {});
   const [chrome, setChrome] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -648,9 +649,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     setPlanOpen(true);
   };
 
-  /** Plan and Play buttons. `floating`: two loose circles (mobile); otherwise pills with text in the toolbar. */
+  /** Analysis and Play buttons. `floating`: two loose circles (mobile); otherwise pills with text in the toolbar. */
   const renderActions = (floating: boolean) => {
-    const planTitle = record.plan ? "Plan de estudio guardado en esta partitura" : "Preparar un plan de estudio con IA";
+    const planTitle = record.plan ? "Análisis y sesiones de esta partitura" : "Analizar la partitura con IA";
     const playLabel = player.playing ? "Detener" : "Escuchar";
     return (
       <>
@@ -664,7 +665,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           } ${record.plan ? "bg-ok-soft text-ok" : floating ? "bg-surface text-ink-2 hover:text-ink" : "bg-surface-2 text-ink-2 hover:text-ink"}`}
         >
           <PlanIcon className={floating ? "w-5 h-5" : "w-4 h-4"} />
-          {!floating && <span>Plan</span>}
+          {!floating && <span>Análisis</span>}
         </button>
         <button
           type="button"
@@ -756,6 +757,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                       onStrokes={(s) => setStrokes(p, s)}
                       tool={tool}
                       color={color}
+                      penWidth={penWidth}
                       guide={guideFor(p)}
                     />
                   </div>
@@ -910,6 +912,25 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                     />
                   </button>
                 ))}
+                <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                {PEN_WIDTHS.map((w, i) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => setPenWidth(w.value)}
+                    title={w.label}
+                    aria-label={`Grosor ${w.label.toLowerCase()}`}
+                    aria-pressed={penWidth === w.value}
+                    className={`w-8 h-8 rounded-full grid place-items-center transition-colors ${
+                      penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+                    }`}
+                  >
+                    <span
+                      className="rounded-full bg-current"
+                      style={{ width: 6 + i * 4, height: 6 + i * 4 }}
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -1021,7 +1042,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             </div>
           </div>
 
-          {/* ---- Móvil: Plan y Escuchar como botones flotantes ---- */}
+          {/* ---- Móvil: Análisis y Escuchar como botones flotantes ---- */}
           <div
             className="sm:hidden absolute right-3 flex flex-col items-center gap-2 pointer-events-none"
             style={{ bottom: "calc(4.75rem + var(--safe-b))" }}
@@ -1031,8 +1052,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         </>
       )}
 
-      {/* ---- Plan de estudio con IA: una hoja sobre la partitura ---- */}
-      <Sheet open={planOpen} onClose={() => setPlanOpen(false)} title="Plan de estudio" subtitle={name}>
+      {/* ---- Análisis con IA: una hoja sobre la partitura ---- */}
+      <Sheet open={planOpen} onClose={() => setPlanOpen(false)} title="Análisis de la partitura" subtitle={name}>
         <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
       </Sheet>
 

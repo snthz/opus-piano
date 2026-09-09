@@ -13,6 +13,7 @@ import {
   describeSchedule,
   parseDay,
   planSessions,
+  scheduleForAnalysis,
   scheduleSchema,
   STEP_LABELS,
   WEEKDAY_LETTERS,
@@ -22,7 +23,7 @@ import {
 import { EXERCISES } from "@/data/exercises";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { exercisePath, lessonPath } from "@/lib/routes";
-import { updateScorePlan, type ScoreRecord } from "@/lib/scores-db";
+import { getScore, updateScorePlan, type ScoreRecord } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
 import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, type ChatTurn, type Goal, type Level, type PlanState } from "@/lib/study-plan";
 import { isAbort, UserError } from "@/lib/user-error";
@@ -63,10 +64,13 @@ function readPrefs(): FormPrefs {
 }
 
 /**
- * AI-made study plan for a score: analysis, prerequisites, measure-by-measure
- * goals with fingerings, a routine, and a chat with the teacher. The server
- * prepares it with its own API key — the student pays and configures
- * nothing, just needs an account — and it's saved with the score (and the account).
+ * The AI analysis of a score: key, form and difficulties, prerequisites,
+ * measure-by-measure goals with fingerings, how each session goes, and a chat
+ * with the teacher. Analysing also schedules the sessions from what the form
+ * asked (days a week, minutes a day), so the piece shows up on the sessions
+ * page with no further step. The server prepares it with its own API key —
+ * the student pays and configures nothing, just needs an account — and it's
+ * saved with the score (and the account).
  */
 export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
   const { user } = useAuth();
@@ -150,11 +154,13 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           onProgress: (progress) => report({ progress }),
           signal,
         });
+        // sessions come with the analysis: days and minutes from the form, keeping the hour if there was one
+        const scheduled: PlanState = { ...next, schedule: scheduleForAnalysis(prefs.daysPerWeek, prefs.minutesPerDay, (await getScore(record.id))?.plan?.schedule) };
         // saved here, not in the panel, which may be closed when this finishes
-        await updateScorePlan(record.id, next);
-        return next;
+        await updateScorePlan(record.id, scheduled);
+        return scheduled;
       },
-      "No se pudo crear el plan. Vuelve a intentarlo.",
+      "No se pudo analizar la partitura. Vuelve a intentarlo.",
     );
   };
 
@@ -186,14 +192,14 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
       <p className="text-sm text-ink-3">Comprobando si el profesor está disponible…</p>
     ) : !service.enabled ? (
       <p className="text-sm text-ink-2">
-        El plan de estudio con IA no está disponible en este servidor. Todo lo demás de la partitura —lectura, reproducción, anotaciones y
+        El análisis con IA no está disponible en este servidor. Todo lo demás de la partitura —lectura, reproducción, anotaciones y
         notas— sigue funcionando igual.
       </p>
     ) : !user ? (
       <div className="space-y-3">
         <p className="text-sm">
-          El plan lo prepara Opus Piano, sin coste para ti. Solo hace falta <strong>iniciar sesión</strong>: así se guarda con la partitura
-          en tu cuenta y se reparten los {service.perDay} planes al día que puede hacer cada persona.
+          El análisis lo hace Opus Piano, sin coste para ti. Solo hace falta <strong>iniciar sesión</strong>: así se guarda con la partitura
+          en tu cuenta y se reparten los {service.perDay} análisis al día que puede hacer cada persona.
         </p>
         <button type="button" onClick={() => openAuthModal()} className="btn-primary text-sm w-full">
           Iniciar sesión o crear cuenta
@@ -209,7 +215,8 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
       >
         {inModal && state && (
           <p className="rounded-2xl bg-yellow text-ink px-4 py-3 text-xs">
-            Ya tienes un plan. Si creas otro, el actual y sus objetivos cumplidos se sustituyen.
+            Esta partitura ya está analizada. Si la analizas de nuevo, el análisis actual y sus objetivos cumplidos se sustituyen; los días de
+            estudio se conservan.
           </p>
         )}
         <label className="block space-y-1">
@@ -251,12 +258,12 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           )}
           {!pdf && xml && <p>La partitura MusicXML, nota a nota.</p>}
           {record.notes.trim() && <p>Tus notas personales sobre la partitura.</p>}
-          <p>Es gratis; puedes preparar {service.perDay} planes al día.</p>
+          <p>Es gratis; puedes analizar {service.perDay} partituras al día.</p>
         </div>
 
         <div className="flex items-center gap-2">
           <button type="submit" disabled={waitingXml} className="btn-primary text-sm flex-1 disabled:opacity-50">
-            {state ? "Crear un plan nuevo" : "Crear mi plan de estudio"}
+            {state ? "Analizar de nuevo" : "Analizar la partitura"}
           </button>
           {inModal && (
             <button type="button" onClick={() => setFormOpen(false)} className="pill text-xs py-1.5 shrink-0">
@@ -265,7 +272,9 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           )}
         </div>
         <p className="text-xs text-ink-3">
-          {waitingXml ? "Leyendo la partitura…" : "Tarda uno o dos minutos. Se prepara en segundo plano, así que puedes seguir con la partitura mientras."}
+          {waitingXml
+            ? "Leyendo la partitura…"
+            : "Tarda uno o dos minutos y se hace en segundo plano. Al terminar, la pieza entra en tus sesiones con esos días y minutos."}
         </p>
       </form>
     );
@@ -282,7 +291,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
             </button>
           </div>
           <p className="text-xs text-ink-3">
-            Puedes cerrar este panel y seguir con la partitura: el plan se prepara en segundo plano y el anillo del lector te avisa cuando esté.
+            Puedes cerrar este panel y seguir con la partitura: el análisis se hace en segundo plano y el anillo del lector te avisa cuando esté.
           </p>
         </section>
       )}
@@ -305,7 +314,7 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
             action={
               !running && (
                 <button type="button" onClick={() => setFormOpen(true)} className="pill text-xs py-1.5 shrink-0">
-                  Rehacer
+                  Analizar de nuevo
                 </button>
               )
             }
@@ -313,11 +322,11 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
           <Teacher record={record} state={state} parsed={parsed} />
           <p className="text-xs text-ink-3 px-1 flex items-center gap-2 flex-wrap">
             <span>
-              Plan preparado el {new Date(state.createdAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} con {state.model}.
+              Análisis hecho el {new Date(state.createdAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} con {state.model}.
             </span>
             <span className="ml-auto">
               {!confirmDelete ? (
-                <button type="button" onClick={() => setConfirmDelete(true)} className="text-bad hover:underline">Borrar plan</button>
+                <button type="button" onClick={() => setConfirmDelete(true)} className="text-bad hover:underline">Borrar el análisis</button>
               ) : (
                 <span className="flex items-center gap-2">
                   <span className="text-bad font-semibold">¿Seguro?</span>
@@ -328,8 +337,8 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
             </span>
           </p>
 
-          {/* ---- Rehacer: los datos se piden en un modal para no tapar el plan ---- */}
-          <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Crear un plan nuevo" subtitle={record.name}>
+          {/* ---- Analizar de nuevo: los datos se piden en un modal para no tapar el análisis ---- */}
+          <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Analizar de nuevo" subtitle={record.name}>
             {form(true)}
           </Modal>
         </>
@@ -341,12 +350,12 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
                 <PlanIcon className="w-5 h-5" />
               </span>
               <div className="space-y-1">
-                <h3 className="font-bold">Esta partitura todavía no tiene plan</h3>
+                <h3 className="font-bold">Esta partitura todavía no está analizada</h3>
                 {/* Con el profesor apagado en el servidor, el reclamo sobra: lo dice el propio formulario. */}
                 {service?.enabled !== false && (
                   <p className="text-sm text-ink-2">
-                    Un profesor con IA lee la pieza y prepara el análisis, los objetivos por compases con sus digitaciones y una rutina a tu
-                    medida. Es gratis; el plan se guarda en la partitura y puedes ir marcando lo que cumples.
+                    Un profesor con IA lee la pieza: tonalidad, forma y dificultades, objetivos por compases con sus digitaciones, y cómo
+                    repartir cada sesión. Es gratis, se guarda en la partitura y la pieza entra en tus sesiones de estudio.
                   </p>
                 )}
               </div>
@@ -380,7 +389,7 @@ function PlanView({
 
   return (
     <div>
-      {/* header: just enough to recognize the piece; the rest folds, too much to read at once */}
+      {/* header: just enough to recognize the piece and when it's studied; the rest folds, too much to read at once */}
       <header className="px-1 pb-5 space-y-3">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -395,6 +404,8 @@ function PlanView({
           <span className="pill py-1">Nivel: {plan.analysis.difficulty}</span>
         </div>
         <p className="text-sm text-ink-2">{plan.analysis.character}</p>
+        {/* the sessions, always in sight: the point of analysing is to study */}
+        <ScheduleSection state={state} onChange={onSchedule} />
       </header>
 
       {/* what to do each day: the only section that starts open */}
@@ -409,7 +420,7 @@ function PlanView({
         </ol>
       </Fold>
 
-      <Fold title="Análisis de la pieza">
+      <Fold title="Análisis">
         <Field label="Tempo">{plan.analysis.tempo}</Field>
         <Field label="Estructura">{plan.analysis.form}</Field>
         <aside className="card-pastel bg-yellow px-4 py-3 text-sm">
@@ -455,19 +466,10 @@ function PlanView({
         </Fold>
       )}
 
-      {plan.warmups.length > 0 && (
-        <Fold title="Calentamiento" meta={String(plan.warmups.length)}>
-          <ul className="list-disc pl-5 text-sm text-ink-2 space-y-1">
-            {plan.warmups.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </Fold>
-      )}
-
-      <Fold title="Rutina de estudio" meta={`${plan.routine.weeks} ${plan.routine.weeks === 1 ? "semana" : "semanas"}`}>
+      <Fold title="Cómo es cada sesión" meta={`${plan.routine.sessionMinutes} min`}>
         <p className="text-sm text-ink-2">
-          Sesiones de unos {plan.routine.sessionMinutes} minutos; el plan completo, unas {plan.routine.weeks} semanas.
+          Cada sesión sigue estos pasos con su cronómetro; el reparto se ajusta a los minutos que elijas. La pieza entera, unas{" "}
+          {plan.routine.weeks} {plan.routine.weeks === 1 ? "semana" : "semanas"}.
         </p>
         {plan.routine.blocks.length > 0 && (
           <ul className="space-y-1.5 text-sm">
@@ -482,14 +484,23 @@ function PlanView({
             ))}
           </ul>
         )}
+        {plan.warmups.length > 0 && (
+          <div>
+            <p className="text-sm font-medium mb-1">En el calentamiento, además de la escala</p>
+            <ul className="list-disc pl-5 text-sm text-ink-2 space-y-1">
+              {plan.warmups.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <p className="text-sm text-ink-2">{plan.routine.advice}</p>
-        <ScheduleSection state={state} onChange={onSchedule} />
       </Fold>
     </div>
   );
 }
 
-/* ---------- Adding the routine to the agenda ---------- */
+/* ---------- The sessions: when the piece is studied ---------- */
 
 /** Weekdays in the order they're listed here; `Date.getDay()` starts at Sunday. */
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -508,9 +519,10 @@ const TIME_PRESETS = [
 const sameDays = (a: number[], b: number[]) => a.length === b.length && a.every((d) => b.includes(d));
 
 /**
- * The plan's routine, put on the calendar: days, time, and start date. From
- * that, the agenda derives one session per day with the right goal on its
- * own (see `src/lib/agenda.ts`), so no session is saved here, only the schedule.
+ * When the piece is studied: days, time (or any time), minutes and start
+ * date. Made together with the analysis; here it's changed or removed. From
+ * it, the sessions page derives one session per day with the right goal on
+ * its own (see `src/lib/agenda.ts`), so no session is saved here, only the schedule.
  */
 function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (schedule: Schedule | undefined) => void }) {
   const [open, setOpen] = useState(false);
@@ -518,7 +530,7 @@ function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (sch
   const schedule = state.schedule;
 
   const start = () => {
-    setDraft(schedule ?? defaultSchedule(readPrefs().daysPerWeek, state.plan.routine.sessionMinutes));
+    setDraft(schedule ?? { ...defaultSchedule(readPrefs().daysPerWeek, state.plan.routine.sessionMinutes), time: null });
     setOpen(true);
   };
 
@@ -536,6 +548,7 @@ function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (sch
     <>
       {schedule ? (
         <div className="card-pastel bg-mint px-4 py-3 space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Tus sesiones</p>
           <p className="text-sm font-medium">{describeSchedule(schedule)}</p>
           <p className="text-xs text-ink-2">
             {sessions.length} {sessions.length === 1 ? "sesión" : "sesiones"} de {schedule.minutes} min
@@ -560,12 +573,10 @@ function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (sch
         </div>
       ) : (
         <div className="card-pastel bg-mint px-4 py-3 space-y-2">
-          <p className="text-sm">
-            <strong>Programa tus sesiones.</strong> Eliges los días (y la hora, si quieres) y cada día tendrás una sesión con sus pasos, su
-            cronómetro y la escala que toca calentar.
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Tus sesiones</p>
+          <p className="text-sm">Esta pieza no está en tus sesiones. Elige los días (y la hora, si quieres) y cada día tendrás su sesión con cronómetro.</p>
           <button type="button" onClick={start} className="pill text-xs py-1 bg-surface">
-            Programar mis sesiones
+            Añadir a mis sesiones
           </button>
         </div>
       )}
@@ -742,7 +753,7 @@ function ScheduleForm({
         ) : (
           <p>Elige los días y la hora para ver el reparto.</p>
         )}
-        <p>Las sesiones salen de los objetivos del plan: si los cambias o los vas cumpliendo, se ponen al día solas.</p>
+        <p>Las sesiones salen de los objetivos del análisis: según los vas cumpliendo, se ponen al día solas.</p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -903,7 +914,7 @@ function Teacher({ record, state, parsed }: { record: ScoreRecord; state: PlanSt
     <section className="card-pastel bg-blue p-5 space-y-3">
       <div>
         <h3 className="font-bold">Pregunta al profesor</h3>
-        <p className="text-xs text-ink-2">Conoce tu plan y la partitura. Pregunta por un compás, una digitación o cómo organizar la sesión de hoy.</p>
+        <p className="text-xs text-ink-2">Conoce el análisis y la partitura. Pregunta por un compás, una digitación o cómo organizar la sesión de hoy.</p>
       </div>
 
       {turns.length > 0 && (

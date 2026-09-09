@@ -31,19 +31,19 @@ export function GET() {
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return Response.json({ error: "Origen no permitido" }, { status: 403 });
-  if (!planEnabled()) return Response.json({ error: "El plan de estudio con IA no está disponible en este servidor." }, { status: 503 });
+  if (!planEnabled()) return Response.json({ error: "El análisis con IA no está disponible en este servidor." }, { status: 503 });
 
   // requires an account: the server pays for each plan
   const me = await userFromRequest(req);
   if (!me) return unauthorized();
   const limit = planLimit();
   if (rateLimited(`plan:${me.id}`, Date.now(), limit)) {
-    return Response.json({ error: `Has llegado al límite de ${limit.max} planes al día. Vuelve mañana.` }, { status: 429 });
+    return Response.json({ error: `Has llegado al límite de ${limit.max} análisis al día. Vuelve mañana.` }, { status: 429 });
   }
 
   const form = await req.formData().catch(() => null);
   const parsed = planRequestSchema.safeParse(json(form?.get("data")));
-  if (!parsed.success) return Response.json({ error: "Faltan datos para preparar el plan" }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "Faltan datos para analizar la partitura" }, { status: 400 });
 
   const files = (form?.getAll("page") ?? []).filter((p): p is File => p instanceof File && p.size > 0);
   if (files.length > MAX_PAGES) return Response.json({ error: `Como mucho se pueden enviar ${MAX_PAGES} páginas` }, { status: 400 });
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
           if (e instanceof PlanError) send({ type: "error", message: e.message });
           else {
             console.error("study-plan: unexpected failure", e);
-            send({ type: "error", message: "No se ha podido preparar el plan. Vuelve a intentarlo." });
+            send({ type: "error", message: "No se ha podido analizar la partitura. Vuelve a intentarlo." });
           }
         })
         .finally(() => {
@@ -133,9 +133,9 @@ function validate(text: string) {
   try {
     raw = JSON.parse(text) as unknown;
   } catch {
-    throw new PlanError("El profesor no ha devuelto un plan legible. Vuelve a intentarlo.");
+    throw new PlanError("El profesor no ha devuelto un análisis legible. Vuelve a intentarlo.");
   }
   const plan = studyPlanSchema.safeParse(raw);
-  if (!plan.success) throw new PlanError("El plan recibido no tiene el formato esperado. Vuelve a intentarlo.");
+  if (!plan.success) throw new PlanError("El análisis recibido no tiene el formato esperado. Vuelve a intentarlo.");
   return dedupeGoalIds(plan.data);
 }

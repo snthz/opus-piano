@@ -10,6 +10,7 @@ import {
   parseDay,
   planKey,
   planSessions,
+  scheduleForAnalysis,
   scheduleSchema,
   sessionSteps,
   startOfWeek,
@@ -240,6 +241,7 @@ describe("el horario que se guarda", () => {
     expect(describeSchedule({ ...schedule, weekdays: [0, 6] })).toBe("Sábado y domingo a las 18:00");
     expect(describeSchedule({ ...schedule, weekdays: [4] })).toBe("Jueves a las 18:00");
     expect(describeSchedule({ ...schedule, time: null })).toBe("Lunes, miércoles y viernes a cualquier hora");
+    expect(describeSchedule({ ...schedule, weekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe("Todos los días a las 18:00");
   });
 
   test("defaultSchedule propone días repartidos y empieza hoy", () => {
@@ -248,6 +250,18 @@ describe("el horario que se guarda", () => {
     expect(s.startDate).toBe("2026-09-08");
     expect(s.minutes).toBe(25);
     expect(scheduleSchema.safeParse(s).success).toBe(true);
+  });
+
+  test("al analizar, las sesiones salen del formulario: días habituales, a cualquier hora, desde hoy", () => {
+    const s = scheduleForAnalysis(3, 20, undefined, parseDay("2026-09-08"));
+    expect(s).toEqual({ weekdays: [1, 3, 5], time: null, startDate: "2026-09-08", minutes: 20, done: {}, skip: [] });
+    expect(scheduleSchema.safeParse(s).success).toBe(true);
+  });
+
+  test("al analizar de nuevo se conservan los días, la hora y los minutos elegidos, y se empieza desde hoy", () => {
+    const previous: Schedule = { weekdays: [2, 4], time: "07:30", startDate: "2026-08-01", minutes: 45, done: { "2026-08-04": true }, skip: ["g1"] };
+    const s = scheduleForAnalysis(5, 20, previous, parseDay("2026-09-08"));
+    expect(s).toEqual({ weekdays: [2, 4], time: "07:30", startDate: "2026-09-08", minutes: 45, done: {}, skip: [] });
   });
 
   test("el esquema rechaza horarios que romperían el reparto", () => {

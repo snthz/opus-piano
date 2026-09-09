@@ -17,6 +17,7 @@ interface Props {
   onStrokes: (s: Stroke[]) => void;
   tool: Tool | null;
   color: string;
+  penWidth?: number;
   /** Compás que suena y fracción recorrida, para la guía */
   guide?: { box: MeasureBox; frac: number } | null;
 }
@@ -25,7 +26,7 @@ interface Props {
  * Una página del PDF ajustada a una caja, con la capa de anotaciones y la guía
  * de reproducción encima. Se dibuja con la densidad de la pantalla.
  */
-export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color, guide }: Props) {
+export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color, penWidth, guide }: Props) {
   const [dims, setDims] = useState<{ page: number; width: number; height: number } | null>(null);
   const [holder, setHolder] = useState<HTMLDivElement | null>(null);
   /** Lienzo pintado y la resolución (página y px de ancho) a la que se trazó */
@@ -103,7 +104,7 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
           />
         </>
       )}
-      <ScoreAnnotator width={cssW} height={cssH} strokes={strokes} onChange={onStrokes} tool={tool} color={color} />
+      <ScoreAnnotator width={cssW} height={cssH} strokes={strokes} onChange={onStrokes} tool={tool} color={color} penWidth={penWidth} />
     </div>
   );
 }

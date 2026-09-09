@@ -111,7 +111,7 @@ export async function generatePlan(input: GenerateInput): Promise<PlanState> {
   );
   for (const [i, page] of pages.entries()) body.append("page", page, `p${i + 1}.png`);
 
-  input.onStatus?.("El profesor está estudiando la partitura y preparando el plan… suele tardar uno o dos minutos.");
+  input.onStatus?.("El profesor está estudiando la partitura… suele tardar uno o dos minutos.");
   input.onProgress?.(null);
 
   const res = await post("/api/study-plan", { body }, input.signal);
@@ -119,14 +119,14 @@ export async function generatePlan(input: GenerateInput): Promise<PlanState> {
   let failure: string | null = null;
   await readNdjson(res, (event) => {
     if (event.type === "done") done = event as { plan: unknown; model: unknown };
-    else if (event.type === "error") failure = typeof event.message === "string" ? event.message : "No se ha podido preparar el plan.";
+    else if (event.type === "error") failure = typeof event.message === "string" ? event.message : "No se ha podido analizar la partitura.";
   });
 
   if (failure) throw new UserError(failure);
-  if (!done) throw new UserError("El plan se ha cortado antes de terminar. Vuelve a intentarlo.");
+  if (!done) throw new UserError("El análisis se ha cortado antes de terminar. Vuelve a intentarlo.");
   const { plan, model } = done as { plan: unknown; model: unknown };
   const state = planStateSchema.safeParse({ plan, progress: {}, model: typeof model === "string" ? model : "", createdAt: Date.now() });
-  if (!state.success) throw new UserError("El plan recibido no tiene el formato esperado. Vuelve a intentarlo.");
+  if (!state.success) throw new UserError("El análisis recibido no tiene el formato esperado. Vuelve a intentarlo.");
   return state.data;
 }
 

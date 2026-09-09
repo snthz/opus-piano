@@ -3,7 +3,7 @@
 import type { Job } from "@/lib/jobs";
 import { ProgressRing } from "@/components/ui/progress-ring";
 
-const KIND_LABEL = { omr: "Reconocimiento", plan: "Plan de estudio" } as const;
+const KIND_LABEL = { omr: "Reconocimiento", plan: "Análisis de la partitura" } as const;
 
 /** Cómo se llama cada tarea de cara al usuario. */
 export const jobLabel = (kind: Job["kind"]) => KIND_LABEL[kind];

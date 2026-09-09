@@ -161,15 +161,23 @@ export function StudySessions() {
 
       {/* ---- El día ---- */}
       <section className="space-y-3 min-w-0">
-        <h2 className="font-bold px-1 lg:px-0 lg:text-lg">
-          {selected === today ? (
-            <>
-              Hoy <span className="font-normal text-ink-2">· {longDay(selected)}</span>
-            </>
-          ) : (
-            <span className="first-letter:uppercase">{longDay(selected)}</span>
+        <div className="flex items-baseline gap-3 px-1 lg:px-0">
+          <h2 className="font-bold lg:text-lg min-w-0 flex-1">
+            {selected === today ? (
+              <>
+                Hoy <span className="font-normal text-ink-2">· {longDay(selected)}</span>
+              </>
+            ) : (
+              <span className="first-letter:uppercase">{longDay(selected)}</span>
+            )}
+          </h2>
+          {/* with several pieces the same day, the total says whether it fits */}
+          {dayEntries.length > 1 && (
+            <p className="text-xs text-ink-2 tabular-nums shrink-0">
+              {dayEntries.length} sesiones · {dayEntries.reduce((n, e) => n + e.session.minutes, 0)} min
+            </p>
           )}
-        </h2>
+        </div>
 
         {dayEntries.length === 0 ? (
           <div className="card p-5 space-y-3">
@@ -209,10 +217,10 @@ function EmptyState() {
     <section className="card-pastel bg-mint p-6 space-y-4">
       <div>
         <h2 className="font-bold text-lg">Todavía no tienes sesiones</h2>
-        <p className="mt-1 text-sm text-ink-2">Salen del plan de estudio de una partitura. Tres pasos:</p>
+        <p className="mt-1 text-sm text-ink-2">Salen de analizar una partitura. Dos pasos:</p>
       </div>
       <ol className="space-y-2 text-sm">
-        {["Abre una partitura y crea su plan de estudio.", "En «Rutina de estudio», elige los días y, si quieres, la hora.", "Vuelve aquí: cada día tendrás una sesión con su cronómetro."].map((t, i) => (
+        {["Abre una partitura y pulsa «Analizar»: dinos cuántos días y minutos tienes.", "Vuelve aquí: cada día tendrás su sesión con cronómetro, escala y objetivo."].map((t, i) => (
           <li key={i} className="flex gap-3 items-start">
             <span className="w-6 h-6 rounded-full bg-ink text-bg text-xs font-bold grid place-items-center shrink-0 tabular-nums">{i + 1}</span>
             <span>{t}</span>

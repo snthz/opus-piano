@@ -103,10 +103,26 @@ export function defaultSchedule(daysPerWeek: number, minutes: number, today = ne
   };
 }
 
+/**
+ * The schedule made right after analysing a score, from what the form
+ * already asked (days a week, minutes a day): sessions on the usual days for
+ * that count, at any time, starting today. Re-analysing keeps the days and
+ * hour the student had chosen and starts the new goals from today.
+ */
+export function scheduleForAnalysis(daysPerWeek: number, minutes: number, previous?: Schedule, today = new Date()): Schedule {
+  const fresh = defaultSchedule(daysPerWeek, minutes, today);
+  return {
+    ...fresh,
+    weekdays: previous?.weekdays ?? fresh.weekdays,
+    time: previous ? previous.time : null,
+    minutes: previous?.minutes ?? fresh.minutes,
+  };
+}
+
 /** e.g. "Lunes, miércoles y viernes a las 18:00" or "… a cualquier hora". */
 export function describeSchedule(s: Schedule): string {
-  const names = [...s.weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WEEKDAY_NAMES[d]);
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+  const names = [...new Set(s.weekdays)].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WEEKDAY_NAMES[d]);
+  const list = names.length === 7 ? "todos los días" : names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
   return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${s.time ? `a las ${s.time}` : "a cualquier hora"}`;
 }
 

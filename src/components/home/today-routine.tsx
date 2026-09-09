@@ -45,10 +45,14 @@ export function TodayRoutine() {
     <section>
       <div className="flex items-center justify-between gap-3 mb-3 px-1">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight">Tu sesión de hoy</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{entries.length > 1 ? "Tus sesiones de hoy" : "Tu sesión de hoy"}</h2>
           {entries.length > 0 && (
             <p className="text-sm text-ink-2">
-              {done === entries.length ? "Hecha. Buen trabajo." : entries.length === 1 ? "Aún por hacer." : `${done} de ${entries.length} hechas`}
+              {done === entries.length
+                ? "Hecha. Buen trabajo."
+                : entries.length === 1
+                  ? "Aún por hacer."
+                  : `${done} de ${entries.length} hechas · ${entries.reduce((n, e) => n + e.session.minutes, 0)} min en total`}
             </p>
           )}
         </div>

@@ -77,7 +77,7 @@ export const StopIcon = ({ className }: Props) => (
   </StrokeIcon>
 );
 
-/** Plan de estudio: una lista con sus pasos marcados. */
+/** Análisis de la partitura: una lista con sus pasos marcados. */
 export const PlanIcon = ({ className }: Props) => (
   <StrokeIcon className={className}>
     <path d="m3.5 7 1.7 1.7L8.5 5.4" />

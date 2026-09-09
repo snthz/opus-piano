@@ -13,6 +13,14 @@ export const PEN_COLORS = [
 ];
 export const HIGHLIGHTER_COLOR = "#ffd83d";
 
+/** Grosores del lápiz, relativos al ancho de la página (igual que `Stroke.width`). */
+export const PEN_WIDTHS = [
+  { id: "fine", value: 0.0025, label: "Fino" },
+  { id: "medium", value: 0.004, label: "Medio" },
+  { id: "thick", value: 0.007, label: "Grueso" },
+];
+export const DEFAULT_PEN_WIDTH = PEN_WIDTHS[1].value;
+
 interface Props {
   width: number;
   height: number;
@@ -21,13 +29,15 @@ interface Props {
   /** null = solo se muestran los trazos y el puntero pasa a la página */
   tool: Tool | null;
   color: string;
+  /** Grosor del lápiz relativo al ancho de la página; el subrayador tiene el suyo fijo. */
+  penWidth?: number;
 }
 
 /**
  * Lienzo transparente sobre una página. Los trazos se guardan en coordenadas
  * relativas (0–1) para que sirvan a cualquier zoom, y se dibujan escalados.
  */
-export function ScoreAnnotator({ width, height, strokes, onChange, tool, color }: Props) {
+export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, penWidth = DEFAULT_PEN_WIDTH }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<Stroke | null>(null);
 
@@ -89,7 +99,7 @@ export function ScoreAnnotator({ width, height, strokes, onChange, tool, color }
     }
     drawing.current = {
       color: tool === "highlighter" ? HIGHLIGHTER_COLOR : color,
-      width: tool === "highlighter" ? 0.02 : 0.004,
+      width: tool === "highlighter" ? 0.02 : penWidth,
       highlighter: tool === "highlighter",
       points: [p],
     };
