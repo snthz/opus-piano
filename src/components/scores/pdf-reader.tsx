@@ -23,21 +23,17 @@ import { Sheet } from "@/components/ui/sheet";
 import { JobIndicator, jobLabel } from "./job-indicator";
 import { PdfPage } from "./pdf-page";
 import {
-  EraserIcon,
-  FingerIcon,
   GuideIcon,
-  MarkerIcon,
   MinusIcon,
   NoteNamesIcon,
-  PenIcon,
   PlanIcon,
   PlayIcon,
   PlusIcon,
   SessionIcon,
   StopIcon,
-  UndoIcon,
 } from "./reader-icons";
-import { DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, FINGERS, FINGER_SIZES, PEN_COLORS, PEN_WIDTHS, type Finger, type Tool } from "./score-annotator";
+import { AnnotationOptions, AnnotationTools, Group, ToolButton, type AnnotationState } from "./annotation-tools";
+import { DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, PEN_COLORS, type Finger, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { SessionPanel } from "./session-panel";
 import { StudyPlanPanel, TeacherChat } from "./study-plan";
@@ -86,42 +82,6 @@ type PanelTab = "sesion" | "analisis";
 const PAGE_GAP = 24;
 
 /* ---------- Toolbar pieces ---------- */
-
-/** Group of related controls, recessed over the bar to separate them without dividers. */
-const Group = ({ children }: { children: React.ReactNode }) => (
-  <div className="shrink-0 flex items-center gap-0.5 rounded-full bg-surface-2 p-1">{children}</div>
-);
-
-/** Round icon button. The label doesn't fit visually, so it goes in `title`/aria-label; `active` marks toggled-on tools. */
-function ToolButton({
-  label,
-  onClick,
-  children,
-  active,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      className={`w-9 h-9 rounded-full grid place-items-center transition-colors disabled:opacity-25 disabled:pointer-events-none ${
-        active ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface hover:text-ink"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 /** Same, with text: for what no icon explains better than a word. */
 function ToolChip({ label, onClick, active, children }: { label: string; onClick: () => void; active?: boolean; children: React.ReactNode }) {
@@ -682,6 +642,18 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   const circle = "btn-circle w-10 h-10 shadow-md";
   const pickTool = (t: Tool) => setTool((cur) => (cur === t ? null : t));
+  const annotationState: AnnotationState = {
+    tool,
+    onTool: pickTool,
+    color,
+    onColor: setColor,
+    penWidth,
+    onPenWidth: setPenWidth,
+    finger,
+    onFinger: setFinger,
+    fingerSize,
+    onFingerSize: setFingerSize,
+  };
   const showPanel = (tab: PanelTab) => {
     setPanelTab(tab);
     setPanelOpen(true);
@@ -959,90 +931,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                 </div>
               )}
 
-              {view === "pdf" && (tool === "pen" || tool === "finger") && (
-                <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1">
-                  {tool === "finger" && (
-                    <>
-                      {FINGERS.map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => setFinger(f)}
-                          title={`Dedo ${f}`}
-                          aria-label={`Dedo ${f}`}
-                          aria-pressed={finger === f}
-                          className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold text-base transition-colors ${
-                            finger === f ? "bg-ink text-bg" : "text-ink-2 hover:text-ink"
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                      <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                    </>
-                  )}
-                  {PEN_COLORS.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setColor(c.value)}
-                      title={c.label}
-                      aria-label={c.label}
-                      aria-pressed={color === c.value}
-                      className="w-8 h-8 rounded-full grid place-items-center"
-                    >
-                      <span
-                        className="w-5 h-5 rounded-full transition-transform"
-                        style={{
-                          background: c.value,
-                          boxShadow: "inset 0 0 0 1px rgb(0 0 0 / 0.12)",
-                          outline: color === c.value ? "2px solid var(--ink)" : "none",
-                          outlineOffset: "2px",
-                          transform: color === c.value ? "scale(1.1)" : undefined,
-                        }}
-                      />
-                    </button>
-                  ))}
-                  {tool === "finger" && (
-                    <>
-                      <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                      {FINGER_SIZES.map((z, i) => (
-                        <button
-                          key={z.id}
-                          type="button"
-                          onClick={() => setFingerSize(z.value)}
-                          title={z.label}
-                          aria-label={`Tamaño ${z.label.toLowerCase()}`}
-                          aria-pressed={fingerSize === z.value}
-                          className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold leading-none transition-colors ${
-                            fingerSize === z.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
-                          }`}
-                        >
-                          <span style={{ fontSize: 10 + i * 3 }}>{finger}</span>
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {tool === "pen" && (
-                    <>
-                      <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                      {PEN_WIDTHS.map((w, i) => (
-                        <button
-                          key={w.id}
-                          type="button"
-                          onClick={() => setPenWidth(w.value)}
-                          title={w.label}
-                          aria-label={`Grosor ${w.label.toLowerCase()}`}
-                          aria-pressed={penWidth === w.value}
-                          className={`w-8 h-8 rounded-full grid place-items-center transition-colors ${
-                            penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
-                          }`}
-                        >
-                          <span className="rounded-full bg-current" style={{ width: 6 + i * 4, height: 6 + i * 4 }} />
-                        </button>
-                      ))}
-                    </>
-                  )}
+              {view === "pdf" && (
+                <div className="pointer-events-auto">
+                  <AnnotationOptions state={annotationState} />
                 </div>
               )}
             </div>
@@ -1092,27 +983,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                         </Group>
                       )}
 
-                      <Group>
-                        <ToolButton label="Lápiz" active={tool === "pen"} onClick={() => pickTool("pen")}>
-                          <PenIcon />
-                        </ToolButton>
-                        <ToolButton label="Subrayador" active={tool === "highlighter"} onClick={() => pickTool("highlighter")}>
-                          <MarkerIcon />
-                        </ToolButton>
-                        <ToolButton label="Digitación: toca una nota para escribir el dedo encima" active={tool === "finger"} onClick={() => pickTool("finger")}>
-                          <FingerIcon />
-                        </ToolButton>
-                        <ToolButton label="Borrador" active={tool === "eraser"} onClick={() => pickTool("eraser")}>
-                          <EraserIcon />
-                        </ToolButton>
-                        <ToolButton
-                          label="Deshacer lo último"
-                          onClick={() => setStrokes(page, strokesOf(page).slice(0, -1))}
-                          disabled={!strokesOf(page).length}
-                        >
-                          <UndoIcon />
-                        </ToolButton>
-                      </Group>
+                      <AnnotationTools
+                        state={annotationState}
+                        onUndo={() => setStrokes(page, strokesOf(page).slice(0, -1))}
+                        canUndo={!!strokesOf(page).length}
+                      />
                     </>
                   )}
 

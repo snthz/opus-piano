@@ -82,6 +82,8 @@ export interface EngravedEvent {
    * que se oye.
    */
   sounding: string[];
+  /** En qué compás cae, contando desde 1. */
+  measure: number;
 }
 
 export interface EngravedScore {
@@ -131,10 +133,12 @@ export async function engraveScore(xml: string): Promise<EngravedScore> {
     // tener, en cada uno, la lista de lo que suena.
     const live = new Set<string>();
     const events: EngravedEvent[] = [];
-    for (const event of tk.renderToTimemap({ includeRests: false })) {
+    let measure = 0;
+    for (const event of tk.renderToTimemap({ includeMeasures: true, includeRests: false })) {
+      if (event.measureOn) measure++;
       for (const id of event.off ?? []) live.delete(id);
       for (const id of event.on ?? []) live.add(id);
-      events.push({ at: event.qstamp, sounding: [...live] });
+      events.push({ at: event.qstamp, sounding: [...live], measure: Math.max(1, measure) });
     }
 
     return { pages, events, pageOf };

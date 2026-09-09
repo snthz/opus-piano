@@ -2,44 +2,79 @@
 
 import { useState, type ReactNode } from "react";
 import { keyByVex, keyName } from "@/lib/music/keys";
+import type { Stroke } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
+import { AnnotationOptions, AnnotationTools, Group, ToolButton } from "./annotation-tools";
 import { EngravedScore } from "./engraved-score";
+import { NoteNamesIcon, PlayIcon, StopIcon } from "./reader-icons";
+import { ScoreAnnotator, DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, PEN_COLORS, type Finger, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 
 interface Props {
   file: Blob;
+  /**
+   * Para escribir encima: los trazos de cada página y dónde guardarlos. Sin
+   * esto la partitura se ve y suena, pero no se anota (una pieza del catálogo
+   * o una compartida, que no son tuyas hasta que las guardas).
+   */
+  annotations?: {
+    strokesOf: (page: number) => Stroke[];
+    onStrokes: (page: number, strokes: Stroke[]) => void;
+  };
 }
 
 /**
- * Una partitura MusicXML de la biblioteca.
+ * Una partitura MusicXML, leída como se lee una partitura.
  *
- * Se ve como está escrita —la partitura original, grabada, igual que un PDF
- * enseña sus páginas—, y suena siguiéndose nota a nota sobre ella. El dibujo
+ * Se ve como está escrita —la original, grabada, igual que un PDF enseña sus
+ * páginas—, suena siguiéndose nota a nota sobre ella y se puede escribir
+ * encima con el mismo lápiz y la misma digitación que en un PDF. El dibujo
  * propio de la app es el otro modo: aplana las voces y se deja los adornos,
  * pero es el único que puede escribir el nombre de cada nota debajo, que es
  * para lo que está.
  */
-export function MusicXmlViewer({ file }: Props) {
+export function MusicXmlViewer({ file, annotations }: Props) {
   const { settings } = useSettings();
   const { parsed, xml, error } = useParsedXml(file);
   const player = useScorePlayer(parsed);
   const [names, setNames] = useState(false);
+  const [measure, setMeasure] = useState<number | null>(null);
+
+  const [tool, setTool] = useState<Tool | null>(null);
+  const [color, setColor] = useState(PEN_COLORS[0].value);
+  const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH);
+  const [finger, setFinger] = useState<Finger>("1");
+  const [fingerSize, setFingerSize] = useState(DEFAULT_FINGER_SIZE);
+  const [page, setPage] = useState(1);
 
   if (error) return <p className="text-sm text-bad">{error}</p>;
   if (!parsed) return <p className="text-sm text-ink-2">Leyendo la partitura…</p>;
 
+  const state = {
+    tool,
+    onTool: (t: Tool) => setTool((cur) => (cur === t ? null : t)),
+    color,
+    onColor: setColor,
+    penWidth,
+    onPenWidth: setPenWidth,
+    finger,
+    onFinger: setFinger,
+    fingerSize,
+    onFingerSize: setFingerSize,
+  };
+
+  // Escribir es sobre la partitura de verdad: el dibujo con los nombres no
+  // tiene páginas, así que allí las herramientas no salen.
+  const writable = !!annotations && !names;
+  const strokes = annotations?.strokesOf(page) ?? [];
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-ink-2">
-        {parsed.measures.length} compases · {keyName(keyByVex(parsed.keyVex), settings.naming)} · {parsed.time.num}/{parsed.time.den}
+        {parsed.measures.length} compases · {keyName(keyByVex(parsed.keyVex), settings.naming)} · {parsed.time.num}/
+        {parsed.time.den}
       </p>
-
-      <PlaybackControls player={player}>
-        <button type="button" onClick={() => setNames((v) => !v)} className={`pill py-1.5 text-xs ${names ? "pill-active" : ""}`}>
-          {names ? "Ver la original" : "Nombres de las notas"}
-        </button>
-      </PlaybackControls>
 
       {names || !xml ? (
         <ScoreSheet parsed={parsed} active={player.active} showNames={names} />
@@ -48,18 +83,91 @@ export function MusicXmlViewer({ file }: Props) {
           xml={xml}
           position={player.position}
           playing={player.playing}
+          onMeasure={setMeasure}
+          onPage={setPage}
+          overlay={
+            writable
+              ? (shown, size) => (
+                  <ScoreAnnotator
+                    width={size.width}
+                    height={size.height}
+                    strokes={annotations.strokesOf(shown)}
+                    onChange={(next) => annotations.onStrokes(shown, next)}
+                    tool={tool}
+                    color={color}
+                    penWidth={penWidth}
+                    finger={finger}
+                    fingerSize={fingerSize}
+                  />
+                )
+              : undefined
+          }
           // un MusicXML que Verovio no entienda se sigue leyendo con el dibujo de la app
           fallback={<ScoreSheet parsed={parsed} active={player.active} showNames={false} />}
         />
       )}
+
+      {/* Los mandos van al pie y se quedan a la vista al desplazar la partitura,
+          como en el lector de PDF: se usan mientras se lee, no antes de leer. */}
+      <div className="sticky z-10 flex flex-col items-center gap-2" style={{ bottom: "calc(0.75rem + var(--safe-b))" }}>
+        {writable && <AnnotationOptions state={state} />}
+
+        <div className="card flex max-w-full items-center gap-1.5 overflow-x-auto p-1.5 shadow-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {writable && (
+            <AnnotationTools
+              state={state}
+              onUndo={() => annotations.onStrokes(page, strokes.slice(0, -1))}
+              canUndo={strokes.length > 0}
+            />
+          )}
+
+          <Group>
+            <ToolButton
+              label={player.playing ? "Detener" : "Escuchar la partitura"}
+              active={player.playing}
+              disabled={!settings.sound}
+              onClick={() => void player.toggle()}
+            >
+              {player.playing ? <StopIcon /> : <PlayIcon />}
+            </ToolButton>
+            <ToolButton label={names ? "Ver la partitura original" : "Ver el nombre de cada nota"} active={names} onClick={() => setNames((v) => !v)}>
+              <NoteNamesIcon />
+            </ToolButton>
+          </Group>
+
+          {/* Por dónde va: el compás es lo que se busca al perderse. */}
+          <span className="shrink-0 px-1 text-xs tabular-nums text-ink-2 select-none">
+            {player.playing && measure ? (
+              <>
+                Compás <span className="font-semibold text-ink">{parsed.measures[measure - 1]?.number ?? measure}</span>
+              </>
+            ) : (
+              <span className="text-ink-3">♩ = {player.tempo}</span>
+            )}
+          </span>
+
+          <input
+            type="range"
+            min={40}
+            max={200}
+            value={player.tempo}
+            onChange={(e) => player.setTempo(Number(e.target.value))}
+            disabled={player.playing}
+            className="accent-(--accent) w-24 shrink-0 disabled:opacity-40"
+            aria-label="Tempo"
+          />
+        </div>
+      </div>
+
+      {!settings.sound && <p className="text-xs text-bad">Activa el sonido en Ajustes para escuchar la partitura.</p>}
     </div>
   );
 }
 
 /**
- * Escuchar y a qué velocidad: los dos mandos que valen igual para el dibujo
- * de la app y para la partitura grabada. Lo que cada vista añada de suyo
- * (los nombres de las notas, por ejemplo) va como hijo.
+ * Escuchar y a qué velocidad, para las vistas que no son el lector (la ficha
+ * de una pieza del catálogo, que no tiene barra de herramientas). Lo que cada
+ * una añada de suyo va como hijo.
  */
 export function PlaybackControls({
   player,

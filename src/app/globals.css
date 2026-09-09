@@ -200,14 +200,6 @@ body {
   stroke: var(--staff);
 }
 
-/* La partitura grabada (Verovio) va sobre papel blanco, como un PDF: negra
-   siempre, también en modo oscuro. Lo único que se le añade es una banda
-   detrás de la nota que suena (ver `engraved-score.tsx`). */
-.engraved [data-band] {
-  fill: var(--accent);
-  opacity: 0.16;
-}
-
 .prose-music p {
   line-height: 1.7;
 }

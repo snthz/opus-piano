@@ -20,6 +20,9 @@ export function EngravedScore({
   position,
   playing = false,
   fallback = null,
+  overlay,
+  onMeasure,
+  onPage,
   className = "",
 }: {
   xml: string;
@@ -28,6 +31,12 @@ export function EngravedScore({
   playing?: boolean;
   /** Qué enseñar si el archivo no se puede grabar; el dibujo de la app, normalmente. */
   fallback?: ReactNode;
+  /** Lo que va encima de la hoja: el lienzo de anotaciones, en píxeles de pantalla. */
+  overlay?: (page: number, size: { width: number; height: number }) => ReactNode;
+  /** Por qué compás va la reproducción; null cuando no suena. */
+  onMeasure?: (measure: number | null) => void;
+  /** Qué página se está viendo, contando desde 1 (pasa sola al sonar). */
+  onPage?: (page: number) => void;
   className?: string;
 }) {
   const [score, setScore] = useState<Engraved | null>(null);
@@ -35,6 +44,13 @@ export function EngravedScore({
   const [page, setPage] = useState(0);
   const [index, setIndex] = useState(-1);
   const sheet = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  // Los avisos van por referencia: así una función nueva en cada render del
+  // padre no reinicia el seguimiento ni dispara efectos en cadena.
+  const report = useRef({ onMeasure, onPage });
+  useEffect(() => {
+    report.current = { onMeasure, onPage };
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +89,7 @@ export function EngravedScore({
         if (found !== last) {
           last = found;
           setIndex(found);
+          report.current.onMeasure?.(found >= 0 ? score.events[found].measure : null);
           // la hoja pasa sola cuando la música llega a la siguiente
           const first = found >= 0 ? score.events[found].sounding.at(-1) : undefined;
           const turn = first === undefined ? undefined : score.pageOf.get(first);
@@ -85,9 +102,30 @@ export function EngravedScore({
     return () => cancelAnimationFrame(frame);
   }, [playing, score, position]);
 
+  // El lienzo de anotaciones se dibuja en píxeles, así que se mide la hoja
+  // y se vuelve a medir cuando cambia de tamaño (girar el móvil, cambiar de página).
+  useEffect(() => {
+    const box = sheet.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize((prev) => (Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5 ? prev : { width, height }));
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!playing) report.current.onMeasure?.(null);
+  }, [playing]);
+
   // Al parar, la partitura se queda quieta y sin nada encendido.
   const active = playing ? index : -1;
   const shown = score ? Math.min(page, score.pages.length - 1) : 0;
+
+  useEffect(() => {
+    if (score) report.current.onPage?.(shown + 1);
+  }, [score, shown]);
 
   // La página se monta como SVG, no como HTML: el MusicXML puede venir de
   // otra persona (una partitura compartida), y aunque Verovio escapa lo que
@@ -121,7 +159,10 @@ export function EngravedScore({
   return (
     <div className={`space-y-3 ${className}`}>
       <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-line">
-        <div ref={sheet} hidden={!score} className="engraved [&_svg]:block [&_svg]:h-auto [&_svg]:w-full" />
+        <div className="relative">
+          <div ref={sheet} hidden={!score} className="engraved [&_svg]:block [&_svg]:h-auto [&_svg]:w-full" />
+          {score && overlay?.(shown + 1, size)}
+        </div>
         {!score && <div className="grid aspect-[3/4] place-items-center text-sm text-ink-2">Preparando la partitura…</div>}
       </div>
 
@@ -157,6 +198,8 @@ export function EngravedScore({
 const SVG_NS = "http://www.w3.org/2000/svg";
 /** Margen de la banda, en unidades de Verovio (la página mide unos 2250 de ancho). */
 const BAND_PAD = 45;
+/** La tinta del papel: la misma que dibuja la partitura. */
+const BAND_INK = "#111114";
 
 /**
  * Banda detrás de la nota que suena.
@@ -176,6 +219,12 @@ function band(note: SVGGraphicsElement): void {
   if (!box.width || !box.height) return;
   const rect = document.createElementNS(SVG_NS, "rect");
   rect.setAttribute("data-band", "");
+  // El color va en el propio elemento y no en la hoja de estilos: un `rect`
+  // sin `fill` es negro sólido, y con eso una hoja que no llegue tapa la
+  // nota en vez de señalarla. El papel es blanco en los dos temas, así que
+  // la tinta de la banda tampoco cambia.
+  rect.setAttribute("fill", BAND_INK);
+  rect.setAttribute("opacity", "0.16");
   rect.setAttribute("x", String(box.x - BAND_PAD));
   rect.setAttribute("y", String(box.y - BAND_PAD));
   rect.setAttribute("width", String(box.width + BAND_PAD * 2));

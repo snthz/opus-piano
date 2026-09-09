@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { updateScoreNotes, type ScoreRecord } from "@/lib/scores-db";
+import { updateScoreAnnotations, updateScoreNotes, type Annotations, type ScoreRecord, type Stroke } from "@/lib/scores-db";
 import type { PlanState } from "@/lib/study-plan";
 import { useJob } from "@/lib/jobs";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -38,6 +38,18 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
   const { parsed } = useParsedXml(record.file);
   const desktop = useMediaQuery("(min-width: 48rem)");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const strokeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [annotations, setAnnotations] = useState<Annotations>(record.annotations ?? {});
+
+  // Lo escrito encima se guarda por página, igual que en un PDF: aquí las
+  // páginas son las de la partitura grabada.
+  const strokesOf = (page: number) => annotations[page] ?? [];
+  const setStrokes = (page: number, next: Stroke[]) => {
+    const all = { ...annotations, [page]: next };
+    setAnnotations(all);
+    if (strokeTimer.current) clearTimeout(strokeTimer.current);
+    strokeTimer.current = setTimeout(() => void updateScoreAnnotations(record.id, all), 600);
+  };
 
   const saveNotes = (v: string) => {
     setNotes(v);
@@ -81,7 +93,7 @@ function XmlPage({ record, onClose, onDelete, onNotesChange, onPlanChange }: Pro
         />
       )}
 
-      <MusicXmlViewer file={record.file} />
+      <MusicXmlViewer file={record.file} annotations={{ strokesOf, onStrokes: setStrokes }} />
 
       {/* El análisis se abre como hoja sobre la partitura, igual que en el lector de PDF. */}
       <Sheet open={showPlan} onClose={() => setShowPlan(false)} title="Análisis de la partitura" subtitle={record.name}>
