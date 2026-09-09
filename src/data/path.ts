@@ -50,7 +50,7 @@ export const PATH: PathStage[] = [
       { kind: "lesson", ref: "figuras", why: "Ya sabes qué nota es; ahora, cuánto dura." },
       { kind: "lesson", ref: "compases", why: "El pulso y el acento: por qué la música se agrupa de tres en tres o de cuatro en cuatro." },
       { kind: "exercise", ref: "ritmo", why: "Golpear el ritmo antes de tocarlo es lo que hace que después salga." },
-      { kind: "piece", ref: "oda-a-la-alegria", why: "Tu primera pieza: solo notas seguidas y dos acordes. Ya tienes todo lo que pide." },
+      { kind: "piece", ref: "oda-a-la-alegria-facil", why: "Tu primera pieza: solo notas seguidas y dos acordes. Ya tienes todo lo que pide." },
     ],
   },
   {
@@ -59,8 +59,8 @@ export const PATH: PathStage[] = [
     goal: "Tocar una pieza entera de principio a fin con las dos manos.",
     steps: [
       { kind: "lesson", ref: "piano", why: "Postura, numeración de los dedos y cómo se lee un pentagrama doble." },
-      { kind: "piece", ref: "campanita-del-lugar", why: "Un salto de quinta al empezar y tres acordes. Ideal para separar manos y juntarlas." },
-      { kind: "piece", ref: "cumpleanos-feliz", why: "Empieza antes del compás: la anacrusa se entiende tocándola." },
+      { kind: "piece", ref: "cumpleanos-feliz-facil", why: "Empieza antes del compás: la anacrusa se entiende tocándola. Y la izquierda ya lleva bajo y acordes." },
+      { kind: "piece", ref: "greensleeves-facil", why: "Puntillos en la derecha y un bajo que dibuja el acorde: las dos manos hacen cosas distintas a la vez." },
       { kind: "exercise", ref: "solfeo", why: "Cantar lo que lees fija la altura mucho antes que los dedos." },
       { kind: "piece", ref: "minueto-sol-petzold", why: "Tu primera obra original: el minueto del Cuaderno de Ana Magdalena, con las dos manos de verdad independientes." },
     ],
@@ -72,7 +72,7 @@ export const PATH: PathStage[] = [
     steps: [
       { kind: "lesson", ref: "armaduras", why: "Los sostenidos y bemoles del principio, y qué tonalidad indican." },
       { kind: "exercise", ref: "armaduras", why: "Reconocer la armadura de un vistazo ahorra medio minuto en cada pieza." },
-      { kind: "piece", ref: "jingle-bells", why: "Tu primera pieza con armadura: un sostenido, sol mayor." },
+      { kind: "piece", ref: "canon-en-re-facil", why: "Tu primera pieza con armadura de dos sostenidos, y un bajo que se repite hasta que sale solo." },
       { kind: "lesson", ref: "escalas", why: "Escalas, intervalos y acordes: de dónde salen las notas que acabas de tocar." },
       { kind: "piece", ref: "satie-gymnopedie-1", why: "Dos sostenidos, acordes de tres notas y pedal: lenta, así que hay tiempo de pensar cada cosa." },
     ],

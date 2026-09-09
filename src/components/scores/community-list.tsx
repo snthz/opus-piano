@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listShared, type SharedScore } from "@/lib/community";
 import { UserError } from "@/lib/user-error";
-import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PlayIcon } from "./reader-icons";
+import { CoverDot, CoverTag, ScoreCover } from "./score-cover";
 
 /** Las partituras que otras personas han puesto en público, de la más reciente a la más antigua. */
 export function CommunityList() {
@@ -36,36 +36,6 @@ export function CommunityList() {
   );
 }
 
-export function SharedCover({ score, className = "" }: { score: Pick<SharedScore, "thumbnail" | "name">; className?: string }) {
-  return (
-    <div className={`relative aspect-[3/4] overflow-hidden rounded-2xl bg-surface-2 ring-1 ring-line ${className}`}>
-      {score.thumbnail ? (
-        // La miniatura es un data URL generado por el dueño: next/image no puede optimizarla.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={score.thumbnail} alt="" className="h-full w-full object-cover object-top" />
-      ) : (
-        <div className="flex h-full w-full flex-col justify-center gap-6 px-3.5" aria-hidden>
-          {[0, 1, 2].map((system) => (
-            <div key={system} className="relative">
-              <div className="space-y-[6px]">
-                {[0, 1, 2, 3, 4].map((line) => (
-                  <div key={line} className="h-px bg-ink-3 opacity-40" />
-                ))}
-              </div>
-              {system === 0 && (
-                <div className="absolute inset-y-0 left-0.5 flex items-center gap-2 text-ink">
-                  <GlyphIcon name="gClef" size={34} fit="em" />
-                  <GlyphIcon name="fClef" size={34} fit="em" />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SharedCard({ score }: { score: SharedScore }) {
   return (
     <Link
@@ -73,17 +43,16 @@ function SharedCard({ score }: { score: SharedScore }) {
       className="group flex flex-col overflow-hidden rounded-3xl border border-line bg-surface transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow)]"
     >
       <div className="p-2.5 pb-1.5">
-        <div className="relative">
-          <SharedCover score={score} />
-          <span className="absolute bottom-2 left-2 rounded-md bg-surface/85 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-ink-2 ring-1 ring-line backdrop-blur">
-            {score.kind === "musicxml" ? "MusicXML" : "PDF"}
-          </span>
+        <ScoreCover thumbnail={score.thumbnail} zoom>
+          <CoverTag>{score.kind === "musicxml" ? "MusicXML" : "PDF"}</CoverTag>
           {score.playable && (
-            <span title="Se puede escuchar" className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-surface/85 text-ink-2 ring-1 ring-line backdrop-blur">
-              <PlayIcon className="h-2.5 w-2.5" />
+            <span className="absolute bottom-2 right-2">
+              <CoverDot label="Se puede escuchar">
+                <PlayIcon className="h-2.5 w-2.5" />
+              </CoverDot>
             </span>
           )}
-        </div>
+        </ScoreCover>
       </div>
       <div className="flex flex-1 flex-col gap-1 px-3.5 pb-3.5 pt-2">
         <p className="line-clamp-2 text-sm font-semibold leading-snug">{score.name}</p>

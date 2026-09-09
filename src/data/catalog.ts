@@ -1,4 +1,3 @@
-import type { CatalogMusic } from "@/lib/music/catalog-score";
 import type { Level } from "@/lib/study-plan";
 
 /**
@@ -10,13 +9,12 @@ import type { Level } from "@/lib/study-plan";
  * lo que la app sabe hacer: suenan, se ven nota a nota y se les puede pedir
  * un análisis.
  *
- * Dos clases de pieza. Las de `source.kind === "file"` son las obras
- * originales, en MusicXML de bibliotecas de dominio público, empaquetadas en
- * `public/catalog/<id>.mxl` (la procedencia exacta va en `origin`). Las de
- * `"compact"` son arreglos sencillos propios de melodías populares, escritos
- * aquí mismo en la notación compacta de `catalog-score.ts`: para las piezas
- * de nivel cero no hay «original» que valga, y así hay algo que tocar el
- * primer día.
+ * Todas son obras originales en MusicXML de bibliotecas de dominio
+ * público, empaquetadas en `public/catalog/<id>.mxl`; la procedencia exacta
+ * va en `origin`. Aquí no se escribe ni una nota: lo que no existe como
+ * transcripción de verdad no entra. Las pocas piezas de nivel cero son
+ * arreglos fáciles de esas mismas bibliotecas (`arranged`), y la ficha lo
+ * dice.
  *
  * Sobre los derechos: todos los autores murieron hace más de un siglo (o
  * son tradicionales), así que la *obra* es de dominio público. Las
@@ -28,15 +26,14 @@ import type { Level } from "@/lib/study-plan";
  * de la partitura: está antes, para decidir si es la pieza que toca ahora.
  */
 
-export type CatalogSource =
-  | { kind: "compact"; music: CatalogMusic }
-  | {
-      kind: "file";
-      /** Ruta pública del .mxl. */
-      path: string;
-      /** De dónde salió la transcripción, para decirlo en la ficha. */
-      origin: { name: string; url: string };
-    };
+export interface CatalogSource {
+  /** Ruta pública del .mxl. */
+  path: string;
+  /** De qué biblioteca de dominio público sale la transcripción. */
+  origin: { name: string; url: string };
+  /** Arreglo fácil hecho por terceros, no la obra tal cual está escrita. */
+  arranged?: boolean;
+}
 
 export interface CatalogAnalysis {
   /** Qué es y cómo está hecha: forma, tonalidad, carácter. Dos o tres frases. */
@@ -67,194 +64,97 @@ export interface CatalogPiece {
 const MUSETRAINER = { name: "MuseTrainer public domain MusicXML library", url: "https://github.com/musetrainer/library" };
 const OSMD = { name: "OpenSheetMusicDisplay (partituras de prueba)", url: "https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/tree/develop/test/data" };
 
-const file = (id: string, origin: { name: string; url: string }): CatalogSource => ({ kind: "file", path: `/catalog/${id}.mxl`, origin });
-
-const C_MAJOR_CHORDS = {
-  C: "(C3 E3 G3)",
-  F: "(F2 A2 C3)",
-  G: "(G2 B2 D3)",
-};
-
-const G_MAJOR_CHORDS = {
-  G: "(G2 B2 D3)",
-  C: "(C3 E3 G3)",
-  D: "(D3 F#3 A3)",
-};
-
-const { C, F, G } = C_MAJOR_CHORDS;
+const file = (id: string, origin: { name: string; url: string }, arranged = false): CatalogSource => ({
+  path: `/catalog/${id}.mxl`,
+  origin,
+  ...(arranged ? { arranged: true } : {}),
+});
 
 export const CATALOG: CatalogPiece[] = [
   {
-    id: "oda-a-la-alegria",
-    title: "Oda a la alegría",
+    id: "oda-a-la-alegria-facil",
+    title: "Oda a la alegría (arreglo fácil)",
     composer: "Ludwig van Beethoven",
     year: "1824",
     level: "principiante",
-    about: "El tema de la Novena sinfonía. Solo grados conjuntos en la mano derecha y dos acordes en la izquierda.",
-    skills: ["Notas de do4 a sol4 en clave de sol", "Negras, blancas y el puntillo", "Acordes de do y sol en la mano izquierda"],
-    measures: 16,
-    source: {
-      kind: "compact",
-      music: {
-        keyVex: "C",
-        time: { num: 4, den: 4 },
-        tempo: 100,
-        measures: [
-          { staves: ["E4/q E4/q F4/q G4/q", `${C}/w`] },
-          { staves: ["G4/q F4/q E4/q D4/q", `${C}/h ${G}/h`] },
-          { staves: ["C4/q C4/q D4/q E4/q", `${C}/h ${G}/h`] },
-          { staves: ["E4/q. D4/8 D4/h", `${G}/w`] },
-          { staves: ["E4/q E4/q F4/q G4/q", `${C}/w`] },
-          { staves: ["G4/q F4/q E4/q D4/q", `${C}/h ${G}/h`] },
-          { staves: ["C4/q C4/q D4/q E4/q", `${C}/h ${G}/h`] },
-          { staves: ["D4/q. C4/8 C4/h", `${G}/h ${C}/h`] },
-          { staves: ["D4/q D4/q E4/q C4/q", `${G}/h ${C}/h`] },
-          { staves: ["D4/q E4/8 F4/8 E4/q C4/q", `${G}/h ${C}/h`] },
-          { staves: ["D4/q E4/8 F4/8 E4/q D4/q", `${G}/w`] },
-          { staves: ["C4/q D4/q G3/h", `${C}/h ${G}/h`] },
-          { staves: ["E4/q E4/q F4/q G4/q", `${C}/w`] },
-          { staves: ["G4/q F4/q E4/q D4/q", `${C}/h ${G}/h`] },
-          { staves: ["C4/q C4/q D4/q E4/q", `${C}/h ${G}/h`] },
-          { staves: ["D4/q. C4/8 C4/h", `${G}/h ${C}/h`] },
-        ],
-      },
-    },
+    about: "El tema de la Novena sinfonía en un arreglo fácil: la melodía en la derecha, casi toda por grados conjuntos, y un acorde largo por compás en la izquierda.",
+    skills: ["Grados conjuntos", "Armadura de sol mayor", "Acordes de tres notas en la mano izquierda"],
+    measures: 17,
+    source: file("oda-a-la-alegria-facil", MUSETRAINER, true),
     analysis: {
-      summary: "El tema del último movimiento de la Novena, reducido a lo esencial: dieciséis compases en do mayor, cuatro frases de cuatro, y una melodía que nunca salta más de una nota.",
+      summary: "Dieciséis compases en sol mayor y 4/4, más uno de cierre, en dos frases de ocho: la primera acaba en la dominante y la segunda en la tónica. La derecha lleva el tema en negras y apenas se mueve más de una segunda cada vez; la izquierda sostiene un acorde por compás, en redondas y blancas, con solo tres acordes distintos (sol, re y do).",
       approach: [
-        "Mano derecha sola, cantando el nombre de cada nota: el tema va por grados conjuntos y se aprende en una tarde.",
-        "Mano izquierda sola: solo dos acordes, do y sol. Fíjate en qué compás cambia y en cuál aguanta entero.",
-        "Juntar por frases de cuatro compases; la tercera (compases 9-12) es la única distinta.",
+        "Mano derecha sola, cantando los nombres: si-si-do-re, re-do-si-la. Casi todo es la nota de al lado.",
+        "Mano izquierda sola: tres acordes, uno por compás. Aprende la forma de cada uno en la mano antes de mirar el pentagrama.",
+        "Juntar por frases de cuatro compases, muy despacio. La izquierda solo cambia en el primer tiempo: es el momento de mirarla.",
+        "El compás con la negra con puntillo (el cuarto de cada frase) se cuenta en voz alta hasta que salga solo.",
       ],
-      watchOut: ["El puntillo de los compases 4, 8 y 16: la negra con puntillo dura tres corcheas.", "El sol grave del compás 12 baja de la clave de sol: es la única vez."],
+      watchOut: ["El fa es siempre sostenido: está en la armadura, no delante de la nota.", "En los compases centrales aparecen corcheas: no acelerar ahí.", "Los acordes de la izquierda se sostienen todo el compás; no soltarlos al tocar la siguiente nota de la derecha."],
     },
   },
   {
-    id: "campanita-del-lugar",
-    title: "Campanita del lugar",
-    composer: "Tradicional (tema de las variaciones K. 265 de Mozart)",
-    year: "s. XVIII",
-    level: "principiante",
-    about: "La melodía con la que casi todo el mundo empieza. Salto de quinta al principio y después todo por grados.",
-    skills: ["El salto de do4 a sol4", "Negras y blancas", "Tres acordes: do, fa y sol"],
-    measures: 12,
-    source: {
-      kind: "compact",
-      music: {
-        keyVex: "C",
-        time: { num: 4, den: 4 },
-        tempo: 108,
-        measures: [
-          { staves: ["C4/q C4/q G4/q G4/q", `${C}/w`] },
-          { staves: ["A4/q A4/q G4/h", `${F}/h ${C}/h`] },
-          { staves: ["F4/q F4/q E4/q E4/q", `${F}/h ${C}/h`] },
-          { staves: ["D4/q D4/q C4/h", `${G}/h ${C}/h`] },
-          { staves: ["G4/q G4/q F4/q F4/q", `${C}/w`] },
-          { staves: ["E4/q E4/q D4/h", `${G}/w`] },
-          { staves: ["G4/q G4/q F4/q F4/q", `${C}/w`] },
-          { staves: ["E4/q E4/q D4/h", `${G}/w`] },
-          { staves: ["C4/q C4/q G4/q G4/q", `${C}/w`] },
-          { staves: ["A4/q A4/q G4/h", `${F}/h ${C}/h`] },
-          { staves: ["F4/q F4/q E4/q E4/q", `${F}/h ${C}/h`] },
-          { staves: ["D4/q D4/q C4/h", `${G}/h ${C}/h`] },
-        ],
-      },
-    },
-    analysis: {
-      summary: "La melodía francesa «Ah! vous dirai-je, maman», la misma sobre la que Mozart escribió doce variaciones. Doce compases en do mayor, tres frases, y un solo salto: la quinta del principio.",
-      approach: [
-        "Canta la melodía antes de tocarla: la sabes de memoria y eso te deja atender a los dedos.",
-        "Mano derecha: dedo 1 en do y dedo 5 en sol para el salto, y de ahí todo baja por grados.",
-        "Mano izquierda: tres acordes (do, fa, sol); apréndete la secuencia como una fórmula.",
-      ],
-      watchOut: ["Las blancas al final de cada frase: cuenta dos tiempos enteros, sin recortar."],
-    },
-  },
-  {
-    id: "cumpleanos-feliz",
-    title: "Cumpleaños feliz",
+    id: "cumpleanos-feliz-facil",
+    title: "Cumpleaños feliz (arreglo fácil)",
     composer: "Tradicional (sobre «Good Morning to All», de Patty y Mildred Hill)",
     year: "1893",
     level: "principiante",
-    about: "Empieza antes del primer compás: es la anacrusa más famosa que hay, y se toca a caballo entre las dos claves.",
-    skills: ["Anacrusa y compás de 3/4", "El puntillo: corchea con puntillo y semicorchea", "Leer alrededor del do central"],
-    measures: 9,
-    source: {
-      kind: "compact",
-      music: {
-        keyVex: "C",
-        time: { num: 3, den: 4 },
-        tempo: 96,
-        pickup: true,
-        measures: [
-          { staves: ["G3/8. G3/16", "r/q"] },
-          { staves: ["A3/q G3/q C4/q", `${C}/h.`] },
-          { staves: ["B3/h G3/8. G3/16", `${G}/h.`] },
-          { staves: ["A3/q G3/q D4/q", `${C}/h.`] },
-          { staves: ["C4/h G3/8. G3/16", `${C}/h.`] },
-          { staves: ["G4/q E4/q C4/q", `${C}/h.`] },
-          { staves: ["B3/q A3/q F4/8. F4/16", `${G}/q ${F}/h`] },
-          { staves: ["E4/q C4/q D4/q", `${C}/q ${G}/h`] },
-          { staves: ["C4/h.", `${C}/h.`] },
-        ],
-      },
-    },
+    about: "La canción que todo el mundo conoce, con su anacrusa, en dos vueltas: la segunda añade una nota de paso cromática a la melodía y acordes de tres notas en la izquierda.",
+    skills: ["Anacrusa", "Compás de 3/4", "Corchea con puntillo"],
+    measures: 20,
+    source: file("cumpleanos-feliz-facil", MUSETRAINER, true),
     analysis: {
-      summary: "La canción más cantada del mundo, en do mayor y 3/4. Empieza en anacrusa —dos notas antes del primer compás— y la melodía sube por saltos cada vez mayores hasta la octava del compás 5.",
+      summary: "Do mayor y 3/4, dos vueltas de ocho compases precedidas de la anacrusa (sol-sol antes del primer compás). La melodía repite el mismo ritmo en cada frase: dos corcheas con puntillo de arranque y tres negras; la izquierda marca el bajo en el primer tiempo y dos acordes de dos notas en los otros dos, como un vals lento.",
       approach: [
-        "Cuenta «uno, dos, tres» en voz alta y entra con la anacrusa en el tercer tiempo.",
-        "El ritmo con puntillo (corchea con puntillo y semicorchea) es siempre el mismo: es el «cum-ple» del principio.",
-        "La mano izquierda descansa en la anacrusa y entra con el compás 1.",
+        "Cuenta «uno, dos» y entra en el «tres» con las dos corcheas de la anacrusa: ese es el gesto que enseña la pieza.",
+        "Mano derecha sola cantando la letra, que ya sabes: te dice dónde va cada nota.",
+        "Mano izquierda sola: bajo en el primer tiempo y dos acordes ligeros después. Es el mismo patrón en casi todos los compases.",
+        "La segunda vuelta es la primera con algún adorno; si la primera sale, la segunda es cuestión de leerla.",
       ],
-      watchOut: ["El salto de octava del compás 5 (sol-sol): prepara el dedo 5 antes de llegar.", "El fa del compás 6 está en la mano derecha, no en la izquierda."],
+      watchOut: ["El salto de octava del «feliz» (sol grave a sol agudo) se prepara abriendo la mano antes.", "En la segunda vuelta aparece un sol sostenido de paso: es un sostenido accidental, solo vale ese compás."],
     },
   },
   {
-    id: "jingle-bells",
-    title: "Jingle Bells (estribillo)",
-    composer: "James Lord Pierpont",
-    year: "1857",
+    id: "greensleeves-facil",
+    title: "Greensleeves (arreglo fácil)",
+    composer: "Tradicional inglesa",
+    year: "s. XVI",
     level: "elemental",
-    about: "La primera con armadura: un sostenido, sol mayor. Repite mucho la misma nota, así que la cabeza queda libre para el ritmo.",
-    skills: ["Armadura de sol mayor (fa sostenido)", "Negra con puntillo y corchea", "Cambiar entre tres acordes: sol, do y re"],
-    measures: 16,
-    source: {
-      kind: "compact",
-      music: {
-        keyVex: "G",
-        time: { num: 4, den: 4 },
-        tempo: 120,
-        measures: [
-          { staves: ["B4/q B4/q B4/h", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["B4/q B4/q B4/h", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["B4/q D5/q G4/q. A4/8", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["B4/w", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["C5/q C5/q C5/q. C5/8", `${G_MAJOR_CHORDS.C}/w`] },
-          { staves: ["C5/q B4/q B4/8 B4/8 B4/8 B4/8", `${G_MAJOR_CHORDS.C}/h ${G_MAJOR_CHORDS.G}/h`] },
-          { staves: ["B4/q A4/q A4/q B4/q", `${G_MAJOR_CHORDS.G}/h ${G_MAJOR_CHORDS.D}/h`] },
-          { staves: ["A4/h D5/h", `${G_MAJOR_CHORDS.D}/w`] },
-          { staves: ["B4/q B4/q B4/h", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["B4/q B4/q B4/h", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["B4/q D5/q G4/q. A4/8", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["B4/w", `${G_MAJOR_CHORDS.G}/w`] },
-          { staves: ["C5/q C5/q C5/q. C5/8", `${G_MAJOR_CHORDS.C}/w`] },
-          { staves: ["C5/q B4/q B4/8 B4/8 B4/8 B4/8", `${G_MAJOR_CHORDS.C}/h ${G_MAJOR_CHORDS.G}/h`] },
-          { staves: ["D5/q D5/q C5/q A4/q", `${G_MAJOR_CHORDS.D}/w`] },
-          { staves: ["G4/w", `${G_MAJOR_CHORDS.G}/w`] },
-        ],
-      },
-    },
+    about: "La balada inglesa en la menor: melodía con puntillos en la derecha y un bajo de negras que dibuja el acorde en la izquierda.",
+    skills: ["Compás de 3/4", "Negra con puntillo", "La menor: el sol sostenido de paso"],
+    measures: 33,
+    source: file("greensleeves-facil", MUSETRAINER, true),
     analysis: {
-      summary: "El estribillo de la canción de Pierpont, en sol mayor: la primera pieza con armadura. Dieciséis compases con muchísima nota repetida, así que casi todo el trabajo es de ritmo.",
+      summary: "La menor y 3/4, dos secciones de dieciséis compases con anacrusa: la primera empieza en la tónica y la segunda arriba, en el do agudo. La derecha lleva la melodía con el ritmo de negra con puntillo y corchea que la hace reconocible; la izquierda arpegia cada acorde en tres negras (fundamental, tercera, quinta), así que el bajo es siempre la primera nota del compás.",
       approach: [
-        "Antes de tocar, localiza el fa sostenido en el teclado: aparece en el acorde de re de la mano izquierda.",
-        "Mano derecha: las tres notas repetidas con dedos distintos (3-2-1 o 1-1-1) según te resulte más cómodo, pero decide una y no cambies.",
-        "Mano izquierda: sol, do y re; el cambio a re llega en los compases 7-8 y 15.",
+        "Mano izquierda sola: tres negras por compás que dibujan el acorde. Nombra el acorde de cada compás (la menor, sol mayor, fa mayor, mi mayor) antes de tocarlo.",
+        "Mano derecha sola con metrónomo, contando el puntillo: «uno-y-dos-y-tres-y», la corchea entra en el «y» del segundo tiempo.",
+        "Juntar despacio la primera sección; la segunda repite la izquierda y cambia solo la melodía.",
+        "Cuando salga, dejar respirar el final de cada frase: es una canción, no un ejercicio.",
       ],
-      watchOut: ["La negra con puntillo del compás 3 y 5: la corchea que sigue entra tarde, no a la vez.", "Compás 6: cuatro corcheas seguidas; no las conviertas en negras."],
+      watchOut: ["El sol sostenido no está en la armadura: va escrito cada vez, y vuelve a ser natural en el compás siguiente.", "El puntillo se suele acortar; la corchea que sigue tiene que llegar tarde, no pronto.", "En la segunda sección algunas notas de la derecha van en terceras: la de arriba es la melodía."],
     },
   },
-  /* ---------- Obras originales (MusicXML de bibliotecas de dominio público) ---------- */
+  {
+    id: "canon-en-re-facil",
+    title: "Canon en re mayor (arreglo fácil)",
+    composer: "Johann Pachelbel",
+    year: "c. 1680",
+    level: "elemental",
+    about: "El bajo de Pachelbel en corcheas, sin parar, bajo una melodía de notas largas que va creciendo: para aprender a mantener la izquierda estable.",
+    skills: ["Armadura de re mayor", "Ostinato en la mano izquierda", "Corcheas regulares"],
+    measures: 49,
+    source: file("canon-en-re-facil", MUSETRAINER, true),
+    analysis: {
+      summary: "Re mayor y 4/4. La izquierda repite el mismo ciclo de ocho acordes (re, la, si menor, fa sostenido menor, sol, re, sol, la), arpegiado en corcheas, durante toda la pieza; la derecha entra a los cuatro compases con blancas, luego terceras y al final corcheas, como las voces del canon original. Cuarenta y nueve compases, pero de verdad solo hay que aprender cuatro de izquierda.",
+      approach: [
+        "Mano izquierda sola, los cuatro primeros compases, hasta poder repetirlos en bucle sin mirar. Es el ochenta por ciento de la pieza.",
+        "Mano derecha sola por secciones: primero las blancas, luego las terceras. Cada una es una vuelta más del mismo ciclo.",
+        "Juntar con metrónomo lento: la izquierda tiene que seguir igual cuando la derecha se complica.",
+        "Subir el tempo solo cuando las corcheas de la izquierda sean parejas, sin acentos accidentales.",
+      ],
+      watchOut: ["Fa y do sostenidos siempre: dos sostenidos en la armadura.", "La izquierda tiende a arrastrarse cuando la derecha toca terceras: escúchala como un metrónomo.", "Es larga: mejor tocarla bien hasta la mitad que entera a trompicones."],
+    },
+  },
   {
     id: "minueto-sol-petzold",
     title: "Minueto en sol mayor, BWV Anh. 114",

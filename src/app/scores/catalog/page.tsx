@@ -6,7 +6,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata = pageMetadata({
   title: "Partituras gratis de dominio público para piano",
   description:
-    "Piezas famosas libres de derechos para practicar en Opus Piano: Oda a la alegría, Campanita del lugar, Cumpleaños feliz y Jingle Bells, ordenadas por dificultad y listas para sonar, leerse nota a nota y analizarse.",
+    "Piezas famosas de dominio público para practicar en Opus Piano: Para Elisa, el Preludio BWV 846, Gymnopédie, Clair de lune, The Entertainer y más, en MusicXML, ordenadas por dificultad y listas para sonar, leerse nota a nota y analizarse.",
   path: "/scores/catalog",
   keywords: [
     "partituras gratis piano",
@@ -22,7 +22,7 @@ export default function CatalogPage() {
       <PageHeader
         eyebrow="Partituras"
         title="Piezas libres para empezar"
-        intro={`${CATALOG.length} obras de dominio público, ordenadas de la más fácil a la más difícil. Se añaden a tu biblioteca con un toque y, como vienen en MusicXML, suenan, te muestran el nombre de cada nota y puedes pedirles un análisis.`}
+        intro={`${CATALOG.length} obras de dominio público en MusicXML, de la más fácil a la más difícil. Ábrelas para escucharlas y verlas nota a nota; se guardan en tu biblioteca con un toque.`}
         back={{ href: "/scores", label: "Volver a la biblioteca" }}
       />
       <ScoreCatalog />

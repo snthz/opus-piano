@@ -16,6 +16,8 @@ import { ScoreViewer } from "./score-viewer";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PenIcon, PlayIcon } from "./reader-icons";
 import { DotsIcon, EmptyLibraryIcon, SearchIcon, SharedIcon } from "./library-icons";
+import { CoverDot, CoverTag, ScoreCover } from "./score-cover";
+import { useParsedXml } from "./use-score-player";
 
 /** Ruta de la biblioteca; la partitura abierta va en `?score=<id>`. */
 const LIBRARY_PATH = "/scores";
@@ -209,19 +211,6 @@ function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Insignia pequeña de una capacidad de la partitura (se puede escuchar, tiene trazos). */
-function Capability({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <span
-      title={label}
-      aria-label={label}
-      className="grid h-6 w-6 place-items-center rounded-full bg-surface/85 text-ink-2 ring-1 ring-line backdrop-blur"
-    >
-      {children}
-    </span>
-  );
-}
-
 function ScoreCard({
   record,
   onOpen,
@@ -246,6 +235,8 @@ function ScoreCard({
 
   const isXml = record.kind === "musicxml";
   const playable = isXml || !!record.linkedXml;
+  // La portada de un MusicXML son sus primeros compases dibujados; un PDF ya trae su miniatura.
+  const { parsed } = useParsedXml(isXml && !record.thumbnail ? record.file : undefined);
   const annotated = Object.values(record.annotations ?? {}).some((s) => s.length > 0);
   const shared = (record.visibility ?? "private") !== "private";
 
@@ -284,62 +275,29 @@ function ScoreCard({
         className="block w-full p-2.5 pb-1.5 text-left focus:outline-none"
         aria-label={`Abrir ${record.name}`}
       >
-        {/* La miniatura va montada sobre una lámina con contorno: se lee como una hoja, no como un recorte. */}
-        <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-surface-2 ring-1 ring-line">
-          {record.thumbnail ? (
-            // La miniatura es un data URL generado en el dispositivo: next/image no puede optimizarla.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={record.thumbnail}
-              alt=""
-              className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.04]"
-            />
-          ) : (
-            // MusicXML no tiene páginas que miniaturizar: una hoja de pentagramas
-            // con las dos claves, para que la portada se lea como partitura.
-            <div className="flex h-full w-full flex-col justify-center gap-6 px-3.5">
-              {[0, 1, 2].map((system) => (
-                <div key={system} className="relative">
-                  <div className="space-y-[6px]" aria-hidden>
-                    {[0, 1, 2, 3, 4].map((line) => (
-                      <div key={line} className="h-px bg-ink-3 opacity-40" />
-                    ))}
-                  </div>
-                  {system === 0 && (
-                    <div className="absolute inset-y-0 left-0.5 flex items-center gap-2 text-ink">
-                      <GlyphIcon name="gClef" size={34} fit="em" />
-                      <GlyphIcon name="fClef" size={34} fit="em" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
+        <ScoreCover thumbnail={record.thumbnail} parsed={parsed} zoom>
           {/* Formato y capacidades sobre la portada: dejan libre la línea de metadatos. */}
-          <span className="absolute bottom-2 left-2 rounded-md bg-surface/85 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-ink-2 ring-1 ring-line backdrop-blur">
-            {isXml ? "MusicXML" : "PDF"}
-          </span>
+          <CoverTag>{isXml ? "MusicXML" : "PDF"}</CoverTag>
           {(playable || annotated || shared) && (
             <span className="absolute bottom-2 right-2 flex items-center gap-1">
               {shared && (
-                <Capability label={record.visibility === "public" ? "Compartida con todos" : "Compartida por enlace"}>
+                <CoverDot label={record.visibility === "public" ? "Compartida con todos" : "Compartida por enlace"}>
                   <SharedIcon className="h-3 w-3" />
-                </Capability>
+                </CoverDot>
               )}
               {playable && (
-                <Capability label="Se puede escuchar">
+                <CoverDot label="Se puede escuchar">
                   <PlayIcon className="h-2.5 w-2.5" />
-                </Capability>
+                </CoverDot>
               )}
               {annotated && (
-                <Capability label="Con anotaciones">
+                <CoverDot label="Con anotaciones">
                   <PenIcon className="h-3 w-3" />
-                </Capability>
+                </CoverDot>
               )}
             </span>
           )}
-        </div>
+        </ScoreCover>
       </button>
 
       <div className="flex flex-1 flex-col gap-1 px-3.5 pb-3.5 pt-2">

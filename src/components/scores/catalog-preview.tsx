@@ -59,7 +59,7 @@ export function CatalogPreview({ piece }: { piece: CatalogPiece }) {
     <div className="space-y-6">
       <section className={`card-pastel ${LEVEL_COLOR[piece.level] ?? "bg-ash"} p-5`}>
         <p className="text-xs text-ink-2">
-          {LEVEL_HEADING[piece.level] ?? piece.level} · {piece.measures} compases · {piece.source.kind === "file" ? "partitura original" : "arreglo sencillo"}
+          {LEVEL_HEADING[piece.level] ?? piece.level} · {piece.measures} compases · {piece.source.arranged ? "arreglo fácil" : "partitura original"}
         </p>
         <p className="mt-2 max-w-prose text-sm leading-relaxed">{piece.about}</p>
         <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -114,17 +114,11 @@ export function CatalogPreview({ piece }: { piece: CatalogPiece }) {
         </ul>
         <p className="mt-5 text-xs leading-relaxed text-ink-3">
           {piece.composer} · {piece.year}. Obra de dominio público.{" "}
-          {piece.source.kind === "file" ? (
-            <>
-              Transcripción de{" "}
-              <a href={piece.source.origin.url} target="_blank" rel="noreferrer" className="underline decoration-ink-3 underline-offset-2 hover:text-ink">
-                {piece.source.origin.name}
-              </a>
-              .
-            </>
-          ) : (
-            "Arreglo sencillo escrito para Opus Piano."
-          )}{" "}
+          {piece.source.arranged ? "Arreglo fácil de" : "Transcripción de"}{" "}
+          <a href={piece.source.origin.url} target="_blank" rel="noreferrer" className="underline decoration-ink-3 underline-offset-2 hover:text-ink">
+            {piece.source.origin.name}
+          </a>
+          .{" "}
           Al guardarla puedes pedirle a la app un análisis completo con objetivos por compases.
         </p>
       </section>

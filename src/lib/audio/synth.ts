@@ -313,6 +313,12 @@ export interface TimelineNote {
  * Unlike `playSequence`, each note carries its own start instant instead of
  * chaining off the previous one. `onNote(index)` fires on each note's start,
  * and -1 on finish or stop.
+ *
+ * Notes are scheduled a little ahead of the clock, not all at once: a whole
+ * piece is thousands of notes, and each one is half a dozen oscillators, so
+ * building them up front took seconds and could silence playback entirely.
+ * A rolling window keeps the audio graph small and lets long pieces start
+ * at once.
  */
 export function playTimeline(
   notes: TimelineNote[],
@@ -323,42 +329,60 @@ export function playTimeline(
   const beatSec = 60 / bpm;
   const countIn = opts.countIn ?? 0;
   const start = c.currentTime + 0.1 + countIn * beatSec;
-  const timeouts: number[] = [];
-  const stops: (() => void)[] = [];
-  let stopped = false;
 
   for (let i = 0; i < countIn; i++) playClick(c.currentTime + 0.1 + i * beatSec, i === 0);
 
+  // by start time; the caller's array is left as it is
+  const order = notes.map((n, index) => ({ n, index })).sort((a, b) => a.n.start - b.n.start);
   let end = start;
-  notes.forEach((n, index) => {
-    const when = start + n.start * beatSec;
-    const dur = n.beats * beatSec;
-    end = Math.max(end, when + dur);
-    for (const m of n.midis) stops.push(playNote(m, { when, duration: dur * 0.95 }));
-    timeouts.push(window.setTimeout(() => !stopped && opts.onNote?.(index), Math.max(0, (when - c.currentTime) * 1000)));
-  });
+  for (const { n } of order) end = Math.max(end, start + (n.start + n.beats) * beatSec);
+
+  const timeouts: number[] = [];
+  let stops: (() => void)[] = [];
+  let timer: number | null = null;
+  let next = 0;
+  let stopped = false;
 
   let resolveDone: () => void = () => {};
   const done = new Promise<void>((res) => (resolveDone = res));
-  timeouts.push(
-    window.setTimeout(
-      () => {
-        opts.onNote?.(-1);
-        resolveDone();
-      },
-      Math.max(0, (end - c.currentTime) * 1000) + 50,
-    ),
-  );
+  const finish = () => {
+    if (stopped) return;
+    stopped = true;
+    if (timer !== null) window.clearTimeout(timer);
+    timeouts.forEach((id) => window.clearTimeout(id));
+    opts.onNote?.(-1);
+    resolveDone();
+  };
+
+  const LOOKAHEAD = 1.5; // seconds of audio scheduled ahead of the clock
+  const TICK = 250; // ms between scheduling passes
+  const schedule = () => {
+    if (stopped) return;
+    const horizon = c.currentTime + LOOKAHEAD;
+    while (next < order.length) {
+      const { n, index } = order[next];
+      const when = start + n.start * beatSec;
+      if (when > horizon) break;
+      const dur = n.beats * beatSec;
+      for (const m of n.midis) stops.push(playNote(m, { when, duration: dur * 0.95 }));
+      timeouts.push(window.setTimeout(() => !stopped && opts.onNote?.(index), Math.max(0, (when - c.currentTime) * 1000)));
+      next++;
+    }
+    // notes already over don't need stopping; keep the list from growing with the piece
+    if (stops.length > 200) stops = stops.slice(-200);
+    timer =
+      next < order.length
+        ? window.setTimeout(schedule, TICK)
+        : window.setTimeout(finish, Math.max(0, (end - c.currentTime) * 1000) + 50);
+  };
+  schedule();
 
   return {
     done,
     startTime: start,
     stop: () => {
-      stopped = true;
-      timeouts.forEach((id) => window.clearTimeout(id));
       stops.forEach((s) => s());
-      opts.onNote?.(-1);
-      resolveDone();
+      finish();
     },
   };
 }

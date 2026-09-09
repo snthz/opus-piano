@@ -15,10 +15,11 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
   qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
   con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
   Lo prepara Claude con la clave de API del servidor: el usuario no configura ni paga nada, solo necesita cuenta.
-- **Catálogo de dominio público** (`/scores/catalog`): 21 piezas —obras originales en MusicXML de bibliotecas
-  de dominio público (Für Elise, el preludio BWV 846, Clementi, Satie, Chopin, Joplin…) más cuatro arreglos
-  sencillos propios— ordenadas por nivel, cada una con un análisis breve de cómo abordarla. Vista previa entera
-  (suena, nombres de las notas) antes de guardarla en la biblioteca. Los archivos van en `public/catalog/`.
+- **Catálogo de dominio público** (`/scores/catalog`): 21 piezas en MusicXML de bibliotecas de dominio
+  público (Für Elise, el preludio BWV 846, Clementi, Satie, Chopin, Joplin… y cuatro arreglos fáciles de las
+  mismas bibliotecas para empezar), ordenadas por nivel, cada una con un análisis breve de cómo abordarla.
+  Aquí no se escribe ninguna partitura a mano. Vista previa entera (suena, nombres de las notas) antes de
+  guardarla en la biblioteca. Los archivos van en `public/catalog/`.
 - **Partituras compartidas**: cada partitura de la biblioteca puede ser privada, visible por enlace o pública
   (`/scores/community`). Se comparten el archivo, el nombre, la portada y una presentación; las notas, los
   trazos y el análisis siguen siendo privados. Quien la ve puede guardarse una copia.

@@ -200,6 +200,12 @@ export function Score({
             svg.setAttribute("viewBox", `0 ${top} ${width} ${bottom - top}`);
             svg.setAttribute("width", String(width));
             svg.setAttribute("height", String(bottom - top));
+            // VexFlow fixes the size inline, which beats the stylesheet's
+            // `height: auto`: in a narrow box the drawing shrank in width but
+            // kept its full height, floating in blank space. The attributes
+            // and viewBox already carry the size; let CSS scale it.
+            svg.style.removeProperty("width");
+            svg.style.removeProperty("height");
             svg.setAttribute("role", "img");
             if (title) svg.setAttribute("aria-label", title);
           }

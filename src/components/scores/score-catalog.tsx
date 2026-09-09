@@ -2,25 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { piecesByLevel, type CatalogPiece } from "@/data/catalog";
+import { CATALOG, type CatalogPiece } from "@/data/catalog";
+import { loadCatalogParsed } from "@/lib/catalog-load";
 import { ownedPieces } from "@/lib/catalog-library";
+import type { ParsedScore } from "@/lib/music/musicxml";
 import { listScores, onScoresChange } from "@/lib/scores-db";
-import { GlyphIcon } from "@/components/notation/glyph-icon";
-import { ArrowIcon } from "@/components/ui/arrow-icon";
+import type { Level } from "@/lib/study-plan";
+import { LEVELS } from "@/lib/study-plan";
+import { CoverDot, CoverTag, ScoreCover } from "./score-cover";
 
 /**
- * El catálogo de piezas libres, por nivel. Cada tarjeta lleva a su vista
- * previa —la partitura entera, sonando, con el análisis— y desde allí se
- * guarda en la biblioteca. Aquí solo se decide cuál abrir.
+ * El catálogo de piezas libres: una cuadrícula de portadas, como una tienda
+ * de partituras, con el nivel en cada una y unos chips para quedarse solo con
+ * uno. Cada tarjeta lleva a su vista previa —la partitura entera, sonando,
+ * con el análisis— y desde allí se guarda en la biblioteca. Aquí solo se
+ * decide cuál abrir, así que la tarjeta dice lo justo: portada, título,
+ * autor y tamaño.
  */
-
-/** Un glifo por nivel, para que las tarjetas se distingan sin leerlas. */
-const LEVEL_GLYPH: Record<string, string> = {
-  principiante: "noteQuarterUp",
-  elemental: "note8thUp",
-  intermedio: "gClef",
-  avanzado: "fClef",
-};
 
 /** Los rótulos de `LEVEL_LABELS` están escritos para un formulario («empiezo a leer»); aquí hacen de título. */
 export const LEVEL_HEADING: Record<string, string> = {
@@ -48,57 +46,96 @@ export function useOwnedPieces(): Map<string, string> {
   return owned;
 }
 
+/** Los primeros compases de una pieza del catálogo, para su portada; null mientras llegan o si no llegan. */
+function useCatalogParsed(piece: CatalogPiece): ParsedScore | null {
+  const [parsed, setParsed] = useState<ParsedScore | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadCatalogParsed(piece).then(
+      (p) => !cancelled && setParsed(p),
+      () => !cancelled && setParsed(null),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [piece]);
+  return parsed;
+}
+
 export function ScoreCatalog() {
   const owned = useOwnedPieces();
+  const [level, setLevel] = useState<Level | null>(null);
+  const levels = LEVELS.filter((l) => CATALOG.some((p) => p.level === l));
+  const pieces = level ? CATALOG.filter((p) => p.level === level) : CATALOG;
+
   return (
-    <div className="space-y-8">
-      {piecesByLevel().map(({ level, pieces }) => (
-        <section key={level}>
-          <h2 className="mb-3 text-lg font-semibold tracking-tight">{LEVEL_HEADING[level] ?? level}</h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {pieces.map((piece) => (
-              <li key={piece.id}>
-                <PieceCard piece={piece} owned={owned.has(piece.id)} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Nivel">
+        <button type="button" onClick={() => setLevel(null)} className={`pill py-1.5 text-xs ${level === null ? "pill-active" : ""}`}>
+          Todas
+        </button>
+        {levels.map((l) => (
+          <button key={l} type="button" onClick={() => setLevel(l)} className={`pill py-1.5 text-xs ${level === l ? "pill-active" : ""}`}>
+            {LEVEL_HEADING[l] ?? l}
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-ink-3">
+          {pieces.length} {pieces.length === 1 ? "pieza" : "piezas"}
+        </span>
+      </div>
+
+      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+        {pieces.map((piece) => (
+          <li key={piece.id}>
+            <PieceCard piece={piece} owned={owned.has(piece.id)} />
+          </li>
+        ))}
+      </ul>
 
       <p className="px-1 text-xs leading-relaxed text-ink-3">
         Todas son obras de dominio público: de autores fallecidos hace más de un siglo, o tradicionales. Las partituras
-        originales vienen de bibliotecas MusicXML de dominio público (cada ficha dice de cuál); las piezas «para
-        empezar» son arreglos sencillos escritos para Opus Piano. Puedes tocarlas, imprimirlas y compartirlas sin pedir
-        permiso a nadie.
+        vienen de bibliotecas MusicXML de dominio público (cada ficha dice de cuál); las marcadas como «arreglo fácil»
+        son versiones simplificadas de esas mismas bibliotecas, no la obra tal cual. Puedes tocarlas, imprimirlas y
+        compartirlas sin pedir permiso a nadie.
       </p>
     </div>
   );
 }
 
 function PieceCard({ piece, owned }: { piece: CatalogPiece; owned: boolean }) {
+  const parsed = useCatalogParsed(piece);
   return (
     <Link
       href={`/scores/catalog/${piece.id}`}
-      className={`card-pastel ${LEVEL_COLOR[piece.level] ?? "bg-ash"} group relative flex h-full flex-col overflow-hidden p-5 transition hover:-translate-y-0.5`}
+      className="group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-surface transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow)] focus-visible:-translate-y-0.5"
     >
-      <GlyphIcon
-        name={LEVEL_GLYPH[piece.level] ?? "gClef"}
-        size={120}
-        className="pointer-events-none absolute -right-4 -top-4 opacity-[0.10]"
-      />
-      <span className="relative flex-1">
-        <span className="block pr-10 text-lg font-semibold leading-tight tracking-tight">{piece.title}</span>
-        <span className="mt-0.5 block text-xs text-ink-2">
-          {piece.composer} · {piece.year} · {piece.measures} compases
-        </span>
-        <span className="mt-2 block max-w-prose text-sm leading-relaxed text-ink-2">{piece.about}</span>
-      </span>
-      <span className="relative mt-4 flex items-center justify-between gap-3 text-xs">
-        <span className="font-semibold text-ink-2">{owned ? "En tu biblioteca" : piece.source.kind === "file" ? "Partitura original" : "Arreglo sencillo"}</span>
-        <span className="btn-circle h-9 w-9 group-hover:-translate-y-0.5">
-          <ArrowIcon className="h-4 w-4" />
-        </span>
-      </span>
+      <div className="p-2.5 pb-1.5">
+        <ScoreCover parsed={parsed} zoom>
+          <CoverTag className={`${LEVEL_COLOR[piece.level] ?? "bg-surface/85"} text-ink`}>{LEVEL_HEADING[piece.level] ?? piece.level}</CoverTag>
+          {owned && (
+            <span className="absolute bottom-2 right-2">
+              <CoverDot label="En tu biblioteca" className="bg-ink text-bg">
+                <CheckIcon className="h-3 w-3" />
+              </CoverDot>
+            </span>
+          )}
+        </ScoreCover>
+      </div>
+      <div className="flex flex-1 flex-col gap-0.5 px-3.5 pb-3.5 pt-2">
+        <p className="line-clamp-2 text-sm font-semibold leading-snug">{piece.title}</p>
+        <p className="line-clamp-1 text-xs text-ink-2">{piece.composer}</p>
+        <p className="mt-auto pt-1 text-[11px] text-ink-3">
+          {piece.year} · {piece.measures} compases
+        </p>
+      </div>
     </Link>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
   );
 }

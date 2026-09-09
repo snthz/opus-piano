@@ -117,6 +117,12 @@ export function parseMusicXml(xml: string): ParsedScore {
   const staffIndex = (part: Element, staff: number) => sources.findIndex((s) => s.part === part && s.staff === staff);
 
   const clefs: ClefName[] = sources.map((_, i) => (i === 0 ? "treble" : "bass"));
+  // Opus Piano draws one clef per staff for the whole piece, so a staff that
+  // changes clef (a left hand that climbs into the treble for a page) is drawn
+  // in the clef it spends most measures in, not the one it happens to end in.
+  const clefUse: Map<ClefName, number>[] = sources.map(() => new Map());
+  const currentClef: ClefName[] = [...clefs];
+  const clefGiven = sources.map(() => false);
   let keyVex = "C";
   let fifths = 0;
   let modeGiven = false;
@@ -164,7 +170,8 @@ export function parseMusicXml(xml: string): ParsedScore {
             const si = staffIndex(part, Number(clef.getAttribute("number") ?? "1"));
             if (si < 0) continue;
             const sign = text(clef, "sign");
-            clefs[si] = sign === "F" ? "bass" : sign === "C" ? "alto" : "treble";
+            currentClef[si] = sign === "F" ? "bass" : sign === "C" ? "alto" : "treble";
+            clefGiven[si] = true;
           }
         } else if (child.tagName === "direction" || child.tagName === "sound") {
           const t = child.tagName === "sound" ? child.getAttribute("tempo") : child.querySelector("sound")?.getAttribute("tempo");
@@ -234,6 +241,8 @@ export function parseMusicXml(xml: string): ParsedScore {
       }
     });
 
+    currentClef.forEach((clef, si) => clefUse[si].set(clef, (clefUse[si].get(clef) ?? 0) + 1));
+
     const staves = sources.map(({ part }, si) => mergeVoices(raw[si], divisionsByPart.get(part) ?? 1));
     const m: XmlMeasure = { number, staves };
     if (repeatStart) m.repeatStart = true;
@@ -241,6 +250,14 @@ export function parseMusicXml(xml: string): ParsedScore {
     if (ending) m.ending = ending;
     measures.push(m);
   }
+
+  clefUse.forEach((use, si) => {
+    if (!clefGiven[si]) return;
+    const [best, count] = [...use.entries()].sort((a, b) => b[1] - a[1])[0];
+    // the usual piano clefs win a close call: a right hand that dips into the
+    // bass for half the piece still reads better in the treble
+    if (count > (use.get(clefs[si]) ?? 0) * 1.25) clefs[si] = best;
+  });
 
   // MuseScore often exports a key signature without its mode, and "no sharps"
   // then reads as C major even for a piece in A minor. The last bass note is a
