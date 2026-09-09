@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { keyByVex, keyName } from "@/lib/music/keys";
 import { useSettings } from "@/lib/settings";
 import { ScoreSheet } from "./score-sheet";
@@ -26,6 +26,32 @@ export function MusicXmlViewer({ file }: Props) {
         {parsed.measures.length} compases · {keyName(keyByVex(parsed.keyVex), settings.naming)} · {parsed.time.num}/{parsed.time.den}
       </p>
 
+      <PlaybackControls player={player}>
+        <button type="button" onClick={() => setShowNames((v) => !v)} className={`pill py-1.5 text-xs ${showNames ? "pill-active" : ""}`}>
+          {showNames ? "Ocultar nombres" : "Mostrar nombres"}
+        </button>
+      </PlaybackControls>
+
+      <ScoreSheet parsed={parsed} active={player.active} showNames={showNames} />
+    </div>
+  );
+}
+
+/**
+ * Escuchar y a qué velocidad: los dos mandos que valen igual para el dibujo
+ * de la app y para la partitura grabada. Lo que cada vista añada de suyo
+ * (los nombres de las notas, por ejemplo) va como hijo.
+ */
+export function PlaybackControls({
+  player,
+  children,
+}: {
+  player: ReturnType<typeof useScorePlayer>;
+  children?: ReactNode;
+}) {
+  const { settings } = useSettings();
+  return (
+    <>
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -35,10 +61,8 @@ export function MusicXmlViewer({ file }: Props) {
         >
           {player.playing ? "■ Detener" : "▶ Escuchar"}
         </button>
-        <button type="button" onClick={() => setShowNames((v) => !v)} className={`pill py-1.5 text-xs ${showNames ? "pill-active" : ""}`}>
-          {showNames ? "Ocultar nombres" : "Mostrar nombres"}
-        </button>
-        <label className="flex items-center gap-2 text-xs text-ink-2 ml-auto">
+        {children}
+        <label className="ml-auto flex items-center gap-2 text-xs text-ink-2">
           ♩ = {player.tempo}
           <input
             type="range"
@@ -53,8 +77,6 @@ export function MusicXmlViewer({ file }: Props) {
         </label>
       </div>
       {!settings.sound && <p className="text-xs text-bad">Activa el sonido en Ajustes para escuchar la partitura.</p>}
-
-      <ScoreSheet parsed={parsed} active={player.active} showNames={showNames} />
-    </div>
+    </>
   );
 }

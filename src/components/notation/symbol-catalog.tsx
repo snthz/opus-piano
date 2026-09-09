@@ -14,7 +14,9 @@ function normalize(s: string) {
 export function SymbolCard({ s, compact = false }: { s: SymbolEntry; compact?: boolean }) {
   const glyphs = [s.glyph, ...(s.extraGlyphs ?? [])];
   return (
-    <div className="card p-4 flex gap-4">
+    // El id hace que cada símbolo tenga su propio enlace («…/symbols/dynamics#forte»),
+    // que es lo que se puede citar; sin él solo se puede enlazar la familia entera.
+    <div id={s.id} className="card p-4 flex gap-4 scroll-mt-24">
       <div className="w-20 h-20 rounded-2xl bg-surface-2 flex items-center justify-center shrink-0 overflow-hidden">
         <GlyphIcon name={glyphs} size={44 * (s.scale ?? 1)} fit="em" label={s.name} />
       </div>

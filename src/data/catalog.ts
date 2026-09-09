@@ -64,6 +64,12 @@ export interface CatalogPiece {
 const MUSETRAINER = { name: "MuseTrainer public domain MusicXML library", url: "https://github.com/musetrainer/library" };
 const OSMD = { name: "OpenSheetMusicDisplay (partituras de prueba)", url: "https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/tree/develop/test/data" };
 
+/**
+ * La portada de una pieza: la primera página grabada, ya hecha por
+ * `scripts/gen-catalog-covers.mjs` y subida al repositorio.
+ */
+export const catalogCover = (id: string) => `/catalog/covers/${id}.jpg`;
+
 const file = (id: string, origin: { name: string; url: string }, arranged = false): CatalogSource => ({
   path: `/catalog/${id}.mxl`,
   origin,

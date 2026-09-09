@@ -1,7 +1,8 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { LearningPath } from "@/components/path/learning-path";
 import { PATH, PATH_STEPS } from "@/data/path";
-import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
+import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Ruta de aprendizaje: por dónde empezar a leer música",
@@ -14,6 +15,20 @@ export const metadata = pageMetadata({
 export default function PathPage() {
   return (
     <div>
+      {/* Las etapas en orden: la respuesta literal a «¿por dónde empiezo a
+          aprender a leer música?», que es la pregunta que más se hace. */}
+      <JsonLd
+        data={itemListJsonLd({
+          name: "Ruta para aprender a leer música desde cero",
+          description: `${PATH_STEPS.length} pasos en ${PATH.length} etapas, del pentagrama a las tonalidades.`,
+          path: "/path",
+          items: PATH.map((stage) => ({
+            name: stage.title,
+            description: stage.goal,
+            path: `/path#${stage.id}`,
+          })),
+        })}
+      />
       <PageHeader
         eyebrow="Ruta"
         title="Por dónde empezar"

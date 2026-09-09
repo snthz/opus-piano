@@ -7,17 +7,26 @@ import { loadCatalogXml, MUSICXML_MIME, saveCatalogPiece } from "@/lib/catalog-l
 import { UserError } from "@/lib/user-error";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { MusicXmlViewer } from "./musicxml-viewer";
+import { EngravedSheet } from "./engraved-sheet";
+import { PlaybackControls } from "./musicxml-viewer";
+import { useParsedXml, useScorePlayer } from "./use-score-player";
+import { keyByVex, keyName } from "@/lib/music/keys";
+import { useSettings } from "@/lib/settings";
 import { LEVEL_COLOR, LEVEL_HEADING, useOwnedPieces } from "./score-catalog";
 
 /**
- * La vista previa de una pieza del catálogo: la partitura entera, que suena
- * y muestra los nombres, el análisis de cómo abordarla y el botón de
- * guardarla. Nada se escribe en la biblioteca hasta que se pulsa; se puede
- * mirar y escuchar todo lo que se quiera antes.
+ * La vista previa de una pieza del catálogo: la partitura original entera —la
+ * misma que se imprimiría, página a página—, que además suena, con el
+ * análisis de cómo abordarla y el botón de guardarla.
+ *
+ * Aquí se enseña la partitura grabada y no el dibujo de la app porque lo que
+ * se decide en esta página es si esta pieza es la que toca ahora, y para eso
+ * hay que verla como está escrita. El dibujo que se ilumina nota a nota
+ * llega después, en la biblioteca, cuando ya se está tocando.
  */
 export function CatalogPreview({ piece }: { piece: CatalogPiece }) {
   const owned = useOwnedPieces();
+  const { settings } = useSettings();
   const [xml, setXml] = useState<string | null>(null);
   const [file, setFile] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +47,10 @@ export function CatalogPreview({ piece }: { piece: CatalogPiece }) {
       cancelled = true;
     };
   }, [piece]);
+
+  // El sonido sale del lector de la app, aunque lo que se vea sea la partitura grabada.
+  const { parsed } = useParsedXml(file ?? undefined);
+  const player = useScorePlayer(parsed);
 
   const scoreId = savedId ?? owned.get(piece.id) ?? null;
 
@@ -82,14 +95,27 @@ export function CatalogPreview({ piece }: { piece: CatalogPiece }) {
             </button>
           )}
           <span className="text-xs text-ink-2">
-            {scoreId ? "Ya la tienes: con tus notas, tus trazos y tu análisis." : "Mírala y escúchala entera antes; no se guarda nada hasta que pulses."}
+            {scoreId
+              ? "Ya la tienes: con tus notas, tus trazos y tu análisis."
+              : "Léela y escúchala entera antes; no se guarda nada hasta que pulses. En tu biblioteca podrás además seguirla nota a nota."}
           </span>
         </div>
       </section>
 
       {error && <p className="px-1 text-sm text-bad">{error}</p>}
-      {!file && !error && <p className="px-1 text-sm text-ink-2">Abriendo la partitura…</p>}
-      {file && <MusicXmlViewer file={file} />}
+      {!xml && !error && <p className="px-1 text-sm text-ink-2">Abriendo la partitura…</p>}
+      {xml && (
+        <section className="space-y-4">
+          {parsed && (
+            <p className="text-xs text-ink-2">
+              {parsed.measures.length} compases · {keyName(keyByVex(parsed.keyVex), settings.naming)} · {parsed.time.num}/
+              {parsed.time.den}
+            </p>
+          )}
+          <PlaybackControls player={player} />
+          <EngravedSheet xml={xml} />
+        </section>
+      )}
 
       <section className="card p-5 md:p-6">
         <h2 className="text-lg font-semibold tracking-tight">Cómo abordarla</h2>

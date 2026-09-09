@@ -18,8 +18,9 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 - **Catálogo de dominio público** (`/scores/catalog`): 21 piezas en MusicXML de bibliotecas de dominio
   público (Für Elise, el preludio BWV 846, Clementi, Satie, Chopin, Joplin… y cuatro arreglos fáciles de las
   mismas bibliotecas para empezar), ordenadas por nivel, cada una con un análisis breve de cómo abordarla.
-  Aquí no se escribe ninguna partitura a mano. Vista previa entera (suena, nombres de las notas) antes de
-  guardarla en la biblioteca. Los archivos van en `public/catalog/`.
+  Aquí no se escribe ninguna partitura a mano. Cada ficha enseña **la partitura original entera**, grabada
+  con Verovio página a página, y suena antes de guardarla. Los archivos van en `public/catalog/` y sus
+  portadas, ya hechas, en `public/catalog/covers/`.
 - **Partituras compartidas**: cada partitura de la biblioteca puede ser privada, visible por enlace o pública
   (`/scores/community`). Se comparten el archivo, el nombre, la portada y una presentación; las notas, los
   trazos y el análisis siguen siendo privados. Quien la ve puede guardarse una copia.
@@ -70,6 +71,17 @@ bun run test              # unitarios: contraseñas, cookies, validación zod, r
 bun run test:integration  # contra Postgres (DATABASE_URL): registro → sesión → progreso → borrado
 bun run build             # build de producción (genera sw.js y salida standalone)
 ```
+
+Un script aparte, que no entra en el build porque su resultado se sube al repositorio:
+
+```bash
+bun run gen:covers        # portadas del catálogo: la primera página de cada .mxl, grabada, a JPEG
+```
+
+Lee `public/catalog/*.mxl`, graba la primera página con Verovio y la escribe en
+`public/catalog/covers/<id>.jpg`; solo hace las que falten (`--force` las rehace todas). Necesita Chrome
+o Brave instalados para pasar el SVG a JPEG. Al añadir una pieza al catálogo hay que ejecutarlo y
+subir la portada nueva.
 
 Los tests de integración necesitan una base de datos vacía o de pruebas: usan las rutas de la
 API directamente (sin levantar el servidor) y limpian las cuentas `@opus.test` al terminar.
@@ -186,7 +198,7 @@ partitura e instrucciones), [`src/lib/plan/client.ts`](src/lib/plan/client.ts) e
   enlazadas existan. Las instrucciones y las descripciones del esquema piden un plan **condensado**: frases
   cortas, de 5 a 9 objetivos y nada de relleno.
 - **Respuesta en flujo**: un plan tarda uno o dos minutos, así que `/api/study-plan` devuelve líneas JSON con
-  señales de vida (igual que `/api/omr`) y la tarea corre en segundo plano: se puede cerrar el panel y seguir
+  señales de vida y la tarea corre en segundo plano: se puede cerrar el panel y seguir
   leyendo la partitura.
 - **Dónde se guarda**: con la partitura, en IndexedDB y, con cuenta, en la columna `Score.plan` del servidor,
   sincronizado igual que las notas y los trazos (gana el `updatedAt` más reciente).
@@ -196,16 +208,23 @@ partitura e instrucciones), [`src/lib/plan/client.ts`](src/lib/plan/client.ts) e
 ### Transcribir un PDF a MusicXML (OMR)
 
 Un PDF es solo una imagen: sin MusicXML no se puede tocar la pieza ni mostrar los nombres. El navegador
-dibuja cada página, la manda a `/api/omr` y el servidor se la pasa al servicio de
-[`omr-service/`](omr-service/) —[oemer](https://github.com/BreezeWhite/oemer), modelos de OMR ya
-entrenados— que devuelve el MusicXML de esa página. La app lo lee con su propio lector, pega las páginas
-(`src/lib/omr/merge.ts`) y lo vuelve a escribir con su escritor, así que lo que se guarda es el mismo
-dialecto de siempre: una parte de piano, uno o dos pentagramas, una voz por pentagrama.
+dibuja cada página del PDF y las sube todas de una vez a `/api/transcriptions`; a partir de ahí el trabajo
+es del servidor, que pasa cada página por el servicio de [`omr-service/`](omr-service/)
+—[oemer](https://github.com/BreezeWhite/oemer), modelos de OMR ya entrenados— y guarda su MusicXML. Al
+recogerlo, la app lo lee con su propio lector, pega las páginas (`src/lib/omr/merge.ts`) y lo vuelve a
+escribir con su escritor, así que lo que se guarda es el mismo dialecto de siempre: una parte de piano, uno
+o dos pentagramas, una voz por pentagrama.
 
+- **Es un encargo, no una petición.** El estado vive en la tabla `Transcription` y las páginas en disco
+  (`SCORES_DIR/<userId>/omr/<id>/`). **Cerrar la pestaña no lo para**: al volver a la biblioteca,
+  `use-resume-transcriptions.ts` pregunta qué hay en marcha y lo vuelve a enganchar a su partitura. Lo único
+  que lo para es cancelarlo a mano, que además borra las páginas (`DELETE /api/transcriptions/<id>`, el
+  mismo que se usa al recoger el resultado).
+- **Uno cada vez por usuario**, porque el servicio atiende una partitura a la vez; encargar otro mientras
+  hay uno vivo devuelve 409. El trabajo late cada 20 s en la fila, así que un reinicio del servidor a medias
+  se detecta y el encargo se marca como fallido en vez de quedarse colgado.
 - **Hace falta cuenta.** La CPU la paga el servidor: se exige sesión y hay un límite de `OMR_PAGES_PER_HOUR`
   páginas por hora y usuario. Sin `OMR_URL` configurada, la opción no aparece.
-- **Tarda minutos por página**, así que la petición devuelve un flujo de líneas JSON con señales de vida y
-  la tarea corre en segundo plano como las demás: se puede cerrar el panel y seguir leyendo.
 - **Se le da bien lo impreso y aireado**, y mal lo denso, lo torcido y lo manuscrito; cuando no puede,
   lo dice. Para partituras apretadas o manuscritas sigue siendo mejor el MusicXML de MuseScore.
 - Detalles del servicio, contrato HTTP, despliegue y lo que consume: [`omr-service/README.md`](omr-service/README.md).

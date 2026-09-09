@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { listShared, type SharedScore } from "@/lib/community";
 import { UserError } from "@/lib/user-error";
 import { PlayIcon } from "./reader-icons";
-import { CoverDot, CoverTag, ScoreCover } from "./score-cover";
+import { CoverDot, CoverTag, ScoreCover, TileText } from "./score-cover";
 
 /** Las partituras que otras personas han puesto en público, de la más reciente a la más antigua. */
 export function CommunityList() {
@@ -28,7 +28,7 @@ export function CommunityList() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 xl:grid-cols-5">
       {scores.map((s) => (
         <SharedCard key={s.id} score={s} />
       ))}
@@ -38,12 +38,8 @@ export function CommunityList() {
 
 function SharedCard({ score }: { score: SharedScore }) {
   return (
-    <Link
-      href={`/scores/community/${encodeURIComponent(score.id)}`}
-      className="group flex flex-col overflow-hidden rounded-3xl border border-line bg-surface transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow)]"
-    >
-      <div className="p-2.5 pb-1.5">
-        <ScoreCover thumbnail={score.thumbnail} zoom>
+    <Link href={`/scores/community/${encodeURIComponent(score.id)}`} className="group block focus:outline-none">
+      <ScoreCover src={score.thumbnail}>
           <CoverTag>{score.kind === "musicxml" ? "MusicXML" : "PDF"}</CoverTag>
           {score.playable && (
             <span className="absolute bottom-2 right-2">
@@ -52,15 +48,8 @@ function SharedCard({ score }: { score: SharedScore }) {
               </CoverDot>
             </span>
           )}
-        </ScoreCover>
-      </div>
-      <div className="flex flex-1 flex-col gap-1 px-3.5 pb-3.5 pt-2">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug">{score.name}</p>
-        {score.description && <p className="line-clamp-2 text-xs leading-relaxed text-ink-2">{score.description}</p>}
-        <p className="mt-auto pt-0.5 text-[11px] text-ink-3">
-          {score.owner} · {score.kind === "musicxml" ? `${score.pageCount} compases` : `${score.pageCount} páginas`}
-        </p>
-      </div>
+      </ScoreCover>
+      <TileText title={score.name} meta={score.description || undefined} sub={`${score.owner} · ${score.kind === "musicxml" ? `${score.pageCount} compases` : `${score.pageCount} páginas`}`} />
     </Link>
   );
 }

@@ -11,17 +11,18 @@ datasource db {
 /// Cuenta con correo. Contraseña (scrypt) si se registró con ella; con Google
 /// puede no tener ninguna. El progreso cuelga del usuario.
 model User {
-  id           String             @id @default(cuid())
-  email        String             @unique
-  name         String
-  passwordHash String?
-  createdAt    DateTime           @default(now())
-  sessions     Session[]
-  accounts     OAuthAccount[]
-  exercises    ExerciseProgress[]
-  days         DailyActivity[]
-  scores       Score[]
-  aiCalls      AiCall[]
+  id             String             @id @default(cuid())
+  email          String             @unique
+  name           String
+  passwordHash   String?
+  createdAt      DateTime           @default(now())
+  sessions       Session[]
+  accounts       OAuthAccount[]
+  exercises      ExerciseProgress[]
+  days           DailyActivity[]
+  scores         Score[]
+  aiCalls        AiCall[]
+  transcriptions Transcription[]
 }
 
 /// Identidad externa (Google) vinculada a un usuario, por el `sub` del proveedor.
@@ -84,32 +85,32 @@ model DailyActivity {
 /// viven en disco (SCORES_DIR); aquí solo los metadatos, la miniatura y los trazos.
 /// El id lo genera el dispositivo (UUID) para que coincida con su copia local.
 model Score {
-  id          String   @id
+  id          String    @id
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   /// "pdf" | "musicxml"
   kind        String
-  notes       String   @default("")
-  pageCount   Int      @default(0)
+  notes       String    @default("")
+  pageCount   Int       @default(0)
   /// data URL de la miniatura (vacía en MusicXML)
-  thumbnail   String   @default("")
+  thumbnail   String    @default("")
   annotations Json?
   /// Bytes del archivo principal; 0 hasta que se sube
-  size        Int      @default(0)
-  uploaded    Boolean  @default(false)
+  size        Int       @default(0)
+  uploaded    Boolean   @default(false)
   /// Bytes del MusicXML vinculado (solo PDF), 0 si no hay
-  xmlSize     Int      @default(0)
-  createdAt   DateTime @default(now())
+  xmlSize     Int       @default(0)
+  createdAt   DateTime  @default(now())
   /// Última modificación de metadatos, la pone el dispositivo (ms desde época)
   updatedAt   BigInt
   /// Plan de estudio generado con IA (esquema `planStateSchema`); se sincroniza como las notas
   plan        Json?
   /// Quién puede verla: "private" (solo su dueño), "link" (quien tenga el enlace) o "public" (en la lista de la comunidad).
   /// Solo se comparten el archivo, el nombre, la miniatura y `description`; notas, trazos y plan siguen siendo privados.
-  visibility  String   @default("private")
+  visibility  String    @default("private")
   /// Texto público que acompaña a una partitura compartida.
-  description String   @default("")
+  description String    @default("")
   /// Última vez que se compartió, para ordenar la lista de la comunidad.
   sharedAt    DateTime?
 
@@ -142,4 +143,37 @@ model AiCall {
 
   @@index([userId, kind, at])
   @@index([month])
+}
+
+/// Un reconocimiento de partitura (OMR) en marcha o recién terminado.
+///
+/// Corre en el servidor, no en el navegador: cada página son minutos de CPU y
+/// cerrar la pestaña no puede tirar por la borda lo que ya se ha hecho. Aquí
+/// está el estado; las imágenes de las páginas y el MusicXML de cada una
+/// viven en disco, junto a los archivos de las partituras.
+///
+/// Se borra cuando el dispositivo recoge el resultado o cuando el usuario lo
+/// cancela: es un encargo, no un historial.
+model Transcription {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Partitura del dispositivo (UUID) a la que pertenece, para reencontrarla al volver.
+  scoreId   String
+  scoreName String
+  /// "pending" | "running" | "done" | "error" | "cancelled"
+  status    String  @default("pending")
+  /// Páginas enviadas y páginas ya reconocidas.
+  pages     Int
+  donePages Int     @default(0)
+  /// Primera página del PDF, para decir de cuál va cada una.
+  fromPage  Int     @default(1)
+  /// Mensaje de error para el usuario, si ha fallado.
+  error     String?
+
+  createdAt DateTime @default(now())
+  /// Latido: se toca al acabar cada página, y delata un servidor reiniciado a medias.
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }

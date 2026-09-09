@@ -16,8 +16,9 @@ import { ScoreViewer } from "./score-viewer";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PenIcon, PlayIcon } from "./reader-icons";
 import { DotsIcon, EmptyLibraryIcon, SearchIcon, SharedIcon } from "./library-icons";
-import { CoverDot, CoverTag, ScoreCover } from "./score-cover";
-import { useParsedXml } from "./use-score-player";
+import { CoverDot, CoverTag, ScoreCover, TileText } from "./score-cover";
+import { useScoreCover } from "./use-score-cover";
+import { useResumeTranscriptions } from "./use-resume-transcriptions";
 
 /** Ruta de la biblioteca; la partitura abierta va en `?score=<id>`. */
 const LIBRARY_PATH = "/scores";
@@ -32,6 +33,8 @@ export function ScoreLibrary() {
   const [added, setAdded] = useState(false);
   const sync = useScoresSync();
   const { user } = useAuth();
+  // Lo que se quedó reconociéndose en el servidor vuelve a engancharse aquí.
+  useResumeTranscriptions();
 
   // La partitura abierta la manda la URL: así sobrevive a recargar la página y
   // el botón «atrás» del navegador vuelve a la biblioteca.
@@ -186,7 +189,7 @@ export function ScoreLibrary() {
       )}
 
       {filtered.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 xl:grid-cols-5">
           {filtered.map((s) => (
             <ScoreCard
               key={s.id}
@@ -235,8 +238,7 @@ function ScoreCard({
 
   const isXml = record.kind === "musicxml";
   const playable = isXml || !!record.linkedXml;
-  // La portada de un MusicXML son sus primeros compases dibujados; un PDF ya trae su miniatura.
-  const { parsed } = useParsedXml(isXml && !record.thumbnail ? record.file : undefined);
+  const cover = useScoreCover(record);
   const annotated = Object.values(record.annotations ?? {}).some((s) => s.length > 0);
   const shared = (record.visibility ?? "private") !== "private";
 
@@ -265,17 +267,14 @@ function ScoreCard({
   };
 
   return (
-    <article
-      ref={cardRef}
-      className="group relative flex flex-col overflow-hidden rounded-3xl border border-line bg-surface transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow)] focus-within:-translate-y-0.5"
-    >
+    <article ref={cardRef} className="group relative">
       <button
         type="button"
         onClick={onOpen}
-        className="block w-full p-2.5 pb-1.5 text-left focus:outline-none"
+        className="block w-full text-left focus:outline-none"
         aria-label={`Abrir ${record.name}`}
       >
-        <ScoreCover thumbnail={record.thumbnail} parsed={parsed} zoom>
+      <ScoreCover src={cover}>
           {/* Formato y capacidades sobre la portada: dejan libre la línea de metadatos. */}
           <CoverTag>{isXml ? "MusicXML" : "PDF"}</CoverTag>
           {(playable || annotated || shared) && (
@@ -297,38 +296,33 @@ function ScoreCard({
               )}
             </span>
           )}
-        </ScoreCover>
+      </ScoreCover>
       </button>
 
-      <div className="flex flex-1 flex-col gap-1 px-3.5 pb-3.5 pt-2">
-        {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") { setDraft(record.name); setEditing(false); }
-            }}
-            className="w-full rounded-xl bg-surface-2 px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent"
-            aria-label="Nombre de la partitura"
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setDraft(record.name); setEditing(false); }
+          }}
+          className="mt-2.5 w-full rounded-xl bg-surface-2 px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent"
+          aria-label="Nombre de la partitura"
+        />
+      ) : (
+        <button type="button" onClick={onOpen} className="block w-full text-left focus:outline-none">
+          <TileText
+            title={record.name}
+            sub={`${isXml ? `${record.pageCount} ${record.pageCount === 1 ? "compás" : "compases"}` : `${record.pageCount} ${record.pageCount === 1 ? "página" : "páginas"}`} · ${formatDate(record.addedAt)}`}
           />
-        ) : (
-          <p className="line-clamp-2 text-sm font-semibold leading-snug">{record.name}</p>
-        )}
-
-        <p className="mt-auto pt-0.5 text-[11px] text-ink-3">
-          {isXml
-            ? `${record.pageCount} ${record.pageCount === 1 ? "compás" : "compases"}`
-            : `${record.pageCount} ${record.pageCount === 1 ? "página" : "páginas"}`}
-          {" · "}
-          {formatDate(record.addedAt)}
-        </p>
-      </div>
+        </button>
+      )}
 
       {job && (
-        <div className="absolute left-4 top-4">
+        <div className="absolute left-2 top-2">
           <JobIndicator job={job} onOpen={onOpen} className="h-8 w-8 shadow backdrop-blur" />
         </div>
       )}
@@ -337,7 +331,7 @@ function ScoreCard({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setMenu((v) => !v); setConfirmDelete(false); }}
-        className={`absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-surface/90 text-ink-2 ring-1 ring-line backdrop-blur transition hover:text-ink focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${
+        className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-surface/90 text-ink-2 shadow-sm ring-1 ring-line backdrop-blur transition hover:text-ink focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${
           menu ? "text-ink sm:opacity-100" : ""
         }`}
         aria-label="Opciones"
@@ -347,7 +341,7 @@ function ScoreCard({
         <DotsIcon className="h-4 w-4" />
       </button>
       {menu && (
-        <div className="absolute right-4 top-13 z-10 min-w-40 rounded-2xl border border-line bg-surface p-1.5 text-sm shadow-lg">
+        <div className="absolute right-2 top-11 z-10 min-w-40 rounded-2xl border border-line bg-surface p-1.5 text-sm shadow-lg">
           <button
             type="button"
             onClick={() => { setMenu(false); setDraft(record.name); setEditing(true); }}

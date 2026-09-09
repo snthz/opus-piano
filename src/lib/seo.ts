@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LESSON_ENTITIES, SITE_ENTITIES, type ConceptEntity } from "@/data/entities";
 
 /**
  * Central SEO config. The domain comes from `SITE_URL` (or
@@ -255,6 +256,9 @@ export function siteJsonLd(): JsonLdObject[] {
       creator: { "@id": PERSON_ID },
       copyrightYear: COPYRIGHT_YEAR,
       copyrightHolder: { "@id": ORGANIZATION_ID },
+      // De qué trata el sitio, enlazado a las entidades públicas.
+      about: siteAbout(),
+      dateModified: CONTENT_UPDATED,
     },
     {
       "@context": "https://schema.org",
@@ -267,7 +271,11 @@ export function siteJsonLd(): JsonLdObject[] {
       operatingSystem: "Web (PWA): Android, iOS, Windows, macOS, Linux",
       inLanguage: SITE_LANG,
       isAccessibleForFree: true,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+      // Gratis de verdad: sin compras dentro, sin prueba y sin cuenta obligatoria.
+      // Es la primera condición que filtra un asistente al recomendar una app.
+      offers: { "@type": "Offer", price: "0", priceCurrency: "EUR", availability: "https://schema.org/InStock" },
+      about: siteAbout(),
+      dateModified: CONTENT_UPDATED,
       author: { "@id": PERSON_ID },
       creator: { "@id": PERSON_ID },
       publisher: { "@id": ORGANIZATION_ID },
@@ -306,20 +314,30 @@ export function learningResourceJsonLd(opts: {
   description: string;
   path: string;
   minutes: number;
+  /** Lesson slug in `lessons.ts`: anchors the page to the public entity for the concept. */
+  slug?: string;
 }): JsonLdObject {
+  const entity = opts.slug ? LESSON_ENTITIES[opts.slug] : undefined;
   return {
     "@context": "https://schema.org",
-    "@type": "LearningResource",
+    "@type": ["LearningResource", "Article"],
     name: opts.name,
+    headline: opts.name,
     description: opts.description,
     url: absoluteUrl(opts.path),
+    mainEntityOfPage: absoluteUrl(opts.path),
     learningResourceType: "Lección",
     educationalLevel: "Principiante",
     timeRequired: `PT${opts.minutes}M`,
     inLanguage: SITE_LANG,
     isAccessibleForFree: true,
     teaches: opts.name,
+    // `about` with `sameAs` says *which* concept this is, instead of leaving the
+    // reader — a crawler or an assistant — to guess it from the wording.
+    ...(entity ? { about: thingJsonLd(entity) } : {}),
+    dateModified: CONTENT_UPDATED,
     author: { "@id": PERSON_ID },
+    publisher: { "@id": ORGANIZATION_ID },
     provider: { "@id": ORGANIZATION_ID },
     isPartOf: { "@type": "Course", name: "Aprende a leer partituras", url: absoluteUrl("/theory") },
   };
@@ -375,5 +393,173 @@ export function courseJsonLd(opts: {
       description: section.description,
       url: absoluteUrl(section.path),
     })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Structured data for AI assistants
+// ---------------------------------------------------------------------------
+
+/**
+ * Fecha de la última actualización del contenido. Sale de la fecha de
+ * compilación porque el contenido es estático y se publica con cada despliegue,
+ * igual que el sitemap. Los asistentes prefieren citar lo reciente, y una
+ * página sin fecha se descarta antes que una fechada.
+ */
+export const CONTENT_UPDATED = new Date().toISOString();
+
+/**
+ * Un concepto con su enlace a la base de conocimiento pública. Es la pieza que
+ * convierte «una página que habla de compases» en «la página sobre *el compás*,
+ * el mismo del que habla Wikipedia»: sin esto, el marcado describe el documento
+ * pero no dice de qué trata.
+ */
+export function thingJsonLd(entity: ConceptEntity): JsonLdObject {
+  return { "@type": "Thing", name: entity.name, sameAs: entity.wikipedia };
+}
+
+/** Los temas del sitio entero, para el `about` de la home y del curso. */
+export function siteAbout(): JsonLdObject[] {
+  return SITE_ENTITIES.map(thingJsonLd);
+}
+
+/**
+ * Lista ordenada de páginas. Le dice al asistente que estas N cosas son el
+ * conjunto completo —y en qué orden— en lugar de dejarle contar los enlaces
+ * del HTML, donde el menú y el pie se mezclan con el contenido.
+ */
+export function itemListJsonLd(opts: {
+  name: string;
+  description: string;
+  path: string;
+  items: { name: string; path: string; description?: string }[];
+}): JsonLdObject {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: opts.name,
+    description: opts.description,
+    url: absoluteUrl(opts.path),
+    numberOfItems: opts.items.length,
+    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    inLanguage: SITE_LANG,
+    itemListElement: opts.items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      ...(item.description ? { description: item.description } : {}),
+      url: absoluteUrl(item.path),
+    })),
+  };
+}
+
+/**
+ * Un vocabulario entero con sus definiciones dentro del propio marcado. A
+ * diferencia de `ItemList`, aquí va el *texto* de cada definición: es lo que un
+ * asistente puede responder sin abrir cada página, citando la nuestra.
+ */
+export function definedTermSetJsonLd(opts: {
+  name: string;
+  description: string;
+  path: string;
+  terms: { term: string; definition: string; path?: string; alt?: string[] }[];
+}): JsonLdObject {
+  const setId = `${absoluteUrl(opts.path)}#termset`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "DefinedTermSet",
+    "@id": setId,
+    name: opts.name,
+    description: opts.description,
+    url: absoluteUrl(opts.path),
+    inLanguage: SITE_LANG,
+    publisher: { "@id": ORGANIZATION_ID },
+    dateModified: CONTENT_UPDATED,
+    hasDefinedTerm: opts.terms.map((entry) => ({
+      "@type": "DefinedTerm",
+      name: entry.term,
+      description: entry.definition,
+      ...(entry.alt?.length ? { alternateName: entry.alt } : {}),
+      ...(entry.path ? { url: absoluteUrl(entry.path) } : {}),
+      inDefinedTermSet: { "@id": setId },
+    })),
+  };
+}
+
+/**
+ * Una pieza del catálogo. `MusicComposition` identifica la *obra* (Beethoven,
+ * 1824) y `LearningResource` lo que aportamos nosotros: el análisis de cómo
+ * estudiarla, que es lo citable. Sin separarlo, una respuesta sobre «Para
+ * Elisa» no tiene motivo para enlazar aquí en lugar de a Wikipedia.
+ */
+export function musicCompositionJsonLd(opts: {
+  title: string;
+  composer: string;
+  year: string;
+  path: string;
+  about: string;
+  skills: string[];
+  level: string;
+  analysis: { summary: string; approach: string[]; watchOut: string[] };
+  source: { name: string; url: string };
+  image?: string;
+}): JsonLdObject[] {
+  const url = absoluteUrl(opts.path);
+  const workId = `${url}#work`;
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "MusicComposition",
+      "@id": workId,
+      name: opts.title,
+      composer: { "@type": "Person", name: opts.composer },
+      dateCreated: opts.year,
+      url,
+      inLanguage: SITE_LANG,
+      genre: "Música clásica",
+      // Dominio público: es la razón por la que la partitura puede estar aquí,
+      // y la pregunta que hace todo el mundo antes de descargarla.
+      license: "https://creativecommons.org/publicdomain/mark/1.0/",
+      creditText: `Transcripción de dominio público de ${opts.source.name}`,
+      isBasedOn: opts.source.url,
+      ...(opts.image ? { image: absoluteUrl(opts.image) } : {}),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "LearningResource",
+      name: `${opts.title}: cómo estudiarla`,
+      description: opts.analysis.summary,
+      url,
+      mainEntityOfPage: url,
+      about: { "@id": workId },
+      learningResourceType: "Análisis de una pieza",
+      educationalLevel: opts.level,
+      teaches: opts.skills,
+      inLanguage: SITE_LANG,
+      isAccessibleForFree: true,
+      dateModified: CONTENT_UPDATED,
+      author: { "@id": PERSON_ID },
+      provider: { "@id": ORGANIZATION_ID },
+      // Los pasos del análisis, en orden: es lo que responde «¿por dónde empiezo?».
+      hasPart: opts.analysis.approach.map((step, i) => ({
+        "@type": "HowToStep",
+        position: i + 1,
+        text: step,
+      })),
+    },
+  ];
+}
+
+/**
+ * Preguntas y respuestas sueltas dentro de una página que no es un FAQ entero.
+ * `QAPage` no sirve aquí (es para foros); esto es un `FAQPage` acotado al
+ * bloque de dudas de una lección o una ficha.
+ */
+export function questionsJsonLd(items: { question: string; answer: string }[], path: string): JsonLdObject {
+  return {
+    ...faqJsonLd(items),
+    "@id": `${absoluteUrl(path)}#faq`,
+    inLanguage: SITE_LANG,
+    isPartOf: { "@id": WEBSITE_ID },
   };
 }

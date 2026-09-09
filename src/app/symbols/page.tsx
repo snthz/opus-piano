@@ -6,7 +6,8 @@ import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { ALL_SYMBOLS, SYMBOL_CATEGORIES, type SymbolCategory } from "@/data/symbols";
 import { GLYPH_BBOX } from "@/data/smufl-bbox";
 import { symbolCategoryPath } from "@/lib/routes";
-import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
+import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: `Símbolos de la partitura: los ${ALL_SYMBOLS.length} signos y su significado`,
@@ -33,6 +34,18 @@ function watermarkGlyph(category: SymbolCategory): string {
 export default function SymbolsPage() {
   return (
     <div>
+      <JsonLd
+        data={itemListJsonLd({
+          name: "Familias de símbolos de la partitura",
+          description: `Los ${ALL_SYMBOLS.length} signos musicales más habituales, agrupados en ${SYMBOL_CATEGORIES.length} familias.`,
+          path: "/symbols",
+          items: SYMBOL_CATEGORIES.map((c) => ({
+            name: c.title,
+            description: c.intro,
+            path: symbolCategoryPath(c.id),
+          })),
+        })}
+      />
       <Breadcrumbs items={[{ name: "Símbolos", path: "/symbols" }]} />
       <PageHeader
         eyebrow="Diccionario visual"

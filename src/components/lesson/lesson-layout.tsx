@@ -23,6 +23,7 @@ export function LessonLayout({ slug, children }: { slug: string; children: React
           description: lesson.summary,
           path: lessonPath(slug),
           minutes: lesson.minutes,
+          slug,
         })}
       />
       <MarkLessonRead slug={slug} />

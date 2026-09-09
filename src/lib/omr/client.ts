@@ -5,34 +5,49 @@ import { parseMusicXml, type ParsedScore } from "@/lib/music/musicxml";
 import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
 import { UserError } from "@/lib/user-error";
 import { mergePages } from "./merge";
-import { readNdjson } from "@/lib/ndjson";
+import { MAX_OMR_PAGES, transcriptionProgress, type TranscriptionJob } from "./shared";
 
 /**
- * Recognizes a scanned score without language models: the server runs each
- * page through oemer (pretrained OMR models) and returns its MusicXML.
+ * Reconocimiento de partituras (OMR) visto desde el navegador.
  *
- * The browser drives the PDF traversal — renders a page, sends it, waits,
- * moves to the next — so the recognition service knows nothing about PDF and
- * pages never leave the device whole, only the one being looked at.
+ * El navegador hace solo lo que el servidor no puede: rasterizar las páginas
+ * del PDF (que nunca sale entero del dispositivo) y, al final, montar el
+ * MusicXML de todas ellas. Lo lento —pasar cada página por oemer, minutos de
+ * CPU— es un encargo al servidor, que sigue adelante aunque se cierre la
+ * pestaña; aquí solo se pregunta cómo va.
  *
- * What comes back is real MusicXML but may include things Opus Piano can't
- * draw (more than two staves, several voices), so it's read and rewritten
- * through the app's own reader/writer to keep a single dialect.
+ * Lo que vuelve es MusicXML de verdad, pero puede traer cosas que Opus Piano
+ * no dibuja (más de dos pentagramas, varias voces), así que se lee y se
+ * reescribe con el lector y el escritor de la app para hablar un solo
+ * dialecto.
  */
 
-/** Pages per recognition; each one is several minutes of server CPU. */
-export const MAX_OMR_PAGES = 4;
+export { MAX_OMR_PAGES };
+export type { TranscriptionJob };
 
-/** Width to render the page at; oemer rescales to ~3.6M px internally, so this matches an A4 at 200 dpi — enough detail without going over. */
+/** Ancho al que se rasteriza cada página: oemer reescala a ~3,6 Mpx, y esto es un A4 a 200 ppp. */
 const RENDER_WIDTH = 1700;
 
-/** How long a page takes on the deployed service (A4 piano score, 4 vCPU); just paces the progress ring while waiting. */
-const EXPECTED_SECONDS = 125;
+/** Cada cuánto se pregunta al servidor cómo va. */
+const POLL_MS = 4000;
 
-export interface OmrInput {
+export interface OmrOutcome {
+  /** MusicXML listo para vincular a la partitura. */
+  xml: string;
+  score: ParsedScore;
+  warnings: string[];
+  pages: number;
+  engine: string;
+  /** El encargo del que salió, para poder quitarlo del servidor al recogerlo. */
+  jobId: string;
+}
+
+export interface TranscribeInput {
+  /** Partitura de la biblioteca a la que pertenece. */
+  scoreId: string;
   scoreName: string;
   pdf: Blob;
-  /** First and last PDF page, both inclusive. */
+  /** Primera y última página del PDF, las dos incluidas. */
   from: number;
   to: number;
   onStatus?: (text: string) => void;
@@ -40,62 +55,164 @@ export interface OmrInput {
   signal?: AbortSignal;
 }
 
-export interface OmrOutcome {
-  /** MusicXML ready to attach to the score. */
-  xml: string;
-  score: ParsedScore;
-  warnings: string[];
-  pages: number;
-  engine: string;
-}
-
-/** Whether the server has it configured (OMR_URL set). */
+/** Si el servidor lo tiene configurado (OMR_URL). */
 export async function omrAvailable(): Promise<boolean> {
   try {
     const res = await fetch("/api/omr", { cache: "no-store" });
     if (!res.ok) return false;
     return !!((await res.json()) as { enabled?: boolean }).enabled;
   } catch {
-    return false; // offline: the app still works, just without this option
+    return false; // sin conexión: la app sigue funcionando, solo que sin esta opción
   }
 }
 
-export async function transcribeWithOmr(input: OmrInput): Promise<OmrOutcome> {
+/** Los encargos que hay ahora mismo en el servidor (en marcha o listos para recoger). */
+export async function listTranscriptions(): Promise<TranscriptionJob[]> {
+  try {
+    const res = await fetch("/api/transcriptions", { cache: "no-store" });
+    if (!res.ok) return [];
+    return ((await res.json()) as { jobs?: TranscriptionJob[] }).jobs ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Lo quita del servidor: cancela lo que quede por hacer y borra las páginas. */
+export async function forgetTranscription(id: string): Promise<void> {
+  try {
+    await fetch(`/api/transcriptions/${encodeURIComponent(id)}`, { method: "DELETE" });
+  } catch {
+    // sin conexión: el encargo se queda en el servidor y ya se verá al volver
+  }
+}
+
+/**
+ * Encarga el reconocimiento: rasteriza las páginas pedidas, las sube y
+ * devuelve el encargo recién creado. A partir de aquí el trabajo es del
+ * servidor.
+ */
+async function requestTranscription(input: TranscribeInput): Promise<TranscriptionJob> {
   const total = input.to - input.from + 1;
-  const pages: ParsedScore[] = [];
-  const numbers: number[] = [];
+  const body = new FormData();
+  body.append("scoreId", input.scoreId);
+  body.append("scoreName", input.scoreName);
+  body.append("fromPage", String(input.from));
 
   for (let page = input.from; page <= input.to; page++) {
     const index = page - input.from + 1;
     input.onStatus?.(total > 1 ? `Preparando la página ${index} de ${total}…` : "Preparando la página…");
-    input.onProgress?.((index - 1) / total);
-
-    const image = await pageImage(input.pdf, page);
-    const musicxml = await recognise(image, input.signal, (seconds) => {
-      const done = Math.min(0.95, seconds / EXPECTED_SECONDS);
-      input.onProgress?.((index - 1 + done) / total);
-      input.onStatus?.(`Reconociendo la página ${index} de ${total}… ${clock(seconds)}`);
-    });
-
-    let parsed: ParsedScore;
-    try {
-      parsed = parseMusicXml(musicxml);
-    } catch {
-      throw new UserError(`No se ha entendido el resultado del reconocimiento de la página ${index}.`);
-    }
-    pages.push(parsed);
-    numbers.push(page);
-    input.onProgress?.(index / total);
+    body.append("pages", await pageImage(input.pdf, page), `p${index}.png`);
   }
 
-  input.onStatus?.("Montando el MusicXML…");
-  const { score, warnings } = mergePages(pages, { title: input.scoreName, pageNumbers: numbers });
-  const engine = "oemer";
-  const xml = buildMusicXml(score, { software: `Opus Piano · reconocimiento con ${engine}` });
-  return { xml, score, warnings, pages: total, engine };
+  input.onStatus?.("Enviando las páginas al servidor…");
+  let res: Response;
+  try {
+    res = await fetch("/api/transcriptions", { method: "POST", body, signal: input.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new UserError("No hay conexión con el servidor. Comprueba la red e inténtalo de nuevo.");
+  }
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new UserError(data?.error ?? "No se ha podido empezar el reconocimiento.");
+  }
+  return ((await res.json()) as { job: TranscriptionJob }).job;
 }
 
-/** A page as PNG: thin high-contrast lines, exactly where JPEG leaves artifacts. */
+/**
+ * Sigue un encargo hasta que termina y monta el MusicXML.
+ *
+ * Cancelar de verdad es cosa del usuario: si la señal se aborta se le dice
+ * al servidor que lo deje. Cerrar la pestaña no aborta nada, así que el
+ * encargo sigue y se recoge a la vuelta.
+ */
+export async function followTranscription(
+  start: TranscriptionJob,
+  opts: { onStatus?: (text: string) => void; onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+): Promise<OmrOutcome> {
+  let job = start;
+  try {
+    while (job.status === "pending" || job.status === "running") {
+      report(job, opts);
+      await wait(POLL_MS, opts.signal);
+      job = (await fetchJob(job.id)) ?? { ...job, status: "error", error: "El reconocimiento ha desaparecido del servidor." };
+    }
+  } catch (e) {
+    if (opts.signal?.aborted) void forgetTranscription(job.id);
+    throw e;
+  }
+
+  if (job.status === "error") {
+    // el error ya se enseña aquí; en el servidor no pinta nada, y si se quedara
+    // reaparecería como una tarea fallida cada vez que se abre la biblioteca
+    void forgetTranscription(job.id);
+    throw new UserError(job.error ?? "No se ha podido reconocer la partitura.");
+  }
+
+  opts.onProgress?.(1);
+  opts.onStatus?.("Montando el MusicXML…");
+  return assemble(job);
+}
+
+/** Encargar y seguir: lo que hace el botón de reconocer. */
+export async function transcribeWithOmr(input: TranscribeInput): Promise<OmrOutcome> {
+  const job = await requestTranscription(input);
+  return followTranscription(job, input);
+}
+
+async function fetchJob(id: string): Promise<TranscriptionJob | null> {
+  try {
+    const res = await fetch(`/api/transcriptions/${encodeURIComponent(id)}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return ((await res.json()) as { job: TranscriptionJob }).job;
+  } catch {
+    return null; // un corte de red no es el final: se vuelve a preguntar en la siguiente vuelta
+  }
+}
+
+function report(job: TranscriptionJob, opts: { onStatus?: (t: string) => void; onProgress?: (f: number) => void }) {
+  opts.onProgress?.(transcriptionProgress(job));
+  const page = Math.min(job.donePages + 1, job.pages);
+  const elapsed = clock(Math.round((Date.now() - job.createdAt) / 1000));
+  opts.onStatus?.(
+    job.status === "pending"
+      ? "En cola en el servidor…"
+      : job.pages > 1
+        ? `Reconociendo la página ${page} de ${job.pages}… ${elapsed}`
+        : `Reconociendo la página… ${elapsed}`,
+  );
+}
+
+/** Junta el MusicXML de todas las páginas en una partitura sola. */
+async function assemble(job: TranscriptionJob): Promise<OmrOutcome> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/transcriptions/${encodeURIComponent(job.id)}/xml`, { cache: "no-store" });
+  } catch {
+    throw new UserError("No hay conexión con el servidor para recoger el resultado.");
+  }
+  if (!res.ok) throw new UserError("El resultado del reconocimiento ya no está en el servidor.");
+  const { pages } = (await res.json()) as { pages: string[] };
+  if (!pages.length) throw new UserError("El reconocimiento no ha devuelto ninguna página.");
+
+  const parsed: ParsedScore[] = [];
+  const numbers: number[] = [];
+  pages.forEach((musicxml, i) => {
+    try {
+      parsed.push(parseMusicXml(musicxml));
+      numbers.push(job.fromPage + i);
+    } catch {
+      throw new UserError(`No se ha entendido el resultado del reconocimiento de la página ${i + 1}.`);
+    }
+  });
+
+  const { score, warnings } = mergePages(parsed, { title: job.scoreName, pageNumbers: numbers });
+  const engine = "oemer";
+  const xml = buildMusicXml(score, { software: `Opus Piano · reconocimiento con ${engine}` });
+  return { xml, score, warnings, pages: parsed.length, engine, jobId: job.id };
+}
+
+/** Una página como PNG: líneas finas y muy contrastadas, justo donde el JPEG deja artefactos. */
 async function pageImage(pdf: Blob, page: number): Promise<Blob> {
   const { width } = await getPageSize(pdf, page);
   const canvas = await renderPage(pdf, page, RENDER_WIDTH / width);
@@ -104,43 +221,23 @@ async function pageImage(pdf: Blob, page: number): Promise<Blob> {
   return blob;
 }
 
-/**
- * Sends the page and waits. The response streams NDJSON lines (see
- * `/api/omr`): heartbeats with elapsed seconds while it works, then the
- * MusicXML or the error.
- */
-async function recognise(image: Blob, signal: AbortSignal | undefined, onWait: (seconds: number) => void): Promise<string> {
-  const body = new FormData();
-  body.append("file", image, "page.png");
-
-  let res: Response;
-  try {
-    res = await fetch("/api/omr", { method: "POST", body, signal });
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new UserError("No hay conexión con el servidor. Comprueba la red e inténtalo de nuevo.");
-  }
-  if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new UserError(data?.error ?? "No se ha podido reconocer la partitura.");
-  }
-  if (!res.body) throw new UserError("El servidor no ha devuelto ninguna respuesta.");
-
-  let musicxml: string | null = null;
-  let failure: string | null = null;
-
-  await readNdjson(res.body, (event) => {
-    if (event.type === "working") onWait(typeof event.seconds === "number" ? event.seconds : 0);
-    else if (event.type === "done" && typeof event.musicxml === "string") musicxml = event.musicxml;
-    else if (event.type === "error") failure = typeof event.message === "string" ? event.message : "No se ha podido reconocer la partitura.";
+/** Espera que se corta si el usuario cancela. */
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason as Error);
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(signal?.reason as Error);
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
-
-  if (failure) throw new UserError(failure);
-  if (!musicxml) throw new UserError("El reconocimiento se ha cortado antes de terminar. Vuelve a intentarlo.");
-  return musicxml;
 }
 
-/** "1 min 20 s" / "45 s", so the wait doesn't look stuck. */
+/** «1 min 20 s» / «45 s», para que la espera no parezca colgada. */
 function clock(seconds: number): string {
   if (seconds < 60) return `${seconds} s`;
   return `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;

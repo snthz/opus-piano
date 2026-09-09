@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { engraveCover } from "@/lib/music/engrave";
 import { renderThumbnail } from "@/lib/pdf-thumbnail";
 import { parseMusicXml, unpackMxl } from "@/lib/music/musicxml";
 import { addScore, type ScoreRecord } from "@/lib/scores-db";
@@ -39,11 +40,13 @@ export function ScoreUpload({ onAdded }: Props) {
         const parsed = parseMusicXml(xml);
         // Se guarda el XML ya descomprimido: al abrirlo no hace falta volver a leer el zip.
         const blob = new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" });
+        // La portada es la primera página grabada; si falla, la tarjeta enseña una hoja en blanco.
+        const thumbnail = (await engraveCover(xml)) ?? "";
         onAdded(
           await addScore({
             name: parsed.title || baseName,
             file: blob,
-            thumbnail: "",
+            thumbnail,
             notes: "",
             pageCount: parsed.measures.length,
             kind: "musicxml",
@@ -84,7 +87,7 @@ export function ScoreUpload({ onAdded }: Props) {
             {loading ? (
               <>
                 <p className="text-sm font-semibold">Procesando…</p>
-                <p className="mt-0.5 text-xs text-ink-2">Leyendo el archivo y preparando la miniatura.</p>
+                <p className="mt-0.5 text-xs text-ink-2">Leyendo el archivo y preparando la portada.</p>
               </>
             ) : (
               <>

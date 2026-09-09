@@ -2,22 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CATALOG, type CatalogPiece } from "@/data/catalog";
-import { loadCatalogParsed } from "@/lib/catalog-load";
+import { CATALOG, catalogCover, type CatalogPiece } from "@/data/catalog";
+import { saveCatalogPiece } from "@/lib/catalog-load";
 import { ownedPieces } from "@/lib/catalog-library";
-import type { ParsedScore } from "@/lib/music/musicxml";
 import { listScores, onScoresChange } from "@/lib/scores-db";
-import type { Level } from "@/lib/study-plan";
-import { LEVELS } from "@/lib/study-plan";
-import { CoverDot, CoverTag, ScoreCover } from "./score-cover";
+import { LEVELS, type Level } from "@/lib/study-plan";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { CoverTag, ScoreCover, TileText } from "./score-cover";
 
 /**
- * El catálogo de piezas libres: una cuadrícula de portadas, como una tienda
- * de partituras, con el nivel en cada una y unos chips para quedarse solo con
- * uno. Cada tarjeta lleva a su vista previa —la partitura entera, sonando,
- * con el análisis— y desde allí se guarda en la biblioteca. Aquí solo se
- * decide cuál abrir, así que la tarjeta dice lo justo: portada, título,
- * autor y tamaño.
+ * El catálogo de piezas libres: una cuadrícula de portadas, como el
+ * escaparate de una tienda de partituras. Cada portada es la primera página
+ * de verdad, así que la tarjeta no tiene que explicar qué es la pieza: se
+ * ve. Tocarla lleva a la vista previa —entera, sonando, con el análisis— y
+ * el corazón la guarda en la biblioteca sin salir de aquí.
  */
 
 /** Los rótulos de `LEVEL_LABELS` están escritos para un formulario («empiezo a leer»); aquí hacen de título. */
@@ -46,22 +44,6 @@ export function useOwnedPieces(): Map<string, string> {
   return owned;
 }
 
-/** Los primeros compases de una pieza del catálogo, para su portada; null mientras llegan o si no llegan. */
-function useCatalogParsed(piece: CatalogPiece): ParsedScore | null {
-  const [parsed, setParsed] = useState<ParsedScore | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    loadCatalogParsed(piece).then(
-      (p) => !cancelled && setParsed(p),
-      () => !cancelled && setParsed(null),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [piece]);
-  return parsed;
-}
-
 export function ScoreCatalog() {
   const owned = useOwnedPieces();
   const [level, setLevel] = useState<Level | null>(null);
@@ -84,7 +66,7 @@ export function ScoreCatalog() {
         </span>
       </div>
 
-      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 xl:grid-cols-5">
         {pieces.map((piece) => (
           <li key={piece.id}>
             <PieceCard piece={piece} owned={owned.has(piece.id)} />
@@ -103,39 +85,91 @@ export function ScoreCatalog() {
 }
 
 function PieceCard({ piece, owned }: { piece: CatalogPiece; owned: boolean }) {
-  const parsed = useCatalogParsed(piece);
   return (
-    <Link
-      href={`/scores/catalog/${piece.id}`}
-      className="group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-surface transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow)] focus-visible:-translate-y-0.5"
-    >
-      <div className="p-2.5 pb-1.5">
-        <ScoreCover parsed={parsed} zoom>
-          <CoverTag className={`${LEVEL_COLOR[piece.level] ?? "bg-surface/85"} text-ink`}>{LEVEL_HEADING[piece.level] ?? piece.level}</CoverTag>
-          {owned && (
-            <span className="absolute bottom-2 right-2">
-              <CoverDot label="En tu biblioteca" className="bg-ink text-bg">
-                <CheckIcon className="h-3 w-3" />
-              </CoverDot>
-            </span>
-          )}
+    <article className="group relative">
+      <Link href={`/scores/catalog/${piece.id}`} className="block focus:outline-none">
+        <ScoreCover src={catalogCover(piece.id)}>
+          <CoverTag className={`${LEVEL_COLOR[piece.level] ?? "bg-surface/90"} text-ink`}>
+            {LEVEL_HEADING[piece.level] ?? piece.level}
+          </CoverTag>
         </ScoreCover>
-      </div>
-      <div className="flex flex-1 flex-col gap-0.5 px-3.5 pb-3.5 pt-2">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug">{piece.title}</p>
-        <p className="line-clamp-1 text-xs text-ink-2">{piece.composer}</p>
-        <p className="mt-auto pt-1 text-[11px] text-ink-3">
-          {piece.year} · {piece.measures} compases
-        </p>
-      </div>
-    </Link>
+        <TileText
+          title={piece.title}
+          meta={piece.composer}
+          sub={`${piece.year} · ${piece.measures} compases`}
+        />
+      </Link>
+      <SaveHeart piece={piece} owned={owned} />
+    </article>
   );
 }
 
-function CheckIcon({ className }: { className?: string }) {
+/**
+ * El corazón de la esquina: guarda la pieza en la biblioteca desde la propia
+ * tarjeta. Ya guardada, deja de ser un botón y pasa a ser lo que dice: que ya
+ * la tienes. Quitarla se hace desde la biblioteca, que es donde están las
+ * anotaciones que se perderían.
+ */
+function SaveHeart({ piece, owned }: { piece: CatalogPiece; owned: boolean }) {
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  if (owned) {
+    return (
+      <span
+        title="Ya está en tu biblioteca"
+        aria-label="Ya está en tu biblioteca"
+        className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-ink text-bg shadow-sm"
+      >
+        <HeartIcon filled />
+      </span>
+    );
+  }
+
+  const save = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (saving) return;
+    setSaving(true);
+    setFailed(false);
+    try {
+      await saveCatalogPiece(piece);
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    <button
+      type="button"
+      onClick={(e) => void save(e)}
+      disabled={saving}
+      title={failed ? "No se ha podido guardar; inténtalo otra vez" : "Guardar en mi biblioteca"}
+      aria-label={failed ? "No se ha podido guardar; inténtalo otra vez" : "Guardar en mi biblioteca"}
+      className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-surface/90 shadow-sm ring-1 ring-line backdrop-blur transition hover:bg-surface hover:text-ink ${
+        failed ? "text-bad" : "text-ink-2"
+      }`}
+    >
+      {saving ? <ProgressRing progress={null} className="h-4 w-4" /> : <HeartIcon />}
+    </button>
+  );
+}
+
+function HeartIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.4-7 10-7 10z" />
     </svg>
   );
 }

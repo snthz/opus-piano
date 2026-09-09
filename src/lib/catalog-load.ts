@@ -1,6 +1,6 @@
 "use client";
 
-import type { CatalogPiece } from "@/data/catalog";
+import { catalogCover, type CatalogPiece } from "@/data/catalog";
 import { parseMusicXml, unpackMxl, type ParsedScore } from "@/lib/music/musicxml";
 import { addScore, type ScoreRecord } from "@/lib/scores-db";
 import { UserError } from "@/lib/user-error";
@@ -45,13 +45,42 @@ export function catalogCredit(piece: CatalogPiece): string {
   return `${piece.composer} · ${piece.year}. Obra de dominio público. ${kind}: ${piece.source.origin.name}.`;
 }
 
+/**
+ * La portada del catálogo, encogida y en data URL, para que la partitura
+ * guardada se vea igual en la biblioteca (y viaje con ella al servidor). Un
+ * fallo aquí no impide guardar: sin portada, la tarjeta enseña una hoja en
+ * blanco.
+ */
+async function coverDataUrl(id: string): Promise<string> {
+  try {
+    const res = await fetch(catalogCover(id));
+    if (!res.ok) return "";
+    const image = new Image();
+    image.src = URL.createObjectURL(await res.blob());
+    try {
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = 600;
+      canvas.height = 800;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.72);
+    } finally {
+      URL.revokeObjectURL(image.src);
+    }
+  } catch {
+    return "";
+  }
+}
+
 /** Guarda la pieza en la biblioteca como si se hubiera subido; con cuenta, sube sola al servidor. */
 export async function saveCatalogPiece(piece: CatalogPiece, xml?: string): Promise<ScoreRecord> {
   const text = xml ?? (await loadCatalogXml(piece));
   return addScore({
     name: piece.title,
     file: new Blob([text], { type: MUSICXML_MIME }),
-    thumbnail: "",
+    thumbnail: await coverDataUrl(piece.id),
     notes: catalogCredit(piece),
     pageCount: piece.measures,
     kind: "musicxml",

@@ -1,7 +1,8 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { ScoreCatalog } from "@/components/scores/score-catalog";
 import { CATALOG } from "@/data/catalog";
-import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
+import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Partituras gratis de dominio público para piano",
@@ -19,10 +20,22 @@ export const metadata = pageMetadata({
 export default function CatalogPage() {
   return (
     <div>
+      <JsonLd
+        data={itemListJsonLd({
+          name: "Partituras de dominio público para piano",
+          description: `${CATALOG.length} obras en MusicXML, de la más fácil a la más difícil, con análisis de cómo estudiarlas.`,
+          path: "/scores/catalog",
+          items: CATALOG.map((piece) => ({
+            name: `${piece.title} — ${piece.composer}`,
+            description: piece.about,
+            path: `/scores/catalog/${piece.id}`,
+          })),
+        })}
+      />
       <PageHeader
         eyebrow="Partituras"
         title="Piezas libres para empezar"
-        intro={`${CATALOG.length} obras de dominio público en MusicXML, de la más fácil a la más difícil. Ábrelas para escucharlas y verlas nota a nota; se guardan en tu biblioteca con un toque.`}
+        intro={`${CATALOG.length} obras de dominio público, de la más fácil a la más difícil. Ábrelas para leer la partitura original entera y escucharla; se guardan en tu biblioteca con un toque.`}
         back={{ href: "/scores", label: "Volver a la biblioteca" }}
       />
       <ScoreCatalog />

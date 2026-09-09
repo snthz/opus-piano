@@ -120,6 +120,8 @@ async function patchLocal(id: string, changes: Partial<ScoreRecord>) {
 export const updateScoreNotes = (id: string, notes: string) => patchLocal(id, { notes });
 export const updateScoreAnnotations = (id: string, annotations: Annotations) => patchLocal(id, { annotations });
 export const updateScoreName = (id: string, name: string) => patchLocal(id, { name });
+/** La portada (JPEG en data URL). Se sincroniza como el resto de metadatos. */
+export const updateScoreThumbnail = (id: string, thumbnail: string) => patchLocal(id, { thumbnail });
 export const updateScorePlan = (id: string, plan: PlanState | undefined) => patchLocal(id, { plan });
 export const updateScoreLinkedXml = (id: string, linkedXml: Blob | undefined) => patchLocal(id, { linkedXml, xmlDirty: true });
 /** Syncs like the name: the server is what makes a share real, so this only takes effect with an account. */

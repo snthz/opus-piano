@@ -10,6 +10,11 @@ import { isAbort, UserError } from "@/lib/user-error";
  * and score recognition (OMR). Live outside React so closing the panel, or
  * the whole reader, doesn't interrupt them. At most one task per type per
  * score; starting another cancels the previous one.
+ *
+ * A task here is what *this tab* is doing about the work, which is not always
+ * the work itself: recognition happens on the server and survives the tab, so
+ * its task is really a watcher that reports progress and, if cancelled, tells
+ * the server to stop (see `omr/client.ts`).
  */
 export type JobKind = "omr" | "plan";
 
@@ -159,9 +164,11 @@ export function useJob<K extends JobKind>(kind: K, scoreId: string): Job<K> | un
   return all.find((j) => j.kind === kind && j.scoreId === scoreId) as Job<K> | undefined;
 }
 
-// closing the tab with a task running would lose it (and the provider spend with it)
+// Closing the tab with the study plan half-made would lose it (and the model
+// call that paid for it). Recognition is not in the same boat: it's a job the
+// server keeps, so leaving costs nothing and only the user can stop it.
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", (e) => {
-    if (snapshot.some((j) => j.status === "running")) e.preventDefault();
+    if (snapshot.some((j) => j.kind === "plan" && j.status === "running")) e.preventDefault();
   });
 }

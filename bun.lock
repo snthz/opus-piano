@@ -29,6 +29,7 @@
         "playwright-core": "^1.62.1",
         "tailwindcss": "^4",
         "typescript": "^5",
+        "verovio": "^6.3.0",
       },
     },
   },
@@ -980,6 +981,8 @@
     "update-browserslist-db": ["update-browserslist-db@1.3.2", "", { "dependencies": { "escalade": "^3.2.0", "picocolors": "^1.1.1" }, "peerDependencies": { "browserslist": ">= 4.21.0" }, "bin": { "update-browserslist-db": "cli.js" } }, "sha512-UQ+MSxlhRm1bzjhU+DcuXfjFO1FzNtqhK5+9Yvlp90ItDLk5vT932A0rFu619nf7RVS+Y/VeaUW1jaRDqZ8VJw=="],
 
     "uri-js": ["uri-js@4.4.1", "", { "dependencies": { "punycode": "^2.1.0" } }, "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg=="],
+
+    "verovio": ["verovio@6.3.0", "", {}, "sha512-1p6WhP/w3WrAhPVDTNUDH9UVPAZOnHnZVTWxclE8haHccVI/q8c+99vLH6rRgL9MuYaFR9HF4UJD6MyW2CfMwg=="],
 
     "vexflow": ["vexflow@5.0.0", "", {}, "sha512-rjB7TV4ygKE5Fl3W5OlG+0dHv22CFufUJdMG6oNgvcn0zp34u+sOboZsadQXnF1O3tZ3myXThaUIaLkJlpNM2Q=="],
 

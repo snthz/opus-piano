@@ -58,7 +58,8 @@ export function Running({ label, progress, onCancel }: { label: string; progress
         </button>
       </div>
       <p className="text-xs text-ink-3">
-        Puedes cerrar este panel y seguir leyendo: sigue en segundo plano y el anillo del lector te avisa cuando esté lista.
+        Corre en el servidor: puedes cerrar el panel, la partitura y hasta la pestaña. Al volver te espera aquí, y el
+        anillo del lector te avisa cuando esté lista. Cancelar la para de verdad y hay que empezar de cero.
       </p>
     </div>
   );

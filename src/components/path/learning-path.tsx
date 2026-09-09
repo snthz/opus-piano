@@ -74,7 +74,9 @@ export function LearningPath() {
       </section>
 
       {path.stages.map((stage) => (
-        <section key={stage.id}>
+        // El id da a cada etapa su propio enlace, el que se puede citar al
+        // responder «¿por dónde empiezo?».
+        <section key={stage.id} id={stage.id} className="scroll-mt-24">
           <div className="mb-1 flex items-baseline justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight">{stage.title}</h2>
             <span className="shrink-0 text-xs text-ink-3">

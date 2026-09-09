@@ -5,7 +5,8 @@ import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PracticeStats, ExerciseBadge } from "@/components/practice/practice-stats";
 import { EXERCISES } from "@/data/exercises";
 import { exercisePath } from "@/lib/routes";
-import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
+import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Ejercicios de solfeo y lectura musical",
@@ -18,6 +19,14 @@ export const metadata = pageMetadata({
 export default function PracticaPage() {
   return (
     <div>
+      <JsonLd
+        data={itemListJsonLd({
+          name: "Ejercicios de lectura musical y solfeo",
+          description: `Los ${EXERCISES.length} ejercicios interactivos de Opus Piano, gratuitos y sin registro.`,
+          path: "/practice",
+          items: EXERCISES.map((e) => ({ name: e.title, description: e.text, path: exercisePath(e.id) })),
+        })}
+      />
       <PageHeader
         eyebrow="Práctica"
         title="Ejercicios"

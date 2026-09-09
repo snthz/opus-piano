@@ -4,7 +4,8 @@ import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { LESSON_SECTIONS, ALL_LESSONS } from "@/data/lessons";
 import { lessonPath } from "@/lib/routes";
-import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
+import { courseJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Teoría musical: el curso completo en orden",
@@ -17,8 +18,35 @@ export const metadata = pageMetadata({
 const COLORS = ["bg-yellow", "bg-mint", "bg-ash", "bg-pink", "bg-blue", "bg-peach"];
 
 export default function TeoriaPage() {
+  const totalMinutes = ALL_LESSONS.reduce((sum, lesson) => sum + lesson.minutes, 0);
+  const lessons = ALL_LESSONS.map((lesson) => ({
+    name: lesson.title,
+    description: lesson.summary,
+    path: lessonPath(lesson.slug),
+  }));
+
   return (
     <div>
+      {/* El curso y su temario. La lista ordenada es lo que permite responder
+          «¿por dónde empiezo?» sin abrir las nueve lecciones una por una. */}
+      <JsonLd
+        data={[
+          courseJsonLd({
+            name: "Teoría musical: el curso completo",
+            description:
+              "Las lecciones de lenguaje musical en el orden en que conviene estudiarlas: pentagrama, claves, notas, figuras, compases, armaduras, escalas y técnica de piano.",
+            path: "/theory",
+            totalMinutes,
+            sections: lessons,
+          }),
+          itemListJsonLd({
+            name: "Lecciones de teoría musical",
+            description: `Las ${ALL_LESSONS.length} lecciones del curso, en orden.`,
+            path: "/theory",
+            items: lessons,
+          }),
+        ]}
+      />
       <PageHeader
         eyebrow="Teoría"
         title="Aprende a leer música"

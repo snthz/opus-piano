@@ -6,7 +6,8 @@ import { Breadcrumbs } from "@/components/seo/breadcrumbs";
 import { SymbolCard } from "@/components/notation/symbol-catalog";
 import { SYMBOL_CATEGORIES } from "@/data/symbols";
 import { SYMBOL_CATEGORY_SLUGS, symbolCategoryPath } from "@/lib/routes";
-import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
+import { definedTermSetJsonLd, pageMetadata } from "@/lib/seo";
 
 type Props = { params: Promise<{ category: string }> };
 
@@ -52,8 +53,24 @@ export default async function SymbolCategoryPage({ params }: Props) {
 
   const others = SYMBOL_CATEGORIES.filter((c) => c.id !== category.id);
 
+  /* Cada signo con su significado y sus nombres alternativos. `alt` es lo que
+     hace que la ficha se encuentre buscando «treble clef» o «clave de sol en
+     segunda línea» y no solo por el nombre que usamos nosotros. */
+  const termSet = definedTermSetJsonLd({
+    name: `${category.title}: símbolos y significado`,
+    description: category.intro,
+    path: symbolCategoryPath(category.id),
+    terms: category.items.map((item) => ({
+      term: item.name,
+      definition: item.tip ? `${item.meaning} Al piano: ${item.tip}` : item.meaning,
+      alt: item.alt,
+      path: `${symbolCategoryPath(category.id)}#${item.id}`,
+    })),
+  });
+
   return (
     <div>
+      <JsonLd data={termSet} />
       <Breadcrumbs
         items={[
           { name: "Símbolos", path: "/symbols" },

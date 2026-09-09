@@ -56,7 +56,18 @@ export const metadata: Metadata = {
   creator: AUTHOR_NAME,
   publisher: STUDIO_NAME,
   category: "education",
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+    // Declara /llms.txt en el <head> para que un agente lo encuentre sin
+    // tener que probar la URL a ciegas. Es el índice del sitio en Markdown
+    // (llmstxt.org); el contenido entero está en /llms-full.txt.
+    types: {
+      "text/plain": [
+        { url: "/llms.txt", title: `${SITE_NAME}: índice del sitio para modelos de lenguaje` },
+        { url: "/llms-full.txt", title: `${SITE_NAME}: contenido completo en texto` },
+      ],
+    },
+  },
   robots: {
     index: true,
     follow: true,

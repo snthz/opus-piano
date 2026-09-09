@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { openAuthModal } from "@/lib/auth-modal";
 import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/jobs";
-import { MAX_OMR_PAGES, transcribeWithOmr } from "@/lib/omr/client";
+import { forgetTranscription, MAX_OMR_PAGES, transcribeWithOmr } from "@/lib/omr/client";
 import { PageRange, Running, TranscriptionResult, downloadXml } from "./transcribe-parts";
 
 /**
@@ -12,6 +12,11 @@ import { PageRange, Running, TranscriptionResult, downloadXml } from "./transcri
  * modelos entrenados para leer partituras impresas. No hace falta clave de API
  * ni pagar nada, pero tarda unos minutos por página y solo se le da bien lo que
  * está impreso y limpio.
+ *
+ * El trabajo es del servidor de principio a fin, así que este panel se puede
+ * cerrar, y la pestaña también: al volver, la biblioteca lo vuelve a
+ * enganchar (`use-resume-transcriptions.ts`). Lo único que lo para es
+ * cancelarlo a mano.
  */
 export function TranscribeWithOmr({
   scoreId,
@@ -48,6 +53,7 @@ export function TranscribeWithOmr({
       { id: scoreId, name: scoreName },
       ({ signal, report }) =>
         transcribeWithOmr({
+          scoreId,
           scoreName,
           pdf,
           from: range.from,
@@ -65,9 +71,16 @@ export function TranscribeWithOmr({
     try {
       await onUse(result.xml);
       setSaved(true);
+      // ya está en la partitura: en el servidor no hace falta guardarlo más
+      void forgetTranscription(result.jobId);
     } catch (e) {
       setLinkError(e instanceof Error ? e.message : "No se pudo vincular la transcripción.");
     }
+  };
+
+  const discard = () => {
+    if (result) void forgetTranscription(result.jobId);
+    dismissJob("omr", scoreId);
   };
 
   const savedRef = useRef(saved);
@@ -127,8 +140,9 @@ export function TranscribeWithOmr({
                 {pageCount > MAX_OMR_PAGES ? ` Se reconocen ${MAX_OMR_PAGES} como mucho de una vez.` : ""}
               </p>
               <p>
-                Cada página tarda <strong>unos dos minutos</strong>. Puedes cerrar el panel y seguir leyendo la partitura
-                mientras tanto; si cierras la pestaña, se pierde.
+                Cada página tarda <strong>unos dos minutos</strong>, y el trabajo lo hace el servidor:{" "}
+                <strong className="text-ink">puedes cerrar el panel, la partitura y hasta la pestaña</strong>, que sigue
+                adelante. Al volver lo tendrás aquí. Solo se para si lo cancelas tú.
               </p>
             </div>
 
@@ -154,7 +168,7 @@ export function TranscribeWithOmr({
           saved={saved}
           onUse={() => void use()}
           onDownload={() => downloadXml(result.xml, scoreName)}
-          onDiscard={() => dismissJob("omr", scoreId)}
+          onDiscard={discard}
         />
       )}
     </div>
