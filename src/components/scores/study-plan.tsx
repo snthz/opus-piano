@@ -25,7 +25,7 @@ import { LESSON_SECTIONS } from "@/data/lessons";
 import { exercisePath, lessonPath } from "@/lib/routes";
 import { getScore, updateScorePlan, type ScoreRecord } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
-import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, type ChatTurn, type Goal, type Level, type PlanState } from "@/lib/study-plan";
+import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, splitTeacherRefs, type ChatTurn, type Goal, type Level, type PlanState } from "@/lib/study-plan";
 import { isAbort, UserError } from "@/lib/user-error";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Modal } from "@/components/ui/modal";
@@ -998,7 +998,7 @@ export function TeacherChat({
           )}
           {turns.map((t, i) => (
             <Bubble key={i} role={t.role}>
-              {t.content || <TypingDots />}
+              {!t.content ? <TypingDots /> : t.role === "assistant" ? <TeacherText text={t.content} /> : t.content}
             </Bubble>
           ))}
         </div>
@@ -1067,6 +1067,28 @@ function Bubble({ role, children }: { role: ChatTurn["role"]; children: React.Re
         {children}
       </div>
     </div>
+  );
+}
+
+/** The answer with its references to the site turned into links to the lesson or exercise. */
+function TeacherText({ text }: { text: string }) {
+  return (
+    <>
+      {splitTeacherRefs(text).map((part, i) =>
+        part.type === "text" ? (
+          part.text
+        ) : (
+          <Link
+            key={i}
+            href={part.ref.kind === "lesson" ? lessonPath(part.ref.slug) : exercisePath(part.ref.id)}
+            className="inline-flex items-center gap-1 align-baseline mx-0.5 px-2 py-0.5 rounded-full bg-surface text-xs font-medium text-ink border border-line hover:bg-surface-3 transition-colors"
+          >
+            <span aria-hidden>{part.ref.kind === "lesson" ? "📖" : "🎹"}</span>
+            {part.ref.title}
+          </Link>
+        ),
+      )}
+    </>
   );
 }
 

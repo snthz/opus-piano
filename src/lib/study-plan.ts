@@ -338,18 +338,64 @@ export function askInstructions(ctx: AskContext): string {
   const done = ctx.plan.goals.filter((g) => ctx.progress[g.id]).map((g) => g.id);
   return [
     "Eres profesor o profesora de piano en Opus Piano, una app en español para aprender a leer partituras y tocar el piano. " +
-      "El alumno estudia una partitura con un plan que tú preparaste y te hace preguntas sobre ella: digitaciones, cómo abordar un pasaje, " +
-      "teoría que aparece en la pieza, cómo organizar el estudio. Tutea, responde de forma breve y concreta (normalmente menos de 150 palabras) " +
-      "y en texto plano: sin Markdown ni encabezados; si haces una lista, usa guiones.",
-    "Ve al grano: sin preámbulo ni resumen de la pregunta, y sin repetir lo que ya pone en el plan salvo que te lo pidan.",
+      "El alumno estudia una partitura con un plan que tú preparaste y te escribe por chat sobre ella: digitaciones, cómo abordar un pasaje, " +
+      "teoría que aparece en la pieza, cómo organizar el estudio. Tutea.",
+    "Responde como en un chat: corto y concreto. Lo normal son dos a cuatro frases, y como mucho unas 80 palabras. Una sola idea principal por respuesta; " +
+      "si hay más que decir, ofrece seguir en una frase en vez de contarlo todo. Solo cuando pidan pasos u opciones, usa una lista breve con guiones " +
+      "(tres o cuatro puntos de una línea). Texto plano: sin Markdown, sin encabezados ni negritas.",
+    "Ve al grano: sin saludo, sin preámbulo, sin resumir la pregunta ni repetir lo que ya pone en el plan salvo que te lo pidan, y sin cierre de cortesía.",
     namingRule(ctx.naming) + " Digitaciones con números 1-5 (1 = pulgar), indicando MD o MI. Los compases se numeran como en la partitura.",
-    "Si preguntan algo que no puedes saber con la información disponible, dilo.",
+    "Si preguntan algo que no puedes saber con la información disponible, dilo en una frase.",
+    "Cuando una lección o un ejercicio de Opus Piano ayude de verdad con lo preguntado, remite a él escribiendo en el texto la marca " +
+      `${REF_EXAMPLE_LESSON} o ${REF_EXAMPLE_EXERCISE} con el slug o id exactos del catálogo: la app la convierte en un enlace, así que no escribas el título al lado. ` +
+      "Como mucho una o dos marcas por respuesta, y ninguna si no viene al caso.",
     "",
     `Partitura: «${ctx.scoreName}».`,
     `Plan de estudio (JSON): ${JSON.stringify(ctx.plan)}`,
     done.length ? `Objetivos ya cumplidos: ${done.join(", ")}.` : "Todavía no ha cumplido ningún objetivo.",
     ctx.summary ? `\nContenido de la partitura (MusicXML):\n${ctx.summary}` : "\nNo se dispone del contenido nota a nota de la partitura (solo del plan).",
+    "",
+    catalog(),
   ].join("\n");
+}
+
+/* ---------- References to the site in the teacher's answers ---------- */
+
+const REF_EXAMPLE_LESSON = "[leccion:armaduras]";
+const REF_EXAMPLE_EXERCISE = "[ejercicio:ritmo]";
+/** `[leccion:slug]` / `[ejercicio:id]`, accent-tolerant; the model was shown the plain form. */
+const REF_RE = /\[(lecci[oó]n|ejercicio):\s*([a-z0-9-]+)\s*\]/gi;
+
+export type TeacherRef = { kind: "lesson"; slug: string; title: string } | { kind: "exercise"; id: string; title: string };
+export type TeacherPart = { type: "text"; text: string } | { type: "ref"; ref: TeacherRef };
+
+/**
+ * Splits an answer into plain text and the site references it cites, so the
+ * chat can render them as links. A mark naming something not in the catalog
+ * is dropped from the text: a broken link would be worse than nothing.
+ */
+export function splitTeacherRefs(text: string): TeacherPart[] {
+  const parts: TeacherPart[] = [];
+  let last = 0;
+  for (const m of text.matchAll(REF_RE)) {
+    const before = text.slice(last, m.index);
+    const ref = lookupRef(m[1].toLowerCase().startsWith("lecci") ? "lesson" : "exercise", m[2].toLowerCase());
+    if (before) parts.push({ type: "text", text: before });
+    if (ref) parts.push({ type: "ref", ref });
+    last = m.index + m[0].length;
+  }
+  const tail = text.slice(last);
+  if (tail || !parts.length) parts.push({ type: "text", text: tail });
+  return parts;
+}
+
+function lookupRef(kind: "lesson" | "exercise", key: string): TeacherRef | null {
+  if (kind === "lesson") {
+    const lesson = LESSON_SECTIONS.flatMap((s) => s.lessons).find((l) => l.slug === key);
+    return lesson ? { kind, slug: lesson.slug, title: lesson.title } : null;
+  }
+  const exercise = EXERCISES.find((e) => e.id === key);
+  return exercise ? { kind, id: exercise.id, title: exercise.title } : null;
 }
 
 /** Short chips for a goal: ["Compases 5-8", "Manos separadas"]. */

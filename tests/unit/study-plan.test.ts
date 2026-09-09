@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ParsedScore } from "@/lib/music/musicxml";
 import { toJsonSchema } from "@/lib/plan/schema";
 import {
+  askInstructions,
   askRequestSchema,
   dedupeGoalIds,
   goalRange,
@@ -9,6 +10,7 @@ import {
   planStateSchema,
   planUserMessage,
   studyPlanSchema,
+  splitTeacherRefs,
   summarizeScore,
   STUDY_PLAN_SCHEMA,
   SUMMARY_MAX_CHARS,
@@ -166,5 +168,43 @@ describe("lo que el navegador puede pedirle al servidor", () => {
     expect(askRequestSchema.safeParse({ ...ask, plan: { ...plan, goals: [] } }).success).toBe(false);
     const long = Array.from({ length: 20 }, () => ({ role: "user", content: "x" }));
     expect(askRequestSchema.safeParse({ ...ask, history: long }).success).toBe(false);
+  });
+});
+
+describe("referencias del profesor a lecciones y ejercicios", () => {
+  test("las marcas se convierten en enlaces y el texto se conserva", () => {
+    const parts = splitTeacherRefs("Repasa la armadura en [leccion:armaduras] y luego [ejercicio:ritmo].");
+    expect(parts).toEqual([
+      { type: "text", text: "Repasa la armadura en " },
+      { type: "ref", ref: { kind: "lesson", slug: "armaduras", title: "Armaduras y tonalidades" } },
+      { type: "text", text: " y luego " },
+      { type: "ref", ref: { kind: "exercise", id: "ritmo", title: "Ritmo" } },
+      { type: "text", text: "." },
+    ]);
+  });
+
+  test("admite la tilde y las mayúsculas del modelo", () => {
+    const parts = splitTeacherRefs("Mira [Lección: escalas]");
+    expect(parts[1]).toEqual({ type: "ref", ref: { kind: "lesson", slug: "escalas", title: "Escalas, intervalos y acordes" } });
+  });
+
+  test("una marca a algo que no existe desaparece sin romper el enlace", () => {
+    expect(splitTeacherRefs("Ver [leccion:pedal] hoy")).toEqual([
+      { type: "text", text: "Ver " },
+      { type: "text", text: " hoy" },
+    ]);
+  });
+
+  test("sin marcas devuelve el texto tal cual, también vacío", () => {
+    expect(splitTeacherRefs("Hola")).toEqual([{ type: "text", text: "Hola" }]);
+    expect(splitTeacherRefs("")).toEqual([{ type: "text", text: "" }]);
+  });
+
+  test("el prompt del chat pide brevedad y enseña la marca con el catálogo", () => {
+    const text = askInstructions({ naming: "latino", scoreName: "Arabesque", plan: studyPlanSchema.parse(plan), progress: {}, summary: "" });
+    expect(text).toContain("80 palabras");
+    expect(text).toContain("[leccion:armaduras]");
+    expect(text).toContain("- escalas: Escalas, intervalos y acordes");
+    expect(text).toContain("- ritmo: Ritmo");
   });
 });
