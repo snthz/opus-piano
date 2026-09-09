@@ -29,6 +29,7 @@ import { isAbort, UserError } from "@/lib/user-error";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Modal } from "@/components/ui/modal";
 import { NumberField } from "@/components/ui/number-field";
+import { TimeField } from "@/components/ui/time-field";
 import { Select } from "@/components/ui/select";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { PlanIcon } from "./reader-icons";
@@ -492,6 +493,19 @@ function PlanView({
 
 /** Weekdays in the order they're listed here; `Date.getDay()` starts at Sunday. */
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const WEEKDAY_SHORT = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
+const DAY_PRESETS = [
+  { label: "Entre semana", days: [1, 2, 3, 4, 5] },
+  { label: "Fin de semana", days: [6, 0] },
+  { label: "Todos", days: [1, 2, 3, 4, 5, 6, 0] },
+];
+const TIME_PRESETS = [
+  { label: "Mañana", time: "08:00" },
+  { label: "Mediodía", time: "14:00" },
+  { label: "Tarde", time: "18:00" },
+  { label: "Noche", time: "21:00" },
+];
+const sameDays = (a: number[], b: number[]) => a.length === b.length && a.every((d) => b.includes(d));
 
 /**
  * The plan's routine, put on the calendar: days, time, and start date. From
@@ -608,9 +622,9 @@ function ScheduleForm({
       }}
       className="space-y-4"
     >
-      <fieldset className="space-y-1.5">
+      <fieldset className="space-y-2">
         <legend className="text-sm font-medium mb-1.5">¿Qué días estudias?</legend>
-        <div className="flex gap-1.5">
+        <div className="grid grid-cols-7 gap-1 rounded-2xl bg-surface-2 p-1">
           {WEEK_ORDER.map((d) => {
             const on = draft.weekdays.includes(d);
             return (
@@ -620,17 +634,41 @@ function ScheduleForm({
                 onClick={() => toggleDay(d)}
                 aria-pressed={on}
                 aria-label={WEEKDAY_NAMES[d]}
-                className={`pill flex-1 justify-center py-2 px-0 text-sm ${on ? "pill-active" : ""}`}
+                className={`flex flex-col items-center justify-center rounded-xl py-2 leading-none transition-colors ${
+                  on ? "bg-ink text-bg" : "text-ink-2 hover:bg-ink/5"
+                }`}
               >
-                {WEEKDAY_LETTERS[d]}
+                <span className="text-sm font-semibold">{WEEKDAY_LETTERS[d]}</span>
+                <span className={`mt-1 text-[10px] ${on ? "text-bg/70" : "text-ink-3"}`}>{WEEKDAY_SHORT[d]}</span>
               </button>
             );
           })}
         </div>
-        {draft.weekdays.length === 0 && <p className="text-xs text-bad">Marca al menos un día.</p>}
+        <div className="flex items-center gap-3 text-xs">
+          <span className={draft.weekdays.length === 0 ? "text-bad" : "text-ink-2"}>
+            {draft.weekdays.length === 0
+              ? "Marca al menos un día."
+              : `${draft.weekdays.length} ${draft.weekdays.length === 1 ? "día" : "días"} a la semana`}
+          </span>
+          <span className="flex-1" />
+          {DAY_PRESETS.map((p) => {
+            const on = sameDays(p.days, draft.weekdays);
+            return (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => onDraft({ ...draft, weekdays: p.days })}
+                aria-pressed={on}
+                className={`underline-offset-2 ${on ? "text-ink font-medium" : "text-ink-2 hover:text-ink hover:underline"}`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
       </fieldset>
 
-      <fieldset className="space-y-1.5">
+      <fieldset className="space-y-2">
         <legend className="text-sm font-medium mb-1.5">¿A qué hora?</legend>
         <div className="flex gap-1.5">
           <button
@@ -654,13 +692,22 @@ function ScheduleForm({
           </button>
         </div>
         {draft.time !== null ? (
-          <input
-            type="time"
-            value={draft.time}
-            onChange={(e) => onDraft({ ...draft, time: e.target.value })}
-            aria-label="Hora de la sesión"
-            className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <TimeField value={draft.time} onChange={(time) => onDraft({ ...draft, time })} className="w-full sm:w-auto sm:min-w-56" />
+            <div className="flex flex-wrap gap-1.5">
+              {TIME_PRESETS.map((p) => (
+                <button
+                  key={p.time}
+                  type="button"
+                  onClick={() => onDraft({ ...draft, time: p.time })}
+                  aria-pressed={draft.time === p.time}
+                  className={`pill py-1 px-2.5 text-xs ${draft.time === p.time ? "pill-active" : ""}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <p className="text-xs text-ink-2">La sesión cuenta ese día a cualquier hora; el objetivo es hacerla.</p>
         )}
@@ -671,17 +718,16 @@ function ScheduleForm({
           <span className="text-sm font-medium">Minutos por sesión</span>
           <NumberField min={5} max={240} step={5} value={draft.minutes} onChange={(minutes) => onDraft({ ...draft, minutes })} />
         </label>
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">Empezar el</span>
+          <input
+            type="date"
+            value={draft.startDate}
+            onChange={(e) => onDraft({ ...draft, startDate: e.target.value })}
+            className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </label>
       </div>
-
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Empezar el</span>
-        <input
-          type="date"
-          value={draft.startDate}
-          onChange={(e) => onDraft({ ...draft, startDate: e.target.value })}
-          className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-        />
-      </label>
 
       <div className="rounded-2xl bg-surface-2 px-4 py-3 text-xs text-ink-2 space-y-1">
         <p className="font-medium text-ink">Cómo queda</p>

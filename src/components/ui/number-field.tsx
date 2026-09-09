@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type Props = {
   value: number;
@@ -11,6 +11,12 @@ type Props = {
   step?: number;
   /** Texto a la derecha del número (p. ej. «min»). */
   suffix?: string;
+  /** Rellena con ceros a la izquierda hasta estas cifras (p. ej. `2` → «05»). */
+  pad?: number;
+  /** Sin botones − / +: solo el campo con las flechas del teclado. */
+  bare?: boolean;
+  /** Al pasar del máximo vuelve al mínimo y viceversa (horas, minutos). */
+  wrap?: boolean;
   className?: string;
   /** Etiqueta accesible cuando no hay un `<label>` alrededor. */
   "aria-label"?: string;
@@ -24,22 +30,22 @@ type Props = {
  * Los botones − / + y las flechas del teclado cambian el valor de `step` en
  * `step`; con Mayús, de diez en diez pasos.
  */
-export function NumberField({ value, onChange, min, max, step = 1, suffix, className = "", disabled, ...rest }: Props) {
-  const [text, setText] = useState(String(value));
-  const [focused, setFocused] = useState(false);
-
-  // Si el valor cambia desde fuera (p. ej. al cargar preferencias), refleja
-  // el nuevo valor salvo que el usuario esté escribiendo.
-  useEffect(() => {
-    if (!focused) setText(String(value));
-  }, [value, focused]);
+export function NumberField({ value, onChange, min, max, step = 1, suffix, pad, bare, wrap, className = "", disabled, ...rest }: Props) {
+  const fmt = (n: number) => (pad ? String(n).padStart(pad, "0") : String(n));
+  // Texto libre solo mientras el campo tiene el foco; fuera de él se muestra
+  // siempre el valor real, así un cambio desde fuera se refleja sin efectos.
+  const [draft, setDraft] = useState<string | null>(null);
+  const focused = draft !== null;
+  const text = draft ?? fmt(value);
+  // Fuera del foco no hay borrador: el texto sale del valor.
+  const setText = (t: string) => setDraft((d) => (d === null ? null : t));
 
   const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n)));
 
   const commit = (raw: string) => {
     const n = Number(raw.trim());
     const next = raw.trim() === "" || !Number.isFinite(n) ? value : clamp(n);
-    setText(String(next));
+    setText(fmt(next));
     if (next !== value) onChange(next);
   };
 
@@ -47,13 +53,15 @@ export function NumberField({ value, onChange, min, max, step = 1, suffix, class
     if (disabled) return;
     const base = focused ? Number(text.trim()) : value;
     const from = Number.isFinite(base) && text.trim() !== "" ? base : value;
-    const next = clamp(from + dir * step * (big ? 10 : 1));
-    setText(String(next));
+    const raw = from + dir * step * (big ? 10 : 1);
+    const span = max - min + 1;
+    const next = wrap ? min + ((((raw - min) % span) + span) % span) : clamp(raw);
+    setText(fmt(next));
     if (next !== value) onChange(next);
   };
 
-  const canDec = !disabled && value > min;
-  const canInc = !disabled && value < max;
+  const canDec = !disabled && (wrap || value > min);
+  const canInc = !disabled && (wrap || value < max);
 
   return (
     <div
@@ -61,7 +69,7 @@ export function NumberField({ value, onChange, min, max, step = 1, suffix, class
         disabled ? "opacity-50" : ""
       } ${className}`}
     >
-      <StepButton dir={-1} enabled={canDec} onStep={nudge} label="Menos" />
+      {!bare && <StepButton dir={-1} enabled={canDec} onStep={nudge} label="Menos" />}
       <div className="flex-1 min-w-0 flex items-center justify-center gap-1">
         <input
           type="text"
@@ -75,12 +83,12 @@ export function NumberField({ value, onChange, min, max, step = 1, suffix, class
           value={text}
           disabled={disabled}
           onFocus={(e) => {
-            setFocused(true);
+            setDraft(fmt(value));
             e.currentTarget.select();
           }}
           onBlur={() => {
-            setFocused(false);
             commit(text);
+            setDraft(null);
           }}
           onChange={(e) => setText(e.target.value.replace(/[^\d]/g, "").slice(0, String(max).length))}
           onKeyDown={(e) => {
@@ -91,15 +99,15 @@ export function NumberField({ value, onChange, min, max, step = 1, suffix, class
               e.preventDefault();
               commit(text);
             } else if (e.key === "Escape") {
-              setText(String(value));
+              setText(fmt(value));
             }
           }}
           className="w-full min-w-0 bg-transparent text-center tabular-nums py-2 focus:outline-none"
-          style={{ maxWidth: `${String(max).length + 1.5}ch` }}
+          style={{ maxWidth: `${Math.max(String(max).length, pad ?? 0) + 1.5}ch` }}
         />
         {suffix && <span className="text-ink-3 text-xs select-none">{suffix}</span>}
       </div>
-      <StepButton dir={1} enabled={canInc} onStep={nudge} label="Más" />
+      {!bare && <StepButton dir={1} enabled={canInc} onStep={nudge} label="Más" />}
     </div>
   );
 }
