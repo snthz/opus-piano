@@ -1162,13 +1162,17 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             </div>
 
             {/* ---- Escritorio: pestaña en el borde para volver a abrir el panel plegado ---- */}
-            {wide && !panelOpen && (
+            {/* it fades in once the panel has folded, instead of popping while it's still moving */}
+            {wide && (
               <button
                 type="button"
                 onClick={() => showPanel(panelTab)}
                 title="Mostrar la sesión y el análisis"
                 aria-label="Mostrar la sesión y el análisis"
-                className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2.5 py-3 pl-2 pr-1.5 rounded-l-2xl bg-surface border border-r-0 border-line shadow-md text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+                tabIndex={panelOpen ? -1 : 0}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2.5 py-3 pl-2 pr-1.5 rounded-l-2xl bg-surface border border-r-0 border-line shadow-md text-ink-2 hover:text-ink hover:bg-surface-2 transition-[opacity,transform] duration-200 ${
+                  panelOpen ? "opacity-0 translate-x-3 pointer-events-none" : "opacity-100 translate-x-0 delay-200"
+                }`}
               >
                 <ChevronIcon dir="left" className="w-4 h-4" />
                 <SessionIcon className="w-5 h-5" />
@@ -1229,44 +1233,54 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
       {/* ---- Escritorio: sesión y análisis junto a la partitura ----
            Las dos pestañas quedan montadas: el cronómetro sigue mientras se lee el análisis. */}
-      {wide && panelOpen && (
-        <aside className="w-[30rem] 2xl:w-[34rem] shrink-0 flex flex-col border-l border-line bg-surface" aria-label="Sesión y análisis">
-          <div className="shrink-0 flex items-center gap-2 px-3 pt-3 pb-2">
-            <div role="tablist" aria-label="Sesión o análisis" className="flex-1 flex rounded-full bg-surface-2 p-1">
-              {(["sesion", "analisis"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  role="tab"
-                  aria-selected={panelTab === t}
-                  onClick={() => setPanelTab(t)}
-                  className={`flex-1 h-9 rounded-full text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors ${
-                    panelTab === t ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"
-                  }`}
-                >
-                  {t === "sesion" ? <SessionIcon className="w-4 h-4" /> : <PlanIcon className="w-4 h-4" />}
-                  {t === "sesion" ? "Sesión" : "Análisis"}
-                </button>
-              ))}
+      {wide && (
+        <aside
+          aria-label="Sesión y análisis"
+          aria-hidden={!panelOpen}
+          inert={!panelOpen}
+          className={`shrink-0 overflow-hidden bg-surface border-l transition-[width,border-color] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+            panelOpen ? "w-[34rem] 2xl:w-[38rem] border-line" : "w-0 border-transparent"
+          }`}
+        >
+        {/* full width inside, so nothing reflows while the panel moves */}
+        <div className="w-[34rem] 2xl:w-[38rem] h-full flex flex-col">
+            <div className="shrink-0 flex items-center gap-2 px-3 pt-3 pb-2">
+              <div role="tablist" aria-label="Sesión o análisis" className="flex-1 flex rounded-full bg-surface-2 p-1">
+                {(["sesion", "analisis"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="tab"
+                    aria-selected={panelTab === t}
+                    onClick={() => setPanelTab(t)}
+                    className={`flex-1 h-9 rounded-full text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors ${
+                      panelTab === t ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+                    }`}
+                  >
+                    {t === "sesion" ? <SessionIcon className="w-4 h-4" /> : <PlanIcon className="w-4 h-4" />}
+                    {t === "sesion" ? "Sesión" : "Análisis"}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPanelOpen(false)}
+                className="btn-circle w-9 h-9 shrink-0 !bg-surface-2 !text-ink"
+                title="Ocultar el panel"
+                aria-label="Ocultar el panel"
+              >
+                <ChevronIcon dir="right" className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setPanelOpen(false)}
-              className="btn-circle w-9 h-9 shrink-0 !bg-surface-2 !text-ink"
-              title="Ocultar el panel"
-              aria-label="Ocultar el panel"
-            >
-              <ChevronIcon dir="right" className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent] pl-4 pr-2 pt-1 pb-6">
-            <div role="tabpanel" hidden={panelTab !== "sesion"}>
-              <SessionPanel record={record} onPlanChange={onPlanChange} onOpenAnalysis={() => setPanelTab("analisis")} />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent] pl-4 pr-2 pt-1 pb-6">
+              <div role="tabpanel" hidden={panelTab !== "sesion"}>
+                <SessionPanel record={record} onPlanChange={onPlanChange} onOpenAnalysis={() => setPanelTab("analisis")} />
+              </div>
+              <div role="tabpanel" hidden={panelTab !== "analisis"}>
+                <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
+              </div>
             </div>
-            <div role="tabpanel" hidden={panelTab !== "analisis"}>
-              <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
-            </div>
-          </div>
+        </div>
         </aside>
       )}
 

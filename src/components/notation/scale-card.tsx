@@ -11,6 +11,12 @@ import { SCALES, buildScale } from "@/lib/music/scales";
 import { useSettings } from "@/lib/settings";
 
 type Hands = "derecha" | "izquierda" | "separadas" | "juntas" | null | undefined;
+type HandView = "rh" | "lh" | "both";
+const HAND_VIEWS: { id: HandView; label: string }[] = [
+  { id: "rh", label: "Derecha" },
+  { id: "lh", label: "Izquierda" },
+  { id: "both", label: "Juntas" },
+];
 
 /**
  * The scale of a key, ready to practise: one octave up and one down on a
@@ -19,12 +25,19 @@ type Hands = "derecha" | "izquierda" | "separadas" | "juntas" | null | undefined
  *
  * Fingering numbers go on the staff and note names on the keyboard: putting
  * both under the notes made the staff unreadable on a phone.
+ *
+ * Each hand has its own fingering, so with both hands in play a switch shows
+ * one hand alone — a single staff, big and clear — or the two together on
+ * the grand staff. A goal for one hand shows just that hand, with no switch.
  */
 export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands }) {
   const { settings } = useSettings();
   const [current, setCurrent] = useState(-1);
-  const showRH = hands !== "izquierda";
-  const showLH = hands !== "derecha";
+  const oneHand = hands === "derecha" ? "rh" : hands === "izquierda" ? "lh" : null;
+  const [view, setView] = useState<HandView>("both");
+  const shown = oneHand ?? view;
+  const showRH = shown !== "lh";
+  const showLH = shown !== "rh";
 
   const scale = useMemo(() => {
     const type = SCALES.find((s) => s.id === (keyInfo.mode === "mayor" ? "mayor" : "menor-armonica"))!;
@@ -105,13 +118,33 @@ export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands 
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h4 className="font-bold">{title}</h4>
-        <p className="text-xs text-ink-2">{noteList}</p>
+    // `@container`: the two staves go side by side when the card is wide, not the window —
+    // beside a score the card is a narrow column even on a big screen
+    <div className="space-y-4 @container">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h4 className="font-bold">{title}</h4>
+          <p className="text-xs text-ink-2">{noteList}</p>
+        </div>
+        {!oneHand && (
+          <div role="radiogroup" aria-label="Mano" className="flex rounded-full bg-surface-2 p-0.5">
+            {HAND_VIEWS.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                role="radio"
+                aria-checked={view === h.id}
+                onClick={() => setView(h.id)}
+                className={`h-7 px-2.5 rounded-full text-xs font-medium transition-colors ${view === h.id ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"}`}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 @3xl:grid-cols-2">
         {panel(scale.rh.up, scale.lh.up, labels(scale.fingering?.rh), labels(scale.fingering?.lh), upIndex, "Sube")}
         {panel(scale.rh.down, scale.lh.down, labels(scale.fingering?.rh, true), labels(scale.fingering?.lh, true), downIndex, "Baja")}
       </div>
@@ -121,7 +154,8 @@ export function ScaleCard({ keyInfo, hands }: { keyInfo: KeyInfo; hands?: Hands 
       <div className="flex flex-wrap items-center gap-2">
         <PlayButton events={sequence} bpm={72} label="Escuchar la escala" onEvent={setCurrent} size="sm" />
         <p className="text-xs text-ink-2">
-          Los números son la digitación habitual (1 = pulgar){showRH && showLH ? ": arriba, mano derecha; abajo, mano izquierda." : "."}
+          Los números son la digitación habitual (1 = pulgar)
+          {showRH && showLH ? ": arriba, mano derecha; abajo, mano izquierda." : showRH ? " de la mano derecha." : " de la mano izquierda."}
         </p>
       </div>
 
