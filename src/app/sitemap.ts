@@ -25,19 +25,23 @@ const entry = (path: string, priority: number, changeFrequency: Entry["changeFre
 
 /**
  * Solo páginas indexables: quedan fuera /scores, /settings, /account, /login, /register y /offline,
- * que también están bloqueadas en robots.txt.
+ * que también están bloqueadas en robots.txt. /scores/catalog sí entra: son
+ * piezas de dominio público, no datos de nadie.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     entry("/", 1, "weekly"),
+    entry("/path", 0.9, "weekly"),
     entry("/guide", 0.9),
     entry("/theory", 0.9, "weekly"),
     ...ALL_LESSONS.map((lesson) => entry(lessonPath(lesson.slug), 0.8)),
     entry("/practice", 0.8, "weekly"),
     ...EXERCISES.map((exercise) => entry(exercisePath(exercise.id), 0.7)),
+    entry("/scores/catalog", 0.8, "monthly"),
     entry("/metronome", 0.8),
     entry("/symbols", 0.8),
     ...SYMBOL_CATEGORIES.map((category) => entry(symbolCategoryPath(category.id), 0.7)),
+    entry("/teacher", 0.7),
     entry("/glossary", 0.7, "weekly"),
     ...GLOSSARY_SLUGS.map(({ slug }) => entry(`/glossary/${slug}`, 0.6, "yearly")),
     entry("/faq", 0.7),

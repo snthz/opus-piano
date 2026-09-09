@@ -12,9 +12,13 @@ import {
 
 /**
  * Opus Piano's AI teacher: Claude, called with the server's own API key. The
- * student pays nothing directly; spend is capped via `PLANS_PER_DAY` and the
- * chosen `STUDY_PLAN_MODEL`. Disabled without `ANTHROPIC_API_KEY`, same as OMR
- * without `OMR_URL`.
+ * student pays nothing directly. Disabled without `ANTHROPIC_API_KEY`, same as
+ * OMR without `OMR_URL`.
+ *
+ * What each call is allowed to cost lives in `ai-budget.ts`: the per-user caps
+ * declared here are enforced from the database, and a monthly ceiling
+ * (`AI_MONTHLY_BUDGET_USD`) stops everything when the bill gets there. This
+ * module only reports what a call consumed, through `UsageSink`.
  */
 
 const HOUR = 60 * 60 * 1000;
@@ -77,8 +81,11 @@ function checkStop(stopReason: string | null | undefined, truncated: string) {
   if (stopReason === "max_tokens") throw new PlanError(truncated);
 }
 
+/** Told what a finished call consumed, so the route can charge it to the budget. */
+export type UsageSink = (usage: Anthropic.Usage) => void;
+
 /** Requests the plan and returns raw JSON (the caller validates it with a zod schema). Pages go as base64 PNGs. */
-export async function generatePlan(req: PlanRequest, pages: string[], signal?: AbortSignal): Promise<string> {
+export async function generatePlan(req: PlanRequest, pages: string[], signal?: AbortSignal, onUsage?: UsageSink): Promise<string> {
   const content: Anthropic.ContentBlockParam[] = [
     { type: "text", text: planUserMessage(req) },
     ...pages.map((data): Anthropic.ContentBlockParam => ({ type: "image", source: { type: "base64", media_type: "image/png", data } })),
@@ -102,6 +109,8 @@ export async function generatePlan(req: PlanRequest, pages: string[], signal?: A
     if (signal?.aborted) throw e; // cancelled by the student, not a real failure
     throw translate(e);
   }
+  // Reported before the checks below: a plan that came back truncated was paid for all the same.
+  onUsage?.(message.usage);
 
   checkStop(message.stop_reason, "El análisis se ha quedado sin espacio a mitad. Prueba con una partitura de menos páginas.");
   const text = message.content
@@ -112,13 +121,18 @@ export async function generatePlan(req: PlanRequest, pages: string[], signal?: A
   return text;
 }
 
-/** Answers a question about the plan, streamed chunk by chunk as the model writes it. */
-export async function* askTeacher(ctx: AskContext, history: ChatTurn[], signal?: AbortSignal): AsyncGenerator<string> {
+/**
+ * A chat answer, streamed chunk by chunk as the model writes it. Only the
+ * system prompt changes between the teacher who knows one score
+ * (`askTeacher`) and the one who knows the course (`src/lib/server/teacher.ts`),
+ * so the call, the error handling and the receipt live here once.
+ */
+export async function* streamAnswer(system: string, history: ChatTurn[], signal?: AbortSignal, onUsage?: UsageSink): AsyncGenerator<string> {
   const stream = anthropic().messages.stream(
     {
       model: planModel(),
       max_tokens: ASK_MAX_TOKENS,
-      system: askInstructions(ctx),
+      system,
       messages: history.map((t) => ({ role: t.role, content: t.content })),
       thinking: { type: "adaptive" },
       output_config: { effort: "low" },
@@ -131,9 +145,16 @@ export async function* askTeacher(ctx: AskContext, history: ChatTurn[], signal?:
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") yield event.delta.text;
     }
     // response already streamed; this only catches a reply left half-finished
-    checkStop((await stream.finalMessage()).stop_reason, "La respuesta se ha cortado. Prueba a preguntar algo más concreto.");
+    const final = await stream.finalMessage();
+    onUsage?.(final.usage);
+    checkStop(final.stop_reason, "La respuesta se ha cortado. Prueba a preguntar algo más concreto.");
   } catch (e) {
     if (e instanceof PlanError || signal?.aborted) throw e;
     throw translate(e);
   }
+}
+
+/** Answers a question about the plan of one score. */
+export function askTeacher(ctx: AskContext, history: ChatTurn[], signal?: AbortSignal, onUsage?: UsageSink): AsyncGenerator<string> {
+  return streamAnswer(askInstructions(ctx), history, signal, onUsage);
 }

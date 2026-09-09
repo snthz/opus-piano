@@ -1,5 +1,5 @@
 /* Generado por scripts/gen-sw.mjs — no editar a mano. Edita scripts/sw-template.js. */
-const CACHE = "etude-92425c174c9f";
+const CACHE = "etude-4502ba522218";
 const OFFLINE = "/offline";
 
 /** Rutas que se descargan al instalar para que la app arranque sin conexión. */

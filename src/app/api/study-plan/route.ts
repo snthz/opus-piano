@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
-import { rateLimited } from "@/lib/server/rate-limit";
+import { budgetExhausted, BUDGET_MESSAGE, overCallLimit, readUsage, recordCall } from "@/lib/server/ai-budget";
 import { generatePlan, planEnabled, planLimit, planModel, PlanError } from "@/lib/server/study-plan";
 import { dedupeGoalIds, MAX_PAGES, planRequestSchema, studyPlanSchema } from "@/lib/study-plan";
 
@@ -24,9 +24,14 @@ const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
 /** How often a heartbeat is sent while the model works. */
 const HEARTBEAT_MS = 10_000;
 
-/** So the app knows whether to offer the option and how many plans fit per day. */
-export function GET() {
-  return Response.json({ enabled: planEnabled(), perDay: planLimit().max }, { headers: { "Cache-Control": "no-store" } });
+/**
+ * So the app knows whether to offer the option and how many plans fit per day.
+ * A server that has run out of budget for the month reports itself as off:
+ * better a hidden button than one that always answers with an error.
+ */
+export async function GET() {
+  const enabled = planEnabled() && !(await budgetExhausted());
+  return Response.json({ enabled, perDay: planLimit().max }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -37,9 +42,10 @@ export async function POST(req: Request) {
   const me = await userFromRequest(req);
   if (!me) return unauthorized();
   const limit = planLimit();
-  if (rateLimited(`plan:${me.id}`, Date.now(), limit)) {
+  if (await overCallLimit(me.id, "plan", limit)) {
     return Response.json({ error: `Has llegado al límite de ${limit.max} análisis al día. Vuelve mañana.` }, { status: 429 });
   }
+  if (await budgetExhausted()) return Response.json({ error: BUDGET_MESSAGE }, { status: 503 });
 
   const form = await req.formData().catch(() => null);
   const parsed = planRequestSchema.safeParse(json(form?.get("data")));
@@ -78,7 +84,10 @@ export async function POST(req: Request) {
       beat = setInterval(() => send({ type: "working", seconds: Math.round((Date.now() - started) / 1000) }), HEARTBEAT_MS);
       send({ type: "working", seconds: 0 });
 
-      generatePlan(parsed.data, pages, req.signal)
+      // A plan is billed whether or not it parses, so the receipt is written
+      // from the callback rather than from a successful outcome.
+      const spent = { usage: null as ReturnType<typeof readUsage> | null };
+      generatePlan(parsed.data, pages, req.signal, (u) => (spent.usage = readUsage(u)))
         .then((text) => send({ type: "done", plan: validate(text), model: planModel() }))
         .catch((e: unknown) => {
           if (req.signal.aborted) return;
@@ -88,7 +97,8 @@ export async function POST(req: Request) {
             send({ type: "error", message: "No se ha podido analizar la partitura. Vuelve a intentarlo." });
           }
         })
-        .finally(() => {
+        .finally(async () => {
+          if (spent.usage) await recordCall({ userId: me.id, kind: "plan", model: planModel(), usage: spent.usage });
           const wasOpen = open;
           finish();
           if (!wasOpen) return;

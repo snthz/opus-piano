@@ -114,7 +114,7 @@ export async function generatePlan(input: GenerateInput): Promise<PlanState> {
   input.onStatus?.("El profesor está estudiando la partitura… suele tardar uno o dos minutos.");
   input.onProgress?.(null);
 
-  const res = await post("/api/study-plan", { body }, input.signal);
+  const res = await postStream("/api/study-plan", { body }, input.signal);
   let done: { plan: unknown; model: unknown } | null = null;
   let failure: string | null = null;
   await readNdjson(res, (event) => {
@@ -143,7 +143,7 @@ export interface AskInput {
 
 /** Asks the teacher about the plan; `onDelta` receives each chunk of the answer. */
 export async function askTeacher(input: AskInput): Promise<void> {
-  const res = await post(
+  const res = await postStream(
     "/api/study-plan/ask",
     {
       headers: { "Content-Type": "application/json" },
@@ -167,8 +167,13 @@ export async function askTeacher(input: AskInput): Promise<void> {
   if (failure) throw new UserError(failure);
 }
 
-/** Sends the request and returns the body, with early failures (expired session, daily limit, bad data) already turned into a message fit to show as-is. */
-async function post(url: string, init: RequestInit, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+/**
+ * Sends the request and returns the body, with early failures (expired
+ * session, daily limit, bad data) already turned into a message fit to show
+ * as-is. Exported because the general teacher (`teacher-client.ts`) talks to
+ * an NDJSON route with the same failure modes.
+ */
+export async function postStream(url: string, init: RequestInit, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
   let res: Response;
   try {
     res = await fetch(url, { method: "POST", ...init, signal });

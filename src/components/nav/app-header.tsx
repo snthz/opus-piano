@@ -26,7 +26,9 @@ const TABS = [
 
 /** Secciones que ya no van en la fila de pestañas: viven en «Más» del menú de usuario. */
 const MORE_LINKS = [
+  { href: "/path", label: "Ruta" },
   { href: "/theory", label: "Teoría" },
+  { href: "/teacher", label: "Profesor" },
   { href: "/glossary", label: "Glosario" },
   { href: "/more", label: "Todos los recursos" },
 ];

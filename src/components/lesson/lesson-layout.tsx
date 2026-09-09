@@ -2,6 +2,7 @@ import Link from "next/link";
 import { lessonBySlug, lessonNeighbors, ALL_LESSONS } from "@/data/lessons";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
+import { MarkLessonRead } from "@/components/lesson/mark-read";
 import { Breadcrumbs } from "@/components/seo/breadcrumbs";
 import { JsonLd } from "@/components/seo/json-ld";
 import { lessonPath } from "@/lib/routes";
@@ -24,6 +25,7 @@ export function LessonLayout({ slug, children }: { slug: string; children: React
           minutes: lesson.minutes,
         })}
       />
+      <MarkLessonRead slug={slug} />
       <Breadcrumbs
         items={[
           { name: "Teoría", path: "/theory" },

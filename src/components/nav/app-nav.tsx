@@ -66,6 +66,17 @@ const MORE_GROUPS: { title: string; items: Item[] }[] = [
     title: "Aprender",
     items: [
       {
+        href: "/path",
+        label: "Ruta",
+        icon: (
+          // Una bandera al final de un camino: la ruta lleva a algún sitio.
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+            <path d="M7 21V3" strokeLinecap="round" />
+            <path d="M7 4h10l-2.5 3.5L17 11H7z" strokeLinejoin="round" />
+          </svg>
+        ),
+      },
+      {
         href: "/theory",
         label: "Teoría",
         icon: (
@@ -93,6 +104,17 @@ const MORE_GROUPS: { title: string; items: Item[] }[] = [
             <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
             <circle cx="8.5" cy="9.5" r="2" fill="currentColor" stroke="none" />
             <circle cx="15.5" cy="14.5" r="2" fill="currentColor" stroke="none" />
+          </svg>
+        ),
+      },
+      {
+        href: "/teacher",
+        label: "Profesor",
+        icon: (
+          // Un bocadillo con una corchea: se pregunta, y se pregunta de música.
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+            <path d="M20 5.5v9a2 2 0 0 1-2 2H9l-4 3.5v-3.5a2 2 0 0 1-1-1.7v-9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 1.7z" strokeLinejoin="round" />
+            <path d="M11 13V7l3-.7v5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         ),
       },

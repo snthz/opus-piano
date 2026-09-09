@@ -28,6 +28,7 @@ const modules = [
  */
 const guides = [
   { href: "/guide", title: "Cómo leer partituras" },
+  { href: "/teacher", title: "Pregunta al profesor" },
   { href: "/symbols", title: "Símbolos de la partitura" },
   { href: "/faq", title: "Preguntas frecuentes" },
 ];
@@ -55,6 +56,23 @@ export default function Home() {
 
       {/* Only shows up with a scheduled score; it comes from IndexedDB. */}
       <TodayRoutine />
+
+      {/* The four cards below are a catalogue, and a catalogue only helps once
+          you know what you are looking for. This is the answer for whoever
+          does not: one ordered path through everything that is already here. */}
+      <Link href="/path" className="card-pastel bg-yellow relative overflow-hidden p-5 flex items-center gap-4 group">
+        <GlyphIcon name="noteQuarterUp" size={140} className="absolute -right-6 -top-8 opacity-[0.09] pointer-events-none" />
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-xs text-ink-2">¿No sabes por dónde empezar?</span>
+          <span className="mt-0.5 block text-lg font-semibold leading-tight tracking-tight">Sigue la ruta</span>
+          <span className="mt-1 block text-sm leading-relaxed text-ink-2">
+            Las lecciones, los ejercicios y las piezas en orden, con el motivo de por qué toca cada uno.
+          </span>
+        </span>
+        <span className="btn-circle relative shrink-0 group-hover:-translate-y-0.5">
+          <ArrowIcon className="w-5 h-5" />
+        </span>
+      </Link>
 
       <section className="grid grid-cols-2 gap-3 md:gap-4">
         {modules.map((m) => (

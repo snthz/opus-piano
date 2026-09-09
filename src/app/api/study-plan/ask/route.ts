@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
-import { rateLimited } from "@/lib/server/rate-limit";
-import { askLimit, askTeacher, planEnabled, PlanError } from "@/lib/server/study-plan";
+import { budgetExhausted, BUDGET_MESSAGE, overCallLimit, readUsage, recordCall } from "@/lib/server/ai-budget";
+import { askLimit, askTeacher, planEnabled, planModel, PlanError } from "@/lib/server/study-plan";
 import { askRequestSchema } from "@/lib/study-plan";
 
 /**
@@ -23,9 +23,10 @@ export async function POST(req: Request) {
   const me = await userFromRequest(req);
   if (!me) return unauthorized();
   const limit = askLimit();
-  if (rateLimited(`plan-ask:${me.id}`, Date.now(), limit)) {
+  if (await overCallLimit(me.id, "ask", limit)) {
     return Response.json({ error: `Has llegado al límite de ${limit.max} preguntas por hora. Prueba más tarde.` }, { status: 429 });
   }
+  if (await budgetExhausted()) return Response.json({ error: BUDGET_MESSAGE }, { status: 503 });
 
   const body = await req.json().catch(() => null);
   const parsed = askRequestSchema.safeParse(body);
@@ -44,8 +45,9 @@ export async function POST(req: Request) {
           open = false;
         }
       };
+      const spent = { usage: null as ReturnType<typeof readUsage> | null };
       try {
-        for await (const text of askTeacher(ctx, history, req.signal)) send({ type: "delta", text });
+        for await (const text of askTeacher(ctx, history, req.signal, (u) => (spent.usage = readUsage(u)))) send({ type: "delta", text });
       } catch (e) {
         if (!req.signal.aborted) {
           if (e instanceof PlanError) send({ type: "error", message: e.message });
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
           }
         }
       }
+      if (spent.usage) await recordCall({ userId: me.id, kind: "ask", model: planModel(), usage: spent.usage });
       open = false;
       try {
         controller.close();
