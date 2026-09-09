@@ -1,13 +1,17 @@
 import { z } from "zod";
 import type { Goal, PlanState, StudyPlan } from "@/lib/study-plan";
+import type { KeyInfo } from "@/lib/music/keys";
+import { keyByVex } from "@/lib/music/keys";
+import { parseKeyName } from "@/lib/music/fingering";
 
 /**
- * Study agenda: what days and time each score gets studied.
+ * Study sessions: what days (and, optionally, what time) each score gets
+ * studied, and what each session consists of.
  *
  * No session is stored here. The schedule (weekdays, time, start date) is
  * saved with the plan, and sessions are derived from it plus the plan's
  * goals, which already carry each one's estimated session count. That way
- * the calendar can never contradict the plan.
+ * the sessions can never contradict the plan.
  *
  * Everything here is deterministic and works with local dates
  * ("2026-09-08"), never UTC — a Monday-night session shouldn't show up on
@@ -57,8 +61,11 @@ export function addMinutes(time: string, minutes: number): string {
 export const scheduleSchema = z.object({
   /** Weekdays with a session (0 = Sunday). */
   weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
-  /** Local start time, "HH:MM". */
-  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  /** Local start time, "HH:MM"; null = any time that day. */
+  time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .nullable(),
   /** First day counted when spreading sessions, "YYYY-MM-DD". */
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   minutes: z.number().int().min(5).max(240),
@@ -96,21 +103,22 @@ export function defaultSchedule(daysPerWeek: number, minutes: number, today = ne
   };
 }
 
-/** e.g. "Lunes, miércoles y viernes a las 18:00". */
+/** e.g. "Lunes, miércoles y viernes a las 18:00" or "… a cualquier hora". */
 export function describeSchedule(s: Schedule): string {
   const names = [...s.weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WEEKDAY_NAMES[d]);
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
-  return `${list.charAt(0).toUpperCase()}${list.slice(1)} a las ${s.time}`;
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${s.time ? `a las ${s.time}` : "a cualquier hora"}`;
 }
 
-/* ---------- From the plan's goals to the calendar's sessions ---------- */
+/* ---------- From the plan's goals to the sessions ---------- */
 
 export interface Session {
   /** Session number within the plan, starting at 1. */
   index: number;
   /** Local date "YYYY-MM-DD". */
   day: string;
-  time: string;
+  /** "HH:MM", or null when the session can happen at any time that day. */
+  time: string | null;
   minutes: number;
   goal: Goal;
   /** Which session of that goal this is, and how many it has in total. */
@@ -132,7 +140,7 @@ export const MAX_SESSIONS = 200;
  * chosen weekday from `startDate`.
  *
  * `progress` marks a goal's session as done once the goal itself is done, so
- * the plan and the agenda never disagree.
+ * the plan and the sessions never disagree.
  */
 export function planSessions(plan: StudyPlan, schedule: Schedule, progress: Record<string, boolean> = {}): Session[] {
   const skipped = new Set(schedule.skip);
@@ -166,19 +174,102 @@ export function planSessions(plan: StudyPlan, schedule: Schedule, progress: Reco
   return sessions;
 }
 
-/** Routine blocks with their clock time, to see the session spread across the hour. */
-export function sessionBlocks(plan: StudyPlan, session: Session): { from: string; to: string; minutes: number; activity: string }[] {
+/* ---------- What a session consists of ---------- */
+
+export const STEP_KINDS = ["calentamiento", "objetivo", "repaso"] as const;
+export type StepKind = (typeof STEP_KINDS)[number];
+
+export const STEP_LABELS: Record<StepKind, string> = {
+  calentamiento: "Calentamiento",
+  objetivo: "Objetivo",
+  repaso: "Repaso",
+};
+
+export interface SessionStep {
+  kind: StepKind;
+  minutes: number;
+  /** Heading in the session: the kind, or the goal's title for goal steps. */
+  title: string;
+  /** What the plan says to do in this block, in one line. */
+  activity: string;
+  /** Minutes from the session's start. */
+  offset: number;
+  /** Clock times, only when the session has a fixed hour. */
+  from: string | null;
+  to: string | null;
+}
+
+/**
+ * Sorts a routine block into a step kind from its wording, for plans made
+ * before the model was asked to say it outright.
+ */
+export function classifyBlock(activity: string): StepKind {
+  const t = activity.toLowerCase();
+  if (/calent|escala|arpegio|warm|estir/.test(t)) return "calentamiento";
+  if (/repas|revis|junta todo|entera|completa|de principio a fin|repite lo/.test(t)) return "repaso";
+  return "objetivo";
+}
+
+const DEFAULT_SHARE: Record<StepKind, number> = { calentamiento: 0.2, objetivo: 0.65, repaso: 0.15 };
+
+/**
+ * The steps of one session. Comes from the plan's routine blocks, scaled to
+ * the minutes chosen in the schedule (a 30-minute routine studied in 20
+ * shrinks every block, never drops one); a plan without blocks gets the
+ * usual three. Every step lasts at least a minute, and the total always
+ * matches the session so the timer ends when the session does.
+ */
+export function sessionSteps(plan: StudyPlan, session: Session): SessionStep[] {
+  const source: { kind: StepKind; minutes: number; activity: string }[] = plan.routine.blocks.length
+    ? plan.routine.blocks.map((b) => ({ kind: b.kind ?? classifyBlock(b.activity), minutes: Math.max(0, b.minutes), activity: b.activity }))
+    : [
+        { kind: "calentamiento", minutes: DEFAULT_SHARE.calentamiento, activity: "Escala y arpegio de la tonalidad, manos separadas y despacio." },
+        { kind: "objetivo", minutes: DEFAULT_SHARE.objetivo, activity: session.goal.description || "Trabaja el objetivo de hoy a un tempo cómodo." },
+        { kind: "repaso", minutes: DEFAULT_SHARE.repaso, activity: "Toca de seguido lo que ya sabes y lo que acabas de trabajar." },
+      ];
+
+  const weightTotal = source.reduce((n, b) => n + b.minutes, 0) || 1;
+  const minutes = source.map((b) => Math.max(1, Math.round((b.minutes / weightTotal) * session.minutes)));
+  // rounding drifts a minute or two: settle it on the longest goal step (or the longest step)
+  const diff = session.minutes - minutes.reduce((n, m) => n + m, 0);
+  const goalIdx = source.flatMap((b, i) => (b.kind === "objetivo" ? [i] : []));
+  const pool = goalIdx.length ? goalIdx : source.map((_, i) => i);
+  const longest = pool.reduce((best, i) => (minutes[i] > minutes[best] ? i : best), pool[0]);
+  // if every step is already at its minimum the session runs a minute over rather than losing a step
+  minutes[longest] = Math.max(1, minutes[longest] + diff);
+
   let offset = 0;
-  return plan.routine.blocks.map((b) => {
-    const from = addMinutes(session.time, offset);
-    offset += Math.max(0, b.minutes);
-    return { from, to: addMinutes(session.time, offset), minutes: b.minutes, activity: b.activity };
+  return source.map((b, i) => {
+    const from = session.time ? addMinutes(session.time, offset) : null;
+    const step: SessionStep = {
+      kind: b.kind,
+      minutes: minutes[i],
+      title: b.kind === "objetivo" ? session.goal.title : STEP_LABELS[b.kind],
+      activity: b.activity,
+      offset,
+      from,
+      to: session.time ? addMinutes(session.time, offset + minutes[i]) : null,
+    };
+    offset += minutes[i];
+    return step;
   });
 }
 
-/* ---------- The full agenda: every scheduled score ---------- */
+/** The key the plan says the piece is in, for drawing its scale; null when it can't be read. */
+export function planKey(plan: StudyPlan): KeyInfo | null {
+  if (plan.analysis.keySignature) {
+    try {
+      return keyByVex(plan.analysis.keySignature);
+    } catch {
+      /* fall through to the prose */
+    }
+  }
+  return parseKeyName(plan.analysis.key);
+}
 
-/** What the agenda needs from a score; keeps it independent of IndexedDB and testable. */
+/* ---------- Every scheduled score ---------- */
+
+/** What the sessions view needs from a score; keeps it independent of IndexedDB and testable. */
 export interface ScheduledScore {
   id: string;
   name: string;
@@ -191,6 +282,9 @@ export interface AgendaEntry {
   schedule: Schedule;
   session: Session;
 }
+
+/** Sort key: timed sessions by the clock, then the ones for "any time". */
+const timeOrder = (t: string | null) => t ?? "~";
 
 /** All sessions from all scheduled scores, grouped by day. */
 export function agendaByDay(scores: ScheduledScore[]): Map<string, AgendaEntry[]> {
@@ -211,19 +305,33 @@ export function agendaByDay(scores: ScheduledScore[]): Map<string, AgendaEntry[]
     }
   }
   // multiple scores on the same day: keep them in the order they're studied
-  for (const list of byDay.values()) list.sort((a, b) => a.session.time.localeCompare(b.session.time));
+  // plain comparison, not localeCompare: collation would put the "~" of "any time" before the digits
+  for (const list of byDay.values()) list.sort((a, b) => (timeOrder(a.session.time) < timeOrder(b.session.time) ? -1 : timeOrder(a.session.time) > timeOrder(b.session.time) ? 1 : 0));
   return byDay;
 }
 
-/** First unstudied session from today on; what the agenda shows when there's nothing today. */
+/** First unstudied session from today on; what the page shows when there's nothing today. */
 export function nextSession(byDay: Map<string, AgendaEntry[]>, from = dayKey(new Date())): AgendaEntry | null {
   let best: AgendaEntry | null = null;
   for (const [day, list] of byDay) {
     if (day < from) continue;
     for (const entry of list) {
       if (entry.session.done) continue;
-      if (!best || day < best.session.day || (day === best.session.day && entry.session.time < best.session.time)) best = entry;
+      if (!best || day < best.session.day || (day === best.session.day && timeOrder(entry.session.time) < timeOrder(best.session.time))) best = entry;
     }
   }
   return best;
+}
+
+/** Sessions of a week and how many are done: the week's goal is simply to do them all. */
+export function weekSummary(byDay: Map<string, AgendaEntry[]>, weekStart: Date): { total: number; done: number } {
+  let total = 0;
+  let done = 0;
+  for (let i = 0; i < 7; i++) {
+    for (const e of byDay.get(dayKey(addDays(weekStart, i))) ?? []) {
+      total++;
+      if (e.session.done) done++;
+    }
+  }
+  return { total, done };
 }

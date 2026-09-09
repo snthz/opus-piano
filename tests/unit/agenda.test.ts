@@ -8,10 +8,12 @@ import {
   MAX_SESSIONS,
   nextSession,
   parseDay,
+  planKey,
   planSessions,
   scheduleSchema,
-  sessionBlocks,
+  sessionSteps,
   startOfWeek,
+  weekSummary,
   type Schedule,
 } from "@/lib/agenda";
 import type { Goal, PlanState, StudyPlan } from "@/lib/study-plan";
@@ -29,7 +31,7 @@ const goal = (id: string, sessions: number): Goal => ({
   sessions,
 });
 
-function makePlan(goals: Goal[], blocks: { minutes: number; activity: string }[] = []): StudyPlan {
+function makePlan(goals: Goal[], blocks: { minutes: number; activity: string; kind?: "calentamiento" | "objetivo" | "repaso" }[] = []): StudyPlan {
   return {
     title: "Minueto",
     composer: "Bach",
@@ -120,19 +122,70 @@ describe("reparto de las sesiones", () => {
   });
 });
 
-describe("bloques de la sesión por horas", () => {
-  test("cada bloque arranca donde acaba el anterior", () => {
-    const plan = makePlan([goal("g1", 1)], [
-      { minutes: 5, activity: "Calentamiento" },
-      { minutes: 15, activity: "Compases 1-8" },
-      { minutes: 10, activity: "Repaso" },
-    ]);
+describe("los pasos de una sesión", () => {
+  const blocks = [
+    { minutes: 5, activity: "Escala de sol mayor, manos separadas" },
+    { minutes: 15, activity: "Compases 1-8 a ♩ = 60" },
+    { minutes: 10, activity: "Repaso de lo aprendido" },
+  ];
+
+  test("cada paso arranca donde acaba el anterior, con su hora si la sesión la tiene", () => {
+    const plan = makePlan([goal("g1", 1)], blocks);
     const [session] = planSessions(plan, schedule);
-    expect(sessionBlocks(plan, session)).toEqual([
-      { from: "18:00", to: "18:05", minutes: 5, activity: "Calentamiento" },
-      { from: "18:05", to: "18:20", minutes: 15, activity: "Compases 1-8" },
-      { from: "18:20", to: "18:30", minutes: 10, activity: "Repaso" },
+    const steps = sessionSteps(plan, session);
+    expect(steps.map((s) => [s.kind, s.minutes, s.from, s.to])).toEqual([
+      ["calentamiento", 5, "18:00", "18:05"],
+      ["objetivo", 15, "18:05", "18:20"],
+      ["repaso", 10, "18:20", "18:30"],
     ]);
+    expect(steps.map((s) => s.offset)).toEqual([0, 5, 20]);
+    expect(steps[1].title).toBe("Objetivo g1");
+    expect(steps[0].title).toBe("Calentamiento");
+  });
+
+  test("sin hora fija no hay horas de reloj, solo minutos desde el inicio", () => {
+    const plan = makePlan([goal("g1", 1)], blocks);
+    const [session] = planSessions(plan, { ...schedule, time: null });
+    const steps = sessionSteps(plan, session);
+    expect(steps.every((s) => s.from === null && s.to === null)).toBe(true);
+    expect(steps.map((s) => s.offset)).toEqual([0, 5, 20]);
+  });
+
+  test("los bloques se escalan a los minutos elegidos y suman exactamente la sesión", () => {
+    const plan = makePlan([goal("g1", 1)], blocks); // 30 min de rutina
+    const [session] = planSessions(plan, { ...schedule, minutes: 20 });
+    const steps = sessionSteps(plan, session);
+    expect(steps.reduce((n, s) => n + s.minutes, 0)).toBe(20);
+    expect(steps.map((s) => s.minutes)).toEqual([3, 10, 7]);
+    const [longer] = planSessions(plan, { ...schedule, minutes: 45 });
+    expect(sessionSteps(plan, longer).reduce((n, s) => n + s.minutes, 0)).toBe(45);
+  });
+
+  test("el «kind» del modelo manda sobre la redacción", () => {
+    const plan = makePlan([goal("g1", 1)], [{ minutes: 10, activity: "Escala", kind: "repaso" }]);
+    const [session] = planSessions(plan, schedule);
+    expect(sessionSteps(plan, session)[0].kind).toBe("repaso");
+  });
+
+  test("un plan sin bloques recibe calentamiento, objetivo y repaso", () => {
+    const plan = makePlan([goal("g1", 1)]);
+    const [session] = planSessions(plan, schedule);
+    const steps = sessionSteps(plan, session);
+    expect(steps.map((s) => s.kind)).toEqual(["calentamiento", "objetivo", "repaso"]);
+    expect(steps.reduce((n, s) => n + s.minutes, 0)).toBe(30);
+  });
+
+  test("ningún paso baja de un minuto aunque la sesión sea muy corta", () => {
+    const plan = makePlan([goal("g1", 1)], blocks);
+    const [session] = planSessions(plan, { ...schedule, minutes: 5 });
+    expect(sessionSteps(plan, session).every((s) => s.minutes >= 1)).toBe(true);
+  });
+
+  test("la tonalidad sale del cifrado corto o, en planes viejos, del texto", () => {
+    const plan = makePlan([goal("g1", 1)]);
+    expect(planKey(plan)?.vex).toBe("G");
+    expect(planKey({ ...plan, analysis: { ...plan.analysis, key: "Sol mayor", keySignature: "Em" } })?.vex).toBe("Em");
+    expect(planKey({ ...plan, analysis: { ...plan.analysis, key: "no consta" } })).toBeNull();
   });
 });
 
@@ -159,6 +212,21 @@ describe("la agenda de toda la biblioteca", () => {
     expect(agendaByDay([{ id: "a", name: "Minueto", plan: noSchedule }]).size).toBe(0);
   });
 
+  test("las sesiones sin hora van después de las que la tienen", () => {
+    const byDay = agendaByDay([
+      { id: "a", name: "Sin hora", plan: state(makePlan([goal("g1", 1)]), { ...schedule, time: null }) },
+      { id: "b", name: "A las ocho", plan: state(makePlan([goal("g1", 1)]), { ...schedule, time: "20:00" }) },
+    ]);
+    expect(byDay.get("2026-09-07")?.map((e) => e.score.name)).toEqual(["A las ocho", "Sin hora"]);
+    expect(nextSession(byDay, "2026-09-07")?.score.name).toBe("A las ocho");
+  });
+
+  test("el resumen de la semana cuenta sus sesiones y las hechas", () => {
+    const byDay = agendaByDay([{ id: "a", name: "Minueto", plan: state(makePlan([goal("g1", 4)]), { ...schedule, done: { "2026-09-07": true } }) }]);
+    expect(weekSummary(byDay, parseDay("2026-09-07"))).toEqual({ total: 3, done: 1 });
+    expect(weekSummary(byDay, parseDay("2026-09-14"))).toEqual({ total: 1, done: 0 });
+  });
+
   test("la próxima sesión es la primera sin estudiar desde la fecha dada", () => {
     const byDay = agendaByDay([{ id: "a", name: "Minueto", plan: state(makePlan([goal("g1", 4)]), { ...schedule, done: { "2026-09-09": true } }) }]);
     expect(nextSession(byDay, "2026-09-08")?.session.day).toBe("2026-09-11");
@@ -171,6 +239,7 @@ describe("el horario que se guarda", () => {
     expect(describeSchedule(schedule)).toBe("Lunes, miércoles y viernes a las 18:00");
     expect(describeSchedule({ ...schedule, weekdays: [0, 6] })).toBe("Sábado y domingo a las 18:00");
     expect(describeSchedule({ ...schedule, weekdays: [4] })).toBe("Jueves a las 18:00");
+    expect(describeSchedule({ ...schedule, time: null })).toBe("Lunes, miércoles y viernes a cualquier hora");
   });
 
   test("defaultSchedule propone días repartidos y empieza hoy", () => {
@@ -186,6 +255,7 @@ describe("el horario que se guarda", () => {
     expect(scheduleSchema.safeParse({ ...schedule, weekdays: [7] }).success).toBe(false);
     expect(scheduleSchema.safeParse({ ...schedule, time: "25:00" }).success).toBe(false);
     expect(scheduleSchema.safeParse({ ...schedule, time: "8:00" }).success).toBe(false);
+    expect(scheduleSchema.safeParse({ ...schedule, time: null }).success).toBe(true);
     expect(scheduleSchema.safeParse({ ...schedule, startDate: "8/9/2026" }).success).toBe(false);
     expect(scheduleSchema.safeParse({ ...schedule, minutes: 0 }).success).toBe(false);
   });

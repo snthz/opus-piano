@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { scheduleSchema } from "@/lib/agenda";
+import { scheduleSchema, STEP_KINDS } from "@/lib/agenda";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
-import { keyByVex, keyName } from "@/lib/music/keys";
+import { ALL_KEYS, keyByVex, keyName } from "@/lib/music/keys";
 import { eventCode } from "@/lib/music/musicxml-build";
 import type { ParsedScore } from "@/lib/music/musicxml";
 import { NAMING_SYSTEMS, type NamingSystem } from "@/lib/music/pitch";
@@ -36,6 +36,8 @@ export const HAND_LABELS: Record<(typeof HANDS)[number], string> = {
 
 const LESSON_SLUGS = LESSON_SECTIONS.flatMap((s) => s.lessons.map((l) => l.slug));
 const EXERCISE_IDS = EXERCISES.map((e) => e.id);
+/** Every key in short form ("G", "Bb", "F#m"), so the app can draw the piece's scale. */
+const KEY_CODES = ALL_KEYS.map((k) => k.vex);
 
 /**
  * The zod caps are a safety net, not a style guide — the prompts and schema
@@ -64,6 +66,8 @@ export const studyPlanSchema = z.object({
   composer: short,
   analysis: z.object({
     key: short,
+    /** Same key in short form; optional because plans made before it existed read it from `key` instead. */
+    keySignature: z.enum(KEY_CODES as [string, ...string[]]).optional(),
     scale: long,
     timeSignature: short,
     tempo: short,
@@ -87,7 +91,8 @@ export const studyPlanSchema = z.object({
   routine: z.object({
     sessionMinutes: z.number().int(),
     weeks: z.number().int(),
-    blocks: z.array(z.object({ minutes: z.number().int(), activity: long })).max(10),
+    /** `kind` is optional for plans made before it existed; those get sorted by wording. */
+    blocks: z.array(z.object({ minutes: z.number().int(), activity: long, kind: z.enum(STEP_KINDS).optional() })).max(10),
     advice: long,
   }),
 });
@@ -116,6 +121,7 @@ export const STUDY_PLAN_SCHEMA: SchemaNode = obj({
   composer: str("Compositor; cadena vacía si no consta"),
   analysis: obj({
     key: str("Tonalidad, p. ej. «Sol mayor»"),
+    keySignature: en(KEY_CODES, "La misma tonalidad en cifrado corto: mayores C, G, D, A, E, B, F#, C#, F, Bb, Eb, Ab, Db, Gb, Cb; menores con «m»: Am, Em, Bm, F#m, C#m, G#m, D#m, A#m, Dm, Gm, Cm, Fm, Bbm, Ebm, Abm"),
     scale: str("Qué escala y arpegio conviene dominar para esta pieza, y por qué. Una o dos frases"),
     timeSignature: str("Compás, p. ej. «3/4»"),
     tempo: str("Tempo de la pieza y tempo de estudio inicial, p. ej. «♩ = 120 (Allegro); empezar a ♩ = 60»"),
@@ -152,7 +158,14 @@ export const STUDY_PLAN_SCHEMA: SchemaNode = obj({
   routine: obj({
     sessionMinutes: int("Minutos por sesión, coherentes con el tiempo disponible"),
     weeks: int("Semanas estimadas para completar el plan"),
-    blocks: arr(obj({ minutes: int(), activity: str("Qué se hace en ese bloque, en una línea") }), "De 3 a 4 bloques para repartir una sesión típica"),
+    blocks: arr(
+      obj({
+        kind: en(STEP_KINDS, "calentamiento: escala y arpegio (la app los enseña con su digitación). objetivo: trabajo del objetivo del día. repaso: tocar de seguido lo aprendido"),
+        minutes: int(),
+        activity: str("Qué se hace en ese bloque, en una línea"),
+      }),
+      "De 3 a 4 bloques para repartir una sesión típica: un calentamiento, uno o dos de objetivo y un repaso",
+    ),
     advice: str("Lo que de verdad marca la diferencia al estudiar esta pieza. Dos o tres frases"),
   }),
 });
@@ -286,7 +299,9 @@ export function planInstructions(req: PlanRequest): string {
       "y al final uniones de secciones y pieza completa. Cada objetivo con compases concretos y, en los pasos difíciles, digitaciones.",
     "En «prerequisites», incluye la escala y el arpegio de la tonalidad y los patrones de acompañamiento que aparezcan; enlaza lecciones o ejercicios " +
       "solo cuando existan en el catálogo y de verdad vengan al caso.",
-    "La rutina y el número de sesiones deben ser coherentes con el tiempo disponible del alumno.",
+    "La rutina y el número de sesiones deben ser coherentes con el tiempo disponible del alumno. Cada sesión de estudio sigue los bloques de la rutina " +
+      "con un cronómetro; en el bloque de calentamiento la app enseña sola la escala y el arpegio de la tonalidad con su digitación habitual, " +
+      "así que ahí basta con decir cómo tocarlos (manos separadas, tempo, octavas), no qué notas son.",
     "",
     catalog(),
   ].join("\n");
@@ -337,14 +352,17 @@ export function askInstructions(ctx: AskContext): string {
   ].join("\n");
 }
 
-/** Short text for a goal's range: "Compases 5-8 · Manos separadas". */
-export function goalRange(g: Goal): string {
+/** Short chips for a goal: ["Compases 5-8", "Manos separadas"]. */
+export function goalChips(g: Goal): string[] {
   const parts: string[] = [];
   if (g.from !== null && g.to !== null) parts.push(g.from === g.to ? `Compás ${g.from}` : `Compases ${g.from}-${g.to}`);
   else if (g.from !== null) parts.push(`Desde el compás ${g.from}`);
   if (g.hands) parts.push(HAND_LABELS[g.hands]);
-  return parts.join(" · ");
+  return parts;
 }
+
+/** Short text for a goal's range: "Compases 5-8 · Manos separadas". */
+export const goalRange = (g: Goal): string => goalChips(g).join(" · ");
 
 /** Goal ids must be unique; renumbered if the model repeats one. */
 export function dedupeGoalIds(plan: StudyPlan): StudyPlan {

@@ -7,12 +7,14 @@ import { openAuthModal } from "@/lib/auth-modal";
 import { cancelJob, dismissJob, getJob, startJob, useJob } from "@/lib/jobs";
 import { askTeacher, generatePlan, planService, type PlanService } from "@/lib/plan/client";
 import {
+  classifyBlock,
   dayKey,
   defaultSchedule,
   describeSchedule,
   parseDay,
   planSessions,
   scheduleSchema,
+  STEP_LABELS,
   WEEKDAY_LETTERS,
   WEEKDAY_NAMES,
   type Schedule,
@@ -26,6 +28,7 @@ import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, type ChatTurn, type Goal, t
 import { isAbort, UserError } from "@/lib/user-error";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Modal } from "@/components/ui/modal";
+import { NumberField } from "@/components/ui/number-field";
 import { Select } from "@/components/ui/select";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { PlanIcon } from "./reader-icons";
@@ -219,25 +222,11 @@ export function StudyPlanPanel({ record, xml, pdf, onPlanChange }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <label className="block space-y-1">
             <span className="text-sm font-medium">Minutos al día</span>
-            <input
-              type="number"
-              min={5}
-              max={240}
-              value={prefs.minutesPerDay}
-              onChange={(e) => setPrefs({ ...prefs, minutesPerDay: Math.max(5, Math.min(240, Number(e.target.value) || 0)) })}
-              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-            />
+            <NumberField min={5} max={240} step={5} value={prefs.minutesPerDay} onChange={(minutesPerDay) => setPrefs({ ...prefs, minutesPerDay })} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-medium">Días por semana</span>
-            <input
-              type="number"
-              min={1}
-              max={7}
-              value={prefs.daysPerWeek}
-              onChange={(e) => setPrefs({ ...prefs, daysPerWeek: Math.max(1, Math.min(7, Number(e.target.value) || 0)) })}
-              className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-            />
+            <NumberField min={1} max={7} value={prefs.daysPerWeek} onChange={(daysPerWeek) => setPrefs({ ...prefs, daysPerWeek })} />
           </label>
         </div>
         <label className="block space-y-1">
@@ -484,7 +473,10 @@ function PlanView({
             {plan.routine.blocks.map((b, i) => (
               <li key={i} className="flex gap-3">
                 <span className="tabular-nums text-ink-3 w-14 shrink-0">{b.minutes} min</span>
-                <span>{b.activity}</span>
+                <span>
+                  <span className="font-medium">{STEP_LABELS[b.kind ?? classifyBlock(b.activity)]}: </span>
+                  <span className="text-ink-2">{b.activity}</span>
+                </span>
               </li>
             ))}
           </ul>
@@ -537,7 +529,7 @@ function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (sch
           </p>
           <div className="flex flex-wrap gap-1.5 pt-0.5">
             <Link href="/calendar" className="pill text-xs py-1 bg-surface">
-              Ver en la agenda
+              Ver mis sesiones
             </Link>
             <button type="button" onClick={start} className="pill text-xs py-1 bg-surface">
               Cambiar
@@ -555,16 +547,16 @@ function ScheduleSection({ state, onChange }: { state: PlanState; onChange: (sch
       ) : (
         <div className="card-pastel bg-mint px-4 py-3 space-y-2">
           <p className="text-sm">
-            <strong>Ponla en tu agenda.</strong> Eliges los días y la hora, y la agenda te dice cada día qué objetivo toca y cómo repartir la
-            sesión.
+            <strong>Programa tus sesiones.</strong> Eliges los días (y la hora, si quieres) y cada día tendrás una sesión con sus pasos, su
+            cronómetro y la escala que toca calentar.
           </p>
           <button type="button" onClick={start} className="pill text-xs py-1 bg-surface">
-            Añadir a mi agenda
+            Programar mis sesiones
           </button>
         </div>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Añadir a la agenda" subtitle={state.plan.title}>
+      <Modal open={open} onClose={() => setOpen(false)} title="Programar las sesiones" subtitle={state.plan.title}>
         {draft && (
           <ScheduleForm
             state={state}
@@ -598,6 +590,8 @@ function ScheduleForm({
   onCancel: () => void;
 }) {
   const valid = scheduleSchema.safeParse(draft).success;
+  // the hour last typed, so switching to "any time" and back doesn't lose it
+  const lastTime = useRef(draft.time ?? "18:00");
   // a half-filled draft (no days checked, empty time) has no spread to show
   const sessions = valid ? planSessions(state.plan, draft, state.progress) : [];
 
@@ -636,26 +630,46 @@ function ScheduleForm({
         {draft.weekdays.length === 0 && <p className="text-xs text-bad">Marca al menos un día.</p>}
       </fieldset>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block space-y-1">
-          <span className="text-sm font-medium">A qué hora</span>
+      <fieldset className="space-y-1.5">
+        <legend className="text-sm font-medium mb-1.5">¿A qué hora?</legend>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => onDraft({ ...draft, time: draft.time ?? lastTime.current })}
+            aria-pressed={draft.time !== null}
+            className={`pill flex-1 justify-center py-2 text-sm ${draft.time !== null ? "pill-active" : ""}`}
+          >
+            A una hora fija
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (draft.time) lastTime.current = draft.time;
+              onDraft({ ...draft, time: null });
+            }}
+            aria-pressed={draft.time === null}
+            className={`pill flex-1 justify-center py-2 text-sm ${draft.time === null ? "pill-active" : ""}`}
+          >
+            Cuando pueda
+          </button>
+        </div>
+        {draft.time !== null ? (
           <input
             type="time"
             value={draft.time}
             onChange={(e) => onDraft({ ...draft, time: e.target.value })}
+            aria-label="Hora de la sesión"
             className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
           />
-        </label>
+        ) : (
+          <p className="text-xs text-ink-2">La sesión cuenta ese día a cualquier hora; el objetivo es hacerla.</p>
+        )}
+      </fieldset>
+
+      <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
           <span className="text-sm font-medium">Minutos por sesión</span>
-          <input
-            type="number"
-            min={5}
-            max={240}
-            value={draft.minutes}
-            onChange={(e) => onDraft({ ...draft, minutes: Math.max(5, Math.min(240, Number(e.target.value) || 0)) })}
-            className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-          />
+          <NumberField min={5} max={240} step={5} value={draft.minutes} onChange={(minutes) => onDraft({ ...draft, minutes })} />
         </label>
       </div>
 
@@ -682,12 +696,12 @@ function ScheduleForm({
         ) : (
           <p>Elige los días y la hora para ver el reparto.</p>
         )}
-        <p>Las sesiones salen de los objetivos del plan: si los cambias o los vas cumpliendo, la agenda se pone al día sola.</p>
+        <p>Las sesiones salen de los objetivos del plan: si los cambias o los vas cumpliendo, se ponen al día solas.</p>
       </div>
 
       <div className="flex items-center gap-2">
         <button type="submit" disabled={!valid} className="btn-primary text-sm flex-1 disabled:opacity-50">
-          Guardar en la agenda
+          Guardar las sesiones
         </button>
         <button type="button" onClick={onCancel} className="pill text-xs py-1.5 shrink-0">
           Cancelar

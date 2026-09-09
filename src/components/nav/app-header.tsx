@@ -21,7 +21,7 @@ const TABS = [
   { href: "/practice", label: "Práctica" },
   { href: "/metronome", label: "Metrónomo" },
   { href: "/scores", label: "Partituras" },
-  { href: "/calendar", label: "Agenda" },
+  { href: "/calendar", label: "Sesiones" },
 ];
 
 /** Secciones que ya no van en la fila de pestañas: viven en «Más» del menú de usuario. */

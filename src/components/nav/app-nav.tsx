@@ -57,7 +57,7 @@ const PRIMARY: Item[] = [
   { href: "/practice", label: "Práctica", icon: PracticeIcon },
   { href: "/metronome", label: "Metrónomo", icon: MetronomeIcon },
   { href: "/scores", label: "Partituras", icon: ScoresIcon },
-  { href: "/calendar", label: "Agenda", icon: CalendarIcon },
+  { href: "/calendar", label: "Sesiones", icon: CalendarIcon },
 ];
 
 /** El resto de la app, agrupado por para qué sirve, dentro de la hoja de «Más». */

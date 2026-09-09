@@ -1,26 +1,22 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { ClientOnly } from "@/components/ui/client-only";
-import { Agenda } from "@/components/calendar/agenda";
+import { StudySessions } from "@/components/calendar/study-sessions";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
-  title: "Mi agenda de estudio",
-  description: "Tus sesiones de estudio día a día: qué objetivo toca, a qué hora y cómo repartir la sesión.",
+  title: "Mis sesiones de estudio",
+  description: "Tu sesión de estudio de cada día, paso a paso y con cronómetro: calentamiento con la escala, el objetivo del día y el repaso.",
   path: "/calendar",
   noindex: true,
 });
 
-export default function AgendaPage() {
+export default function SessionsPage() {
   return (
     <div>
-      <PageHeader
-        eyebrow="Calendario"
-        title="Mi agenda"
-        intro="Lo que toca tocar cada día, sacado del plan de estudio de cada partitura. Marca la sesión al terminarla para llevar la cuenta de la semana."
-      />
-      {/* La agenda sale de IndexedDB: solo existe en el navegador. */}
+      <PageHeader eyebrow="Sesiones" title="Sesiones de estudio" intro="Cada día, una sesión con sus pasos y su cronómetro. El objetivo es hacerla." />
+      {/* Las sesiones salen de IndexedDB: solo existen en el navegador. */}
       <ClientOnly>
-        <Agenda />
+        <StudySessions />
       </ClientOnly>
     </div>
   );

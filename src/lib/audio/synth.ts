@@ -107,6 +107,13 @@ export function playNote(midi: number, opts: NoteOptions = {}): () => void {
   };
 }
 
+/** Two rising notes: the end of a study-session step. Softer than the click and clearly not the metronome. */
+export function playChime(velocity = 0.5) {
+  const c = getAudioContext();
+  playNote(79, { when: c.currentTime, duration: 0.35, velocity });
+  playNote(84, { when: c.currentTime + 0.18, duration: 0.7, velocity });
+}
+
 export function playChord(midis: number[], opts: NoteOptions = {}) {
   const stops = midis.map((m) => playNote(m, opts));
   return () => stops.forEach((s) => s());
