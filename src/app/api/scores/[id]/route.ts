@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
 import { isScoreId, removeFiles } from "@/lib/server/score-files";
-import { scorePatchSchema, toMeta } from "@/lib/server/scores-service";
+import { scorePatchSchema, sharedAtFor, toMeta } from "@/lib/server/scores-service";
 import { readJson } from "@/lib/server/user-json";
 import { firstIssue } from "@/lib/validation";
 
@@ -24,7 +24,7 @@ export async function GET(req: Request, ctx: Ctx) {
   return Response.json(toMeta(row), { headers: { "Cache-Control": "no-store" } });
 }
 
-/** Nombre, notas, trazos y plan de estudio. `updatedAt` lo pone el dispositivo; gana el más reciente. */
+/** Nombre, notas, trazos, plan de estudio y visibilidad. `updatedAt` lo pone el dispositivo; gana el más reciente. */
 export async function PATCH(req: Request, ctx: Ctx) {
   if (!sameOrigin(req)) return Response.json({ error: "Origen no permitido" }, { status: 403 });
   const { id } = await ctx.params;
@@ -45,6 +45,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       // null = borrar; undefined = no tocar.
       annotations: d.annotations === null ? Prisma.DbNull : d.annotations,
       plan: d.plan === null ? Prisma.DbNull : d.plan,
+      visibility: d.visibility,
+      description: d.description,
+      sharedAt: sharedAtFor(d.visibility, row),
       updatedAt: BigInt(d.updatedAt),
     },
   });

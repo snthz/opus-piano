@@ -67,7 +67,7 @@ export function ScoreUpload({ onAdded }: Props) {
       <button
         type="button"
         disabled={loading}
-        className={`w-full rounded-3xl border border-dashed p-4 text-left transition-colors sm:p-5 ${
+        className={`w-full rounded-3xl border border-dashed p-3 text-left transition-colors sm:p-4 ${
           drag ? "border-ink bg-surface-2" : "border-surface-3 bg-surface hover:border-ink-3 hover:bg-surface-2"
         }`}
         onClick={() => inputRef.current?.click()}
@@ -77,8 +77,8 @@ export function ScoreUpload({ onAdded }: Props) {
       >
         <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
         <div className="flex items-center gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-line bg-surface-2 text-ink">
-            {loading ? <ProgressRing progress={null} className="h-6 w-6" /> : <AddScoreIcon className="h-6 w-6" />}
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-line bg-surface-2 text-ink">
+            {loading ? <ProgressRing progress={null} className="h-5 w-5" /> : <AddScoreIcon className="h-5 w-5" />}
           </span>
           <div className="min-w-0">
             {loading ? (
@@ -89,10 +89,7 @@ export function ScoreUpload({ onAdded }: Props) {
             ) : (
               <>
                 <p className="text-sm font-semibold">Añadir partitura</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-ink-2">
-                  Arrastra aquí o toca para elegir un PDF o un MusicXML (.musicxml, .mxl). Con MusicXML, Opus Piano toca la
-                  pieza y te muestra el nombre de cada nota.
-                </p>
+                <p className="mt-0.5 text-xs text-ink-2">Arrastra un PDF o un MusicXML (.musicxml, .mxl), o toca para elegirlo.</p>
               </>
             )}
           </div>

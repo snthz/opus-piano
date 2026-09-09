@@ -11,11 +11,11 @@ import { openAuthModal } from "@/lib/auth-modal";
 import { SignupNudge } from "@/components/account/signup-nudge";
 import { JobIndicator } from "./job-indicator";
 import { ScoreUpload } from "./score-upload";
+import { ShareSheet } from "./share-sheet";
 import { ScoreViewer } from "./score-viewer";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
-import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { PenIcon, PlayIcon } from "./reader-icons";
-import { DotsIcon, EmptyLibraryIcon, SearchIcon } from "./library-icons";
+import { DotsIcon, EmptyLibraryIcon, SearchIcon, SharedIcon } from "./library-icons";
 
 /** Ruta de la biblioteca; la partitura abierta va en `?score=<id>`. */
 const LIBRARY_PATH = "/scores";
@@ -111,40 +111,45 @@ export function ScoreLibrary() {
       />
       <ScoreUpload onAdded={onAdded} />
 
-      {/* La biblioteca vacía no puede ser un callejón sin salida: si no hay
-          nada que subir todavía, el catálogo da algo que tocar hoy mismo. */}
-      <Link href="/scores/catalog" className="card flex items-center gap-3 p-4 hover:bg-surface-2">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-bg">
-          <GlyphIcon name="noteQuarterUp" size={20} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Piezas libres para empezar</span>
-          <span className="mt-0.5 block text-xs text-ink-2">
-            Obras de dominio público, por dificultad. Suenan y se analizan como cualquier partitura tuya.
-          </span>
-        </span>
-        <ArrowIcon className="h-5 w-5 shrink-0 text-ink-3" />
-      </Link>
+      {/* Catálogo y comunidad como chips, no como tarjetas: son atajos, no el
+          contenido de la página. La biblioteca vacía sigue sin ser un callejón
+          sin salida, porque el catálogo da algo que tocar hoy mismo. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1">
+        <nav className="flex flex-wrap gap-2" aria-label="Más partituras">
+          <Link href="/scores/catalog" className="pill py-1 pl-1 pr-3.5 text-xs">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-bg">
+              <GlyphIcon name="noteQuarterUp" size={13} />
+            </span>
+            Piezas libres
+          </Link>
+          <Link href="/scores/community" className="pill py-1 pl-1 pr-3.5 text-xs">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-bg">
+              <SharedIcon className="h-3.5 w-3.5" />
+            </span>
+            Compartidas por otros
+          </Link>
+        </nav>
 
-      {user ? (
-        <p className="px-1 text-xs text-ink-3">
-          {sync.busy
-            ? "Sincronizando biblioteca…"
-            : sync.error
-              ? `Sin sincronizar: ${sync.error}`
-              : sync.lastSync
-                ? `Biblioteca sincronizada con tu cuenta${sync.quota ? ` · ${Math.round(sync.used / 1048576)} de ${Math.round(sync.quota / 1048576)} MB` : ""}`
-                : "Biblioteca guardada en tu cuenta."}
-        </p>
-      ) : (
-        <p className="px-1 text-xs text-ink-3">
-          Tus partituras se guardan solo en este dispositivo.{" "}
-          <button type="button" onClick={() => openAuthModal("register")} className="font-semibold text-ink hover:underline">
-            Crea una cuenta
-          </button>{" "}
-          para tenerlas en todos.
-        </p>
-      )}
+        {user ? (
+          <p className="text-xs text-ink-3">
+            {sync.busy
+              ? "Sincronizando…"
+              : sync.error
+                ? `Sin sincronizar: ${sync.error}`
+                : sync.lastSync
+                  ? `Sincronizada${sync.quota ? ` · ${Math.round(sync.used / 1048576)} de ${Math.round(sync.quota / 1048576)} MB` : ""}`
+                  : "Guardada en tu cuenta"}
+          </p>
+        ) : (
+          <p className="text-xs text-ink-3">
+            Solo en este dispositivo.{" "}
+            <button type="button" onClick={() => openAuthModal("register")} className="font-semibold text-ink hover:underline">
+              Crea una cuenta
+            </button>{" "}
+            para tenerlas en todos.
+          </p>
+        )}
+      </div>
 
       {scores.length > 0 && (
         <div className="flex items-center gap-3">
@@ -187,6 +192,7 @@ export function ScoreLibrary() {
               onOpen={() => open(s.id)}
               onDelete={() => void onDelete(s.id)}
               onRename={(name) => rename(s.id, name)}
+              onPatch={(changes) => patch(s.id, changes)}
             />
           ))}
         </div>
@@ -221,16 +227,19 @@ function ScoreCard({
   onOpen,
   onDelete,
   onRename,
+  onPatch,
 }: {
   record: ScoreRecord;
   onOpen: () => void;
   onDelete: () => void;
   onRename: (name: string) => void;
+  onPatch: (changes: Partial<ScoreRecord>) => void;
 }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(record.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   // Tarea larga de esta partitura (en marcha, lista o fallida): se ve desde la biblioteca.
   const job = useJobs().find((j) => j.scoreId === record.id);
@@ -238,6 +247,7 @@ function ScoreCard({
   const isXml = record.kind === "musicxml";
   const playable = isXml || !!record.linkedXml;
   const annotated = Object.values(record.annotations ?? {}).some((s) => s.length > 0);
+  const shared = (record.visibility ?? "private") !== "private";
 
   // El menú se cierra al tocar fuera o con Escape: `onMouseLeave` no basta en táctil.
   useEffect(() => {
@@ -310,8 +320,13 @@ function ScoreCard({
           <span className="absolute bottom-2 left-2 rounded-md bg-surface/85 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-ink-2 ring-1 ring-line backdrop-blur">
             {isXml ? "MusicXML" : "PDF"}
           </span>
-          {(playable || annotated) && (
+          {(playable || annotated || shared) && (
             <span className="absolute bottom-2 right-2 flex items-center gap-1">
+              {shared && (
+                <Capability label={record.visibility === "public" ? "Compartida con todos" : "Compartida por enlace"}>
+                  <SharedIcon className="h-3 w-3" />
+                </Capability>
+              )}
               {playable && (
                 <Capability label="Se puede escuchar">
                   <PlayIcon className="h-2.5 w-2.5" />
@@ -382,6 +397,13 @@ function ScoreCard({
           >
             Renombrar
           </button>
+          <button
+            type="button"
+            onClick={() => { setMenu(false); setSharing(true); }}
+            className="w-full rounded-xl px-3 py-1.5 text-left hover:bg-surface-2"
+          >
+            {shared ? "Compartir…" : "Compartir"}
+          </button>
           {!confirmDelete ? (
             <button type="button" onClick={() => setConfirmDelete(true)} className="w-full rounded-xl px-3 py-1.5 text-left text-bad hover:bg-bad-soft">
               Eliminar
@@ -397,6 +419,8 @@ function ScoreCard({
           )}
         </div>
       )}
+
+      <ShareSheet record={record} open={sharing} onClose={() => setSharing(false)} onChange={onPatch} />
     </article>
   );
 }

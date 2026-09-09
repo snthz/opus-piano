@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { isScoreId } from "@/lib/server/score-files";
@@ -17,8 +18,36 @@ export interface ScoreMeta {
   size: number;
   uploaded: boolean;
   hasXml: boolean;
+  visibility: Visibility;
+  description: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export const VISIBILITIES = ["private", "link", "public"] as const;
+export type Visibility = (typeof VISIBILITIES)[number];
+export const visibilitySchema = z.enum(VISIBILITIES);
+/** Lo que acompaña a una partitura compartida; corto a propósito, es una presentación, no un ensayo. */
+export const DESCRIPTION_MAX = 600;
+
+/**
+ * Lo que ve cualquiera de una partitura compartida: el archivo (por sus
+ * rutas), el nombre, la portada y la presentación. Notas, trazos y plan de
+ * estudio son del dueño y no salen de aquí.
+ */
+export interface SharedScoreMeta {
+  id: string;
+  name: string;
+  kind: "pdf" | "musicxml";
+  pageCount: number;
+  thumbnail: string;
+  description: string;
+  /** Suena: es MusicXML o tiene uno vinculado. */
+  playable: boolean;
+  hasXml: boolean;
+  visibility: Visibility;
+  owner: string;
+  sharedAt: number;
 }
 
 const stroke = z.object({
@@ -40,6 +69,8 @@ export const scoreCreateSchema = z.object({
   thumbnail: z.string().max(200_000).default(""),
   annotations: annotationsSchema.optional(),
   plan: planStateSchema.nullable().optional(),
+  visibility: visibilitySchema.optional(),
+  description: z.string().trim().max(DESCRIPTION_MAX).optional(),
   createdAt: z.number().int().positive().optional(),
   updatedAt: z.number().int().positive(),
 });
@@ -49,8 +80,17 @@ export const scorePatchSchema = z.object({
   notes: z.string().max(20_000).optional(),
   annotations: annotationsSchema.nullable().optional(),
   plan: planStateSchema.nullable().optional(),
+  visibility: visibilitySchema.optional(),
+  description: z.string().trim().max(DESCRIPTION_MAX).optional(),
   updatedAt: z.number().int().positive(),
 });
+
+/** `sharedAt` se pone la primera vez que deja de ser privada (y cada vez que vuelve a serlo), para ordenar la lista. */
+export function sharedAtFor(next: Visibility | undefined, previous: { visibility: string; sharedAt: Date | null } | null, now = new Date()): Date | null | undefined {
+  if (next === undefined) return undefined; // no se toca
+  if (next === "private") return previous?.sharedAt ?? null;
+  return previous?.visibility === next && previous.sharedAt ? previous.sharedAt : now;
+}
 
 type Row = NonNullable<Awaited<ReturnType<typeof prisma.score.findFirst>>>;
 
@@ -67,10 +107,33 @@ export function toMeta(r: Row): ScoreMeta {
     size: r.size,
     uploaded: r.uploaded,
     hasXml: r.xmlSize > 0,
+    visibility: asVisibility(r.visibility),
+    description: r.description,
     createdAt: r.createdAt.getTime(),
     updatedAt: Number(r.updatedAt),
   };
 }
+
+const asVisibility = (v: string): Visibility => (VISIBILITIES.includes(v as Visibility) ? (v as Visibility) : "private");
+
+export function toSharedMeta(r: Row & { user: { name: string } }): SharedScoreMeta {
+  return {
+    id: r.id,
+    name: r.name,
+    kind: r.kind as "pdf" | "musicxml",
+    pageCount: r.pageCount,
+    thumbnail: r.thumbnail,
+    description: r.description,
+    playable: r.kind === "musicxml" || r.xmlSize > 0,
+    hasXml: r.xmlSize > 0,
+    visibility: asVisibility(r.visibility),
+    owner: r.user.name,
+    sharedAt: (r.sharedAt ?? r.createdAt).getTime(),
+  };
+}
+
+/** Solo lo que se ha compartido y ya tiene el archivo subido: un enlace a algo a medio subir no sirve. */
+export const SHARED_WHERE: Prisma.ScoreWhereInput = { visibility: { in: ["link", "public"] }, uploaded: true };
 
 export async function usedBytes(userId: string): Promise<number> {
   const agg = await prisma.score.aggregate({ where: { userId }, _sum: { size: true, xmlSize: true } });

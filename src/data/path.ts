@@ -62,6 +62,7 @@ export const PATH: PathStage[] = [
       { kind: "piece", ref: "campanita-del-lugar", why: "Un salto de quinta al empezar y tres acordes. Ideal para separar manos y juntarlas." },
       { kind: "piece", ref: "cumpleanos-feliz", why: "Empieza antes del compás: la anacrusa se entiende tocándola." },
       { kind: "exercise", ref: "solfeo", why: "Cantar lo que lees fija la altura mucho antes que los dedos." },
+      { kind: "piece", ref: "minueto-sol-petzold", why: "Tu primera obra original: el minueto del Cuaderno de Ana Magdalena, con las dos manos de verdad independientes." },
     ],
   },
   {
@@ -73,6 +74,7 @@ export const PATH: PathStage[] = [
       { kind: "exercise", ref: "armaduras", why: "Reconocer la armadura de un vistazo ahorra medio minuto en cada pieza." },
       { kind: "piece", ref: "jingle-bells", why: "Tu primera pieza con armadura: un sostenido, sol mayor." },
       { kind: "lesson", ref: "escalas", why: "Escalas, intervalos y acordes: de dónde salen las notas que acabas de tocar." },
+      { kind: "piece", ref: "satie-gymnopedie-1", why: "Dos sostenidos, acordes de tres notas y pedal: lenta, así que hay tiempo de pensar cada cosa." },
     ],
   },
   {
@@ -83,6 +85,7 @@ export const PATH: PathStage[] = [
       { kind: "lesson", ref: "simbolos", why: "Lo que convierte las notas correctas en música: matices, ligaduras, pedal." },
       { kind: "exercise", ref: "simbolos", why: "Son muchos y se olvidan; las flashcards son para esto." },
       { kind: "exercise", ref: "oido", why: "Reconocer intervalos de oído es lo que te deja adivinar si te has equivocado." },
+      { kind: "piece", ref: "clementi-sonatina-op36-1", why: "Una forma sonata entera en 38 compases: escalas, bajo de Alberti y dos temas. Con esto ya lees repertorio." },
     ],
   },
 ];

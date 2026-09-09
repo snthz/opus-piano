@@ -18,7 +18,7 @@ export default function PartiturasPage() {
       <PageHeader
         eyebrow="Biblioteca"
         title="Mis partituras"
-        intro="Tus PDF y MusicXML. Dibuja encima, y con MusicXML escucha la pieza y ve el nombre de cada nota. Con una cuenta, la biblioteca te sigue a todos tus dispositivos."
+        intro="Tus PDF y MusicXML, con tus anotaciones. Los MusicXML además suenan y muestran el nombre de cada nota."
       />
       <ClientOnly>
         {/* La biblioteca lee `?score=` con useSearchParams: Next pide un Suspense alrededor. */}

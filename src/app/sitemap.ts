@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { CATALOG } from "@/data/catalog";
 import { ALL_LESSONS } from "@/data/lessons";
 import { EXERCISES } from "@/data/exercises";
 import { GLOSSARY_SLUGS } from "@/data/glossary";
@@ -38,6 +39,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/practice", 0.8, "weekly"),
     ...EXERCISES.map((exercise) => entry(exercisePath(exercise.id), 0.7)),
     entry("/scores/catalog", 0.8, "monthly"),
+    ...CATALOG.map((piece) => entry(`/scores/catalog/${piece.id}`, 0.7)),
     entry("/metronome", 0.8),
     entry("/symbols", 0.8),
     ...SYMBOL_CATEGORIES.map((category) => entry(symbolCategoryPath(category.id), 0.7)),

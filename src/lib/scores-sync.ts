@@ -10,6 +10,7 @@ import {
   removeFromServer,
   type Annotations,
   type ScoreRecord,
+  type Visibility,
 } from "@/lib/scores-db";
 import type { PlanState } from "@/lib/study-plan";
 
@@ -19,7 +20,7 @@ import type { PlanState } from "@/lib/study-plan";
  * - Lo local que el servidor no tiene se sube (metadatos + archivo + MusicXML).
  * - Lo del servidor que no está aquí se descarga.
  * - Si los dos tienen la partitura, gana la versión con `updatedAt` más reciente
- *   (nombre, notas, trazos); los archivos no cambian nunca una vez subidos.
+ *   (nombre, notas, trazos, visibilidad); los archivos no cambian nunca una vez subidos.
  * - Borrar en un dispositivo borra en el servidor y, al sincronizar, en los demás.
  */
 interface ServerScore {
@@ -34,6 +35,8 @@ interface ServerScore {
   size: number;
   uploaded: boolean;
   hasXml: boolean;
+  visibility: Visibility;
+  description: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -107,6 +110,8 @@ async function upload(rec: ScoreRecord): Promise<void> {
     thumbnail: rec.thumbnail,
     annotations: rec.annotations,
     plan: rec.plan ?? null,
+    visibility: rec.visibility ?? "private",
+    description: rec.description ?? "",
     createdAt: rec.addedAt,
     updatedAt: rec.updatedAt ?? rec.addedAt,
   });
@@ -140,6 +145,8 @@ async function pushMeta(rec: ScoreRecord, server: ServerScore): Promise<void> {
     notes: rec.notes,
     annotations: rec.annotations ?? null,
     plan: rec.plan ?? null,
+    visibility: rec.visibility ?? "private",
+    description: rec.description ?? "",
     updatedAt: rec.updatedAt ?? rec.addedAt,
   });
   if (!res.ok) throw new Error(await errorOf(res, "No se pudo guardar"));
@@ -173,6 +180,8 @@ async function download(s: ServerScore, local?: ScoreRecord): Promise<void> {
     pageCount: s.pageCount,
     annotations: s.annotations,
     plan: s.plan,
+    visibility: s.visibility,
+    description: s.description,
     linkedXml,
     addedAt: s.createdAt,
     updatedAt: s.updatedAt,

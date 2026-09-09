@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Score, type MeasureRepeat } from "@/components/notation/score";
+import { Score, type MeasureRepeat, type Tie } from "@/components/notation/score";
 import { eventLabel, measureToEasyScore, type ParsedScore } from "@/lib/music/musicxml";
+import { tieIndexes, tupletGroups } from "@/lib/music/voices";
 import { useSettings } from "@/lib/settings";
 import type { ActiveNotes } from "./use-score-player";
 
@@ -74,14 +75,18 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
         const perStaff = parsed.clefs.map((clef, staff) => {
           const events = slice.flatMap((m) => m.staves[staff] ?? []);
           const base = offsets[staff][sys.from];
-          const ties: [number, number][] = [];
+          // a tie joins only the pitches that are actually held: a bass under changing chords
+          const ties: Tie[] = [];
           events.forEach((ev, i) => {
-            if (ev.tieStart && i + 1 < events.length) ties.push([i, i + 1]);
+            if (!ev.tieStart || i + 1 >= events.length) return;
+            const { fromIdx, toIdx } = tieIndexes(ev, events[i + 1]);
+            if (fromIdx.length) ties.push([i, i + 1, fromIdx, toIdx]);
           });
           return {
             measures: slice.map((m) => measureToEasyScore(m.staves[staff] ?? [], clef)),
             labels: showNames ? events.map((ev) => eventLabel(ev, settings.naming)) : undefined,
             ties,
+            tuplets: tupletGroups(events),
             highlight: active[staff]?.filter((g) => g >= base && g < offsets[staff][sys.to]).map((g) => g - base) ?? [],
           };
         });
@@ -99,6 +104,8 @@ export function ScoreSheet({ parsed, active, showNames }: Props) {
               bassLabels={grand ? perStaff[1].labels : undefined}
               ties={perStaff[0].ties}
               bassTies={grand ? perStaff[1].ties : undefined}
+              tuplets={perStaff[0].tuplets}
+              bassTuplets={grand ? perStaff[1].tuplets : undefined}
               highlight={perStaff[0].highlight}
               bassHighlight={grand ? perStaff[1].highlight : undefined}
               highlightBand

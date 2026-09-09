@@ -89,7 +89,7 @@ function resolveStep(step: PathStep, input: PathInput): Omit<ResolvedStep, "stat
     step,
     title: piece?.title ?? step.ref,
     href: scoreId ? `/scores?score=${encodeURIComponent(scoreId)}` : "/scores/catalog",
-    detail: piece ? `Partitura · ${piece.music.measures.length} compases` : "Partitura",
+    detail: piece ? `Partitura · ${piece.measures} compases` : "Partitura",
     done: !!scoreId,
   };
 }

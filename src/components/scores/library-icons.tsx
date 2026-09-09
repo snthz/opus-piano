@@ -45,3 +45,14 @@ export const EmptyLibraryIcon = ({ className }: Props) => (
     <path d="M12 17.5v3M8.5 20.5h7" />
   </StrokeIcon>
 );
+
+/** Dos personas: la partitura la ven otros. */
+export function SharedIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className} aria-hidden>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19c0-3 2.5-5.2 5.5-5.2s5.5 2.2 5.5 5.2" strokeLinecap="round" />
+      <path d="M15.5 5.3a3.2 3.2 0 0 1 0 5.4M17 13.8c2.2.6 3.5 2.6 3.5 5.2" strokeLinecap="round" />
+    </svg>
+  );
+}

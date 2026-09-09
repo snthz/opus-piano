@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { unzipSync, strFromU8 } from "fflate";
 import { CATALOG, piecesByLevel } from "@/data/catalog";
 import { catalogMusicXml, parseCatalogMusic } from "@/lib/music/catalog-score";
 import { durationWarnings, measureBeats } from "@/lib/music/musicxml-build";
@@ -6,15 +8,19 @@ import { buildTimeline } from "@/lib/music/musicxml";
 import { keyByVex } from "@/lib/music/keys";
 
 /**
- * Las piezas del catálogo se escriben a mano, así que lo que se puede
- * comprobar solo se comprueba aquí: que cada compás dure lo que pide su
- * cifra, que el MusicXML salga con la tonalidad y los compases correctos y
- * que la pieza suene. Las alturas hay que escucharlas; esto atrapa lo demás.
+ * Dos clases de pieza, dos comprobaciones. Las escritas a mano en notación
+ * compacta: que cada compás dure lo que pide su cifra, que el MusicXML salga
+ * con la tonalidad y los compases correctos y que suene. Las originales: que
+ * el .mxl exista, se abra y sea un MusicXML partwise con los compases que
+ * dice la ficha. Las alturas hay que escucharlas; esto atrapa lo demás.
  *
  * El MusicXML se revisa como texto y no con `parseMusicXml` porque ese lee
  * con `DOMParser`, que en el runner de bun no existe (igual que en
  * `omr-merge.test.ts`).
  */
+
+const compact = CATALOG.flatMap((p) => (p.source.kind === "compact" ? [{ piece: p, music: p.source.music }] : []));
+const originals = CATALOG.flatMap((p) => (p.source.kind === "file" ? [{ piece: p, source: p.source }] : []));
 
 describe("catálogo de dominio público", () => {
   test("hay piezas y todas tienen id único", () => {
@@ -22,9 +28,46 @@ describe("catálogo de dominio público", () => {
     expect(new Set(CATALOG.map((p) => p.id)).size).toBe(CATALOG.length);
   });
 
-  for (const piece of CATALOG) {
+  test("cada pieza trae un análisis de verdad, no un hueco", () => {
+    for (const piece of CATALOG) {
+      expect(piece.analysis.summary.length).toBeGreaterThan(80);
+      expect(piece.analysis.approach.length).toBeGreaterThanOrEqual(3);
+      expect(piece.analysis.watchOut.length).toBeGreaterThanOrEqual(1);
+      expect(piece.skills.length).toBeGreaterThanOrEqual(2);
+      expect(piece.measures).toBeGreaterThan(0);
+    }
+  });
+
+  test("hay arreglos para empezar y obras originales", () => {
+    expect(compact.length).toBeGreaterThan(0);
+    expect(originals.length).toBeGreaterThan(10);
+  });
+
+  for (const { piece, source } of originals) {
     describe(piece.title, () => {
-      const parsed = parseCatalogMusic(piece.music, piece.title);
+      test("el archivo existe, es un .mxl válido y tiene los compases de la ficha", () => {
+        const path = `public${source.path}`;
+        expect(existsSync(path)).toBe(true);
+        const files = unzipSync(new Uint8Array(readFileSync(path)));
+        expect(files["META-INF/container.xml"]).toBeDefined();
+        const xml = strFromU8(files["score.xml"]);
+        expect(xml).toContain("<score-partwise");
+        expect(xml.match(/<measure /g) ?? []).toHaveLength(piece.measures * (xml.match(/<part id=/g) ?? []).length);
+        // Piano: una parte de dos pentagramas, o dos partes de uno.
+        const parts = (xml.match(/<part id=/g) ?? []).length;
+        expect(parts === 1 ? xml.includes("<staves>2</staves>") : parts === 2).toBe(true);
+      });
+
+      test("dice de dónde viene la transcripción", () => {
+        expect(source.origin.url).toMatch(/^https:\/\//);
+        expect(source.path).toBe(`/catalog/${piece.id}.mxl`);
+      });
+    });
+  }
+
+  for (const { piece, music } of compact) {
+    describe(piece.title, () => {
+      const parsed = parseCatalogMusic(music, piece.title);
 
       test("cada compás suma lo que pide el compás", () => {
         expect(durationWarnings(parsed)).toEqual([]);
@@ -36,15 +79,15 @@ describe("catálogo de dominio público", () => {
       });
 
       test("el MusicXML sale con la tonalidad, el compás y las notas de la pieza", () => {
-        const xml = catalogMusicXml(piece.music, piece.title, piece.composer);
+        const xml = catalogMusicXml(music, piece.title, piece.composer);
         expect(xml).toContain(`<work-title>${piece.title}</work-title>`);
-        expect(xml).toContain(`<fifths>${keyByVex(piece.music.keyVex).fifths}</fifths>`);
-        expect(xml).toContain(`<beats>${piece.music.time.num}</beats><beat-type>${piece.music.time.den}</beat-type>`);
-        expect(xml).toContain(`<per-minute>${piece.music.tempo}</per-minute>`);
+        expect(xml).toContain(`<fifths>${keyByVex(music.keyVex).fifths}</fifths>`);
+        expect(xml).toContain(`<beats>${music.time.num}</beats><beat-type>${music.time.den}</beat-type>`);
+        expect(xml).toContain(`<per-minute>${music.tempo}</per-minute>`);
         expect(xml).toContain("<staves>2</staves>");
 
         // Un <measure> por compás y un <note> por nota (los acordes escriben una por altura).
-        expect(xml.match(/<measure number=/g) ?? []).toHaveLength(piece.music.measures.length);
+        expect(xml.match(/<measure number=/g) ?? []).toHaveLength(music.measures.length);
         const notes = parsed.measures.flatMap((m) => m.staves.flat());
         const expectedNotes = notes.reduce((n, e) => n + (e.rest || !e.pitches.length ? 1 : e.pitches.length), 0);
         expect(xml.match(/<note>|<note><chord\/>/g) ?? []).toHaveLength(expectedNotes);

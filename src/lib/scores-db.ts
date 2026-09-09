@@ -20,6 +20,9 @@ export type Annotations = Record<number, Stroke[]>;
 
 export type ScoreKind = "pdf" | "musicxml";
 
+/** Quién puede verla: solo yo, quien tenga el enlace, o cualquiera desde la lista de la comunidad. */
+export type Visibility = "private" | "link" | "public";
+
 export interface ScoreRecord {
   id: string;
   name: string;
@@ -37,6 +40,10 @@ export interface ScoreRecord {
   linkedXml?: Blob;
   /** AI-generated study plan; syncs like the notes. */
   plan?: PlanState;
+  /** Sharing: absent means private. Only the file, name, thumbnail and `description` are ever shared. */
+  visibility?: Visibility;
+  /** Public blurb shown next to a shared score. */
+  description?: string;
   /** Last local edit to name, notes, or strokes (ms). */
   updatedAt?: number;
   /** When the server confirmed it has this version (metadata and files). */
@@ -115,6 +122,8 @@ export const updateScoreAnnotations = (id: string, annotations: Annotations) => 
 export const updateScoreName = (id: string, name: string) => patchLocal(id, { name });
 export const updateScorePlan = (id: string, plan: PlanState | undefined) => patchLocal(id, { plan });
 export const updateScoreLinkedXml = (id: string, linkedXml: Blob | undefined) => patchLocal(id, { linkedXml, xmlDirty: true });
+/** Syncs like the name: the server is what makes a share real, so this only takes effect with an account. */
+export const updateScoreSharing = (id: string, sharing: { visibility: Visibility; description: string }) => patchLocal(id, sharing);
 
 /**
  * Ticks (or unticks) a day as studied in a score's schedule.

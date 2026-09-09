@@ -13,6 +13,9 @@ export interface ScoreRenderApi {
   height: number;
 }
 
+export type Tie = [number, number] | [number, number, number[], number[]];
+export type TupletSpec = [number, number] | [number, number, number];
+
 export interface MeasureRepeat {
   start?: boolean;
   end?: boolean;
@@ -48,11 +51,13 @@ export interface ScoreProps {
   bassLabels?: string[];
   labelPosition?: "above" | "below";
   /** Ties between top-staff note indices: [[0,1],[3,4]]. */
-  ties?: [number, number][];
+  /** [from, to] note indexes; optionally which pitches of each chord the tie joins. */
+  ties?: Tie[];
   /** Slurs (curves) between note indices. */
   slurs?: [number, number][];
-  /** Tuplets: [start index, note count]. Defaults to 3 notes in the time of 2. */
-  tuplets?: [number, number][];
+  /** Tuplets: [start index, note count, notes occupied?]. Defaults to 3 notes in the time of 2. */
+  tuplets?: TupletSpec[];
+  bassTuplets?: TupletSpec[];
   /** Indices (across all top-staff notes) to highlight. */
   highlight?: number | number[];
   /** Same, for the bottom staff. */
@@ -65,7 +70,7 @@ export interface ScoreProps {
    */
   highlightBand?: boolean;
   /** Ties on the bottom staff. */
-  bassTies?: [number, number][];
+  bassTies?: Tie[];
   /** Draw the time signature on the first measure (not repeated on later systems). */
   showTime?: boolean;
   /** Colors by note index (e.g. exercise results). */
@@ -102,6 +107,7 @@ export function Score({
   ties,
   slurs,
   tuplets,
+  bassTuplets,
   highlight,
   bassHighlight,
   highlightColor,
@@ -125,7 +131,7 @@ export function Score({
   const grand = !!bassMeasures;
   const computedHeight = height ?? (render ? 160 : grand ? STAVE_HEIGHT * 2 + 40 : STAVE_HEIGHT + 30);
   const measuresKey = JSON.stringify([measures, bassMeasures]);
-  const labelsKey = JSON.stringify([labels, bassLabels, ties, bassTies, slurs, tuplets, noteStyles, repeats]);
+  const labelsKey = JSON.stringify([labels, bassLabels, ties, bassTies, slurs, tuplets, bassTuplets, noteStyles, repeats]);
   const highlightKey = JSON.stringify([highlight, bassHighlight]);
 
   useEffect(() => {
@@ -160,6 +166,7 @@ export function Score({
               ties,
               slurs,
               tuplets,
+              bassTuplets,
               highlight,
               bassHighlight,
               highlightColor: highlightColor ?? getAccentColor(el),
@@ -240,15 +247,17 @@ interface DrawOptions {
   labels?: string[];
   bassLabels?: string[];
   labelPosition: "above" | "below";
-  ties?: [number, number][];
+  /** [from, to] note indexes; optionally which pitches of each chord the tie joins. */
+  ties?: Tie[];
   slurs?: [number, number][];
-  tuplets?: [number, number][];
+  tuplets?: TupletSpec[];
+  bassTuplets?: TupletSpec[];
   highlight?: number | number[];
   bassHighlight?: number | number[];
   highlightColor: string;
   highlightBand: boolean;
   noteStyles?: Record<number, string>;
-  bassTies?: [number, number][];
+  bassTies?: Tie[];
   showTime: boolean;
   endBar: NonNullable<ScoreProps["endBar"]>;
   repeats?: MeasureRepeat[];
@@ -327,11 +336,12 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
       const startIndex = allTreble.length;
       if (collect) allTreble.push(...notes);
       else allBass.push(...notes);
-      if (collect && o.tuplets) {
-        for (const [from, n] of o.tuplets) {
+      const tuplets = collect ? o.tuplets : o.bassTuplets;
+      if (tuplets) {
+        for (const [from, n, occupied] of tuplets) {
           const local = from - startIndex;
           if (local >= 0 && local + n <= notes.length) {
-            score.tuplet(notes.slice(local, local + n), { numNotes: n, notesOccupied: n === 3 ? 2 : n - 1 });
+            score.tuplet(notes.slice(local, local + n), { numNotes: n, notesOccupied: occupied ?? (n === 3 ? 2 : n - 1) });
           }
         }
       }
@@ -391,11 +401,11 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
   paint(allTreble, o.highlight);
   paint(allBass, o.bassHighlight);
 
-  for (const [a, b] of o.ties ?? []) {
-    if (allTreble[a] && allTreble[b]) factory.StaveTie({ from: allTreble[a], to: allTreble[b] });
+  for (const [a, b, fromIdx, toIdx] of o.ties ?? []) {
+    if (allTreble[a] && allTreble[b]) factory.StaveTie({ from: allTreble[a], to: allTreble[b], firstIndexes: fromIdx, lastIndexes: toIdx });
   }
-  for (const [a, b] of o.bassTies ?? []) {
-    if (allBass[a] && allBass[b]) factory.StaveTie({ from: allBass[a], to: allBass[b] });
+  for (const [a, b, fromIdx, toIdx] of o.bassTies ?? []) {
+    if (allBass[a] && allBass[b]) factory.StaveTie({ from: allBass[a], to: allBass[b], firstIndexes: fromIdx, lastIndexes: toIdx });
   }
   for (const [a, b] of o.slurs ?? []) {
     if (allTreble[a] && allTreble[b]) factory.Curve({ from: allTreble[a], to: allTreble[b], options: {} });

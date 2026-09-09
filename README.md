@@ -15,6 +15,17 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
   qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
   con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
   Lo prepara Claude con la clave de API del servidor: el usuario no configura ni paga nada, solo necesita cuenta.
+- **Catálogo de dominio público** (`/scores/catalog`): 21 piezas —obras originales en MusicXML de bibliotecas
+  de dominio público (Für Elise, el preludio BWV 846, Clementi, Satie, Chopin, Joplin…) más cuatro arreglos
+  sencillos propios— ordenadas por nivel, cada una con un análisis breve de cómo abordarla. Vista previa entera
+  (suena, nombres de las notas) antes de guardarla en la biblioteca. Los archivos van en `public/catalog/`.
+- **Partituras compartidas**: cada partitura de la biblioteca puede ser privada, visible por enlace o pública
+  (`/scores/community`). Se comparten el archivo, el nombre, la portada y una presentación; las notas, los
+  trazos y el análisis siguen siendo privados. Quien la ve puede guardarse una copia.
+- **Ruta de aprendizaje** (`/path`) que ordena lecciones, ejercicios y piezas, y un **profesor general**
+  (`/teacher`) que responde dudas de música citando las páginas de la app.
+- **Techo de gasto** para la IA: `AI_MONTHLY_BUDGET_USD` corta las llamadas al modelo cuando el mes llega al
+  presupuesto; los límites por usuario se cuentan en Postgres (`AiCall`) y sobreviven a los despliegues.
 - **Transcripción de un PDF a MusicXML** con el **reconocimiento automático** (OMR) de un servicio propio,
   gratis para el usuario y sin claves. Es un borrador —el ritmo es donde más se falla—, así que se comprueba
   compás a compás que las figuras sumen lo que pide el compás y se señalan los que no.

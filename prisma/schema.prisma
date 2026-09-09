@@ -105,8 +105,16 @@ model Score {
   updatedAt   BigInt
   /// Plan de estudio generado con IA (esquema `planStateSchema`); se sincroniza como las notas
   plan        Json?
+  /// Quién puede verla: "private" (solo su dueño), "link" (quien tenga el enlace) o "public" (en la lista de la comunidad).
+  /// Solo se comparten el archivo, el nombre, la miniatura y `description`; notas, trazos y plan siguen siendo privados.
+  visibility  String   @default("private")
+  /// Texto público que acompaña a una partitura compartida.
+  description String   @default("")
+  /// Última vez que se compartió, para ordenar la lista de la comunidad.
+  sharedAt    DateTime?
 
   @@index([userId, createdAt])
+  @@index([visibility, sharedAt])
 }
 
 /// Cada llamada al modelo que paga el servidor. Cubre dos cosas a la vez: los
