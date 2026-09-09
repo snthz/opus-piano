@@ -1039,7 +1039,10 @@ export function TeacherChat({
         aria-expanded={open}
         aria-label={open ? "Cerrar el chat con el profesor" : "Pregunta al profesor"}
         title={open ? "Cerrar el chat" : "Pregunta al profesor"}
-        className="fixed z-30 right-3 sm:right-5 bottom-[calc(var(--chat-bottom)+env(safe-area-inset-bottom,0px))] btn-circle w-12 h-12 sm:w-14 sm:h-14 shadow-[0_12px_30px_-8px_rgb(17_17_20/0.45)] hover:scale-105 active:scale-95"
+        // on a phone the window takes the whole width and has its own close button, so the launcher gets out of the way
+        className={`fixed z-30 right-3 sm:right-5 bottom-[calc(var(--chat-bottom)+env(safe-area-inset-bottom,0px))] btn-circle w-12 h-12 sm:w-14 sm:h-14 shadow-[0_12px_30px_-8px_rgb(17_17_20/0.45)] hover:scale-105 active:scale-95 transition-[opacity,transform] ${
+          open ? "max-sm:opacity-0 max-sm:pointer-events-none" : ""
+        }`}
       >
         <span className="relative grid place-items-center w-6 h-6">
           <ChatIcon className={`absolute w-6 h-6 transition-[opacity,transform] duration-200 ${open ? "opacity-0 rotate-45 scale-75" : "opacity-100 rotate-0 scale-100"}`} />
