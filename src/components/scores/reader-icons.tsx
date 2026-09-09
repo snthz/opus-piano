@@ -115,3 +115,11 @@ export const NoteNamesIcon = ({ className }: Props) => (
     <circle cx="15.5" cy="18.5" r="3" />
   </StrokeIcon>
 );
+
+/** Sesión de estudio: un cronómetro. */
+export const SessionIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <circle cx="12" cy="13.5" r="7.5" />
+    <path d="M12 9.5v4l2.5 1.5M9.5 2.5h5M12 2.5V6M18.5 6.5 20 5" />
+  </StrokeIcon>
+);

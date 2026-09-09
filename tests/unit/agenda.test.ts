@@ -12,6 +12,7 @@ import {
   planSessions,
   scheduleForAnalysis,
   scheduleSchema,
+  scoreSession,
   sessionSteps,
   startOfWeek,
   weekSummary,
@@ -272,5 +273,44 @@ describe("el horario que se guarda", () => {
     expect(scheduleSchema.safeParse({ ...schedule, time: null }).success).toBe(true);
     expect(scheduleSchema.safeParse({ ...schedule, startDate: "8/9/2026" }).success).toBe(false);
     expect(scheduleSchema.safeParse({ ...schedule, minutes: 0 }).success).toBe(false);
+  });
+});
+
+describe("la sesión que se enseña junto a la partitura", () => {
+  const plan = makePlan([goal("g1", 2), goal("g2", 2)]);
+  const score = (s: Schedule | undefined, progress: Record<string, boolean> = {}) => ({
+    id: "s1",
+    name: "Minueto",
+    plan: { plan, progress, model: "m", createdAt: 1, schedule: s } as PlanState,
+  });
+
+  test("sin horario no hay nada que enseñar", () => {
+    expect(scoreSession(score(undefined), "2026-09-07")).toBeNull();
+    expect(scoreSession({ id: "s1", name: "x" }, "2026-09-07")).toBeNull();
+  });
+
+  test("la de hoy manda, aunque esté hecha", () => {
+    const r = scoreSession(score({ ...schedule, done: { "2026-09-07": true } }), "2026-09-07");
+    expect(r?.kind).toBe("session");
+    if (r?.kind !== "session") return;
+    expect(r.when).toBe("today");
+    expect(r.entry.session.day).toBe("2026-09-07");
+    expect(r.entry.session.done).toBe(true);
+    expect(r.entry.score.name).toBe("Minueto");
+  });
+
+  test("un día sin sesión enseña la atrasada antes que la siguiente", () => {
+    // martes 8: el lunes 7 no se hizo
+    const overdue = scoreSession(score(schedule), "2026-09-08");
+    expect(overdue?.kind === "session" && overdue.when).toBe("overdue");
+    expect(overdue?.kind === "session" && overdue.entry.session.day).toBe("2026-09-07");
+    // con el lunes hecho, toca la del miércoles
+    const next = scoreSession(score({ ...schedule, done: { "2026-09-07": true } }), "2026-09-08");
+    expect(next?.kind === "session" && next.when).toBe("upcoming");
+    expect(next?.kind === "session" && next.entry.session.day).toBe("2026-09-09");
+  });
+
+  test("con todo hecho lo dice, en vez de inventarse una sesión", () => {
+    expect(scoreSession(score(schedule, { g1: true, g2: true }), "2026-09-20")).toEqual({ kind: "done" });
   });
 });

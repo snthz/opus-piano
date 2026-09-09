@@ -351,3 +351,35 @@ export function weekSummary(byDay: Map<string, AgendaEntry[]>, weekStart: Date):
   }
   return { total, done };
 }
+
+/* ---------- The session shown while reading a score ---------- */
+
+export type ScoreSession =
+  /** The score isn't scheduled: nothing to show. */
+  | null
+  /** Every session of the plan is done. */
+  | { kind: "done" }
+  | {
+      kind: "session";
+      entry: AgendaEntry;
+      /** Today's session, one that was missed, or the next one coming up. */
+      when: "today" | "overdue" | "upcoming";
+    };
+
+/**
+ * The session the reader shows beside the score: today's if there is one,
+ * else the earliest still to do — a missed one first, so it's caught up
+ * rather than skipped, then the next scheduled.
+ */
+export function scoreSession(score: ScheduledScore, today = dayKey(new Date())): ScoreSession {
+  const state = score.plan;
+  if (!state?.schedule) return null;
+  const sessions = planSessions(state.plan, state.schedule, state.progress);
+  const pick = sessions.find((s) => s.day === today) ?? sessions.find((s) => !s.done);
+  if (!pick) return { kind: "done" };
+  return {
+    kind: "session",
+    entry: { score: { id: score.id, name: score.name }, plan: state.plan, schedule: state.schedule, session: pick },
+    when: pick.day === today ? "today" : pick.day < today ? "overdue" : "upcoming",
+  };
+}

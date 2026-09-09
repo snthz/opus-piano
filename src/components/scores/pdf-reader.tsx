@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { dayKey, scoreSession } from "@/lib/agenda";
 import { parseMusicXml, unpackMxl } from "@/lib/music/musicxml";
 import { getPageSize } from "@/lib/pdf-thumbnail";
 import { analyzePdf, buildMeasureMap, locate, type MeasureMap } from "@/lib/score-layout";
@@ -16,6 +17,7 @@ import {
 import { useSettings } from "@/lib/settings";
 import type { PlanState } from "@/lib/study-plan";
 import { useJob } from "@/lib/jobs";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Sheet } from "@/components/ui/sheet";
 import { JobIndicator, jobLabel } from "./job-indicator";
@@ -31,11 +33,13 @@ import {
   PlanIcon,
   PlayIcon,
   PlusIcon,
+  SessionIcon,
   StopIcon,
   UndoIcon,
 } from "./reader-icons";
 import { DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, FINGERS, FINGER_SIZES, PEN_COLORS, PEN_WIDTHS, type Finger, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
+import { SessionPanel } from "./session-panel";
 import { StudyPlanPanel } from "./study-plan";
 import { TranscribePanel } from "./transcribe-panel";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
@@ -69,6 +73,13 @@ const MAX_ZOOM = 4;
 const DESKTOP_ZOOM = 1.5;
 /** True desktop: wide and mouse-driven. Mobile/tablet start at the full page, however wide the screen. */
 const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches;
+/**
+ * Wide enough for the side panel (session and analysis) next to the score.
+ * Below this, both open as sheets over the page.
+ */
+const WIDE_QUERY = "(min-width: 64rem)";
+const isWide = () => typeof window !== "undefined" && window.matchMedia(WIDE_QUERY).matches;
+type PanelTab = "sesion" | "analisis";
 /** Gap between carousel pages: nearly touching, so neighbors peek in without stealing space from the centered one. */
 const PAGE_GAP = 24;
 
@@ -190,6 +201,13 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [chrome, setChrome] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  // on a wide screen the session and the analysis sit in a panel beside the
+  // score, open from the start when the piece has a plan; the session tab first
+  // when it's scheduled, since that's what's studied today
+  const wide = useMediaQuery(WIDE_QUERY);
+  const [panelOpen, setPanelOpen] = useState(() => isWide() && !!record.plan);
+  const [panelTab, setPanelTab] = useState<PanelTab>(() => (record.plan?.schedule ? "sesion" : "analisis"));
   const [notes, setNotes] = useState(record.notes);
   const [name, setName] = useState(record.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -242,6 +260,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   const map = layout && layout.of === parsed ? layout.map : null;
   const pager = zoom === 1;
+  // whether there's a session to offer in the narrow layouts (with the side panel it's already on screen)
+  const today = useMemo(() => dayKey(new Date()), []);
+  const hasSession = useMemo(() => scoreSession(record, today)?.kind === "session", [record, today]);
 
   /* ---------- Carousel geometry ---------- */
 
@@ -272,7 +293,17 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   useEffect(() => {
     const el = areaRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setArea({ w: e.contentRect.width, h: e.contentRect.height }));
+    // the border box, not the content box: the content box shrinks when a scrollbar
+    // appears, and it's the page size — measured from here — that decides whether it
+    // appears. Measuring it loops: page grows → scrollbar shows → page shrinks →
+    // scrollbar hides → … The loop's window grows with the zoom, so it surfaces as
+    // shaking at high zoom.
+    const ro = new ResizeObserver(([e]) => {
+      const box = e.borderBoxSize?.[0];
+      const w = box ? box.inlineSize : e.contentRect.width;
+      const h = box ? box.blockSize : e.contentRect.height;
+      setArea((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [view]);
@@ -647,10 +678,25 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   const circle = "btn-circle w-10 h-10 shadow-md";
   const pickTool = (t: Tool) => setTool((cur) => (cur === t ? null : t));
+  const showPanel = (tab: PanelTab) => {
+    setPanelTab(tab);
+    setPanelOpen(true);
+  };
+  /** Analysis: in the side panel when there's room, else as a sheet. Pressing it again on the panel folds it. */
   const openPlan = () => {
+    if (wide) {
+      if (panelOpen && panelTab === "analisis") setPanelOpen(false);
+      else showPanel("analisis");
+      return;
+    }
     player.stop();
     setPlanOpen(true);
   };
+  const openSession = () => {
+    player.stop();
+    setSessionOpen(true);
+  };
+  const planShown = planOpen || (wide && panelOpen && panelTab === "analisis");
 
   /** Analysis and Play buttons. `floating`: two loose circles (mobile); otherwise pills with text in the toolbar. */
   const renderActions = (floating: boolean) => {
@@ -658,6 +704,20 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     const playLabel = player.playing ? "Detener" : "Escuchar";
     return (
       <>
+        {hasSession && !wide && (
+          <button
+            type="button"
+            onClick={openSession}
+            title="Sesión de estudio de esta partitura"
+            aria-label={floating ? "Sesión de estudio" : undefined}
+            className={`pointer-events-auto inline-flex items-center justify-center font-semibold transition-colors ${
+              floating ? "w-12 h-12 rounded-full shadow-md bg-surface text-ink-2 hover:text-ink" : "h-10 px-3.5 gap-1.5 rounded-full text-xs bg-surface-2 text-ink-2 hover:text-ink"
+            }`}
+          >
+            <SessionIcon className={floating ? "w-5 h-5" : "w-4 h-4"} />
+            {!floating && <span>Sesión</span>}
+          </button>
+        )}
         <button
           type="button"
           onClick={openPlan}
@@ -701,7 +761,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         ? "Sin guía: no se pudieron cuadrar los compases con la página. Puedes seguir la pieza con los nombres de las notas."
         : null;
   // with its panel closed, the running task is summarized below, in addition to the ring above
-  const backgroundJob = !transcribeOpen && !planOpen ? [omrJob, planJob].find((j) => j?.status === "running") : undefined;
+  const backgroundJob = !transcribeOpen && !planShown ? [omrJob, planJob].find((j) => j?.status === "running") : undefined;
   const footnote = statusLine ?? (backgroundJob ? `${jobLabel(backgroundJob.kind)} · ${backgroundJob.label}` : null);
 
   // the reader fills the screen on mobile; on desktop it starts below the
@@ -709,449 +769,524 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   return (
     <div
       // z-50: below the header (z-60), whose dropdowns fall over the reader
-      className="fixed inset-0 md:top-[var(--header-h)] z-50 bg-surface-2 flex flex-col"
+      className="fixed inset-0 md:top-[var(--header-h)] z-50 bg-surface-2 flex"
       role="dialog"
       aria-label={name}
       style={{ "--safe-t": "env(safe-area-inset-top, 0px)", "--safe-b": "env(safe-area-inset-bottom, 0px)" } as React.CSSProperties}
     >
-      {/* ---- Content ---- */}
-      {view === "pdf" ? (
-        // a single container for both the carousel and the zoomed view: the
-        // current page keeps its node (and canvas) across scale changes
-        <div
-          ref={areaRef}
-          onScroll={onPagerScroll}
-          onTouchStart={onTouchStart}
-          className={pager ? "flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]" : "flex-1 overflow-auto"}
-          style={{ touchAction: pager && !tool && !pinching ? "pan-x" : "none" }}
-        >
-          {pager && side > 0 && <div aria-hidden className="shrink-0 h-full" style={{ width: side }} />}
-          {Array.from({ length: record.pageCount }, (_, i) => i + 1).map((p) =>
-            pager || p === page ? (
-              <div
-                key={p}
-                className={
-                  pager
-                    ? `snap-center shrink-0 h-full flex items-center justify-center transition-opacity duration-200 ${p !== page ? "cursor-pointer" : ""}`
-                    : "w-fit mx-auto p-3"
-                }
-                onClick={pager && p !== page ? () => goTo(p) : undefined}
-                style={
-                  pager
-                    ? {
-                        width: cell,
-                        paddingTop: chrome ? TOP_BAR : 8,
-                        paddingBottom: chrome ? BOTTOM_BAR : 8,
-                        // only the centered one is fully opaque; neighbors are just hinted at
-                        opacity: p === page ? 1 : 0.45,
-                      }
-                    : { paddingTop: chrome ? TOP_BAR : 12, paddingBottom: chrome ? BOTTOM_BAR : 12 }
-                }
-              >
-                {Math.abs(p - page) <= near && area.w > 0 ? (
-                  // a neighbor is only for looking and tapping: strokes belong to the centered page
-                  <div className={pager && p !== page ? "pointer-events-none" : undefined}>
-                    <PdfPage
-                      file={record.file}
-                      page={p}
-                      fit={pager ? { w: pageW, h: fit.h } : fit}
-                      zoom={zoom}
-                      strokes={strokesOf(p)}
-                      onStrokes={(s) => setStrokes(p, s)}
-                      tool={tool}
-                      color={color}
-                      penWidth={penWidth}
-                      finger={finger}
-                      fingerSize={fingerSize}
-                      guide={guideFor(p)}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ) : null,
-          )}
-          {pager && side > 0 && <div aria-hidden className="shrink-0 h-full" style={{ width: side }} />}
-        </div>
-      ) : (
-        <div ref={areaRef} className={`flex-1 overflow-auto px-3 ${chrome ? "pt-24 pb-36" : "py-3"}`}>
-          <div className="max-w-4xl mx-auto">
-            {xmlError && <p className="text-sm text-bad">{xmlError}</p>}
-            {parsed ? <ScoreSheet parsed={parsed} active={player.active} showNames={showNames} /> : <p className="text-sm text-ink-2">Leyendo…</p>}
-          </div>
-        </div>
-      )}
-
-      {!chrome && (
-        <button
-          type="button"
-          onClick={() => setChrome(true)}
-          className={`${circle} absolute right-3`}
-          style={{ top: "calc(0.75rem + var(--safe-t))" }}
-          aria-label="Mostrar controles"
-        >
-          {Eye}
-        </button>
-      )}
-
-      {chrome && (
-        <>
-          {/* ---- Barra superior: un único menú centrado, no una franja completa ---- */}
-          <div className="absolute inset-x-3 flex justify-center pointer-events-none" style={{ top: "calc(0.75rem + var(--safe-t))" }}>
-            <div className="pointer-events-auto card shadow-md flex items-center gap-1 p-1.5 w-full max-w-sm">
-              <button type="button" onClick={onClose} className="btn-circle w-9 h-9 shrink-0" aria-label="Volver">
-                <ChevronIcon dir="left" className="w-4 h-4" />
-              </button>
-              <div className="min-w-0 flex-1 px-1.5">
-                <p className="font-semibold text-sm truncate">{name}</p>
-                <p className="text-[11px] text-ink-2 truncate">
-                  {view === "pdf" ? `Página ${page} de ${record.pageCount}` : "Partitura MusicXML vinculada"}
-                  {linkedXml && parsed && view === "pdf" ? " · se puede escuchar" : ""}
-                </p>
-              </div>
-              {omrJob && <JobIndicator job={omrJob} onOpen={openTranscribe} />}
-              {planJob && <JobIndicator job={planJob} onOpen={() => { player.stop(); setNotesOpen(false); setPlanOpen(true); }} />}
-              <button
-                type="button"
-                onClick={() => setNotesOpen((v) => !v)}
-                className={`btn-circle w-9 h-9 shrink-0 ${notesOpen ? "" : "!bg-surface !text-ink"}`}
-                aria-label="Notas y opciones"
-              >
-                <span className="text-sm leading-none">✎</span>
-              </button>
-              <button type="button" onClick={() => { setChrome(false); setNotesOpen(false); }} className="btn-circle w-9 h-9 shrink-0 !bg-surface !text-ink" aria-label="Ocultar controles">
-                {EyeOff}
-              </button>
-            </div>
-          </div>
-
-          {/* ---- Panel de notas y opciones ---- */}
-          {notesOpen && (
-            <div
-              className="absolute inset-x-3 card p-3 shadow-md space-y-3 max-w-sm mx-auto"
-              style={{ top: "calc(4.25rem + var(--safe-t))" }}
-            >
-              <label className="block">
-                <span className="text-xs text-ink-2">Nombre</span>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={commitName}
-                  onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                  className="mt-0.5 w-full rounded-2xl px-3 py-2 text-sm font-semibold bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => saveNotes(e.target.value)}
-                placeholder="Notas personales sobre esta partitura…"
-                rows={3}
-                className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-              />
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                {linkedXml ? (
-                  <button type="button" onClick={() => void unlinkXml()} className="pill py-1">Quitar MusicXML vinculado</button>
-                ) : (
-                  <button type="button" onClick={() => { setAskXml(true); setNotesOpen(false); }} className="pill py-1">Vincular MusicXML</button>
-                )}
-                <button type="button" onClick={openTranscribe} className="pill py-1">Transcribir a MusicXML</button>
-                <span className="ml-auto">
-                  {!confirmDelete ? (
-                    <button type="button" onClick={() => setConfirmDelete(true)} className="text-bad hover:underline">Eliminar partitura</button>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <span className="text-bad font-semibold">¿Seguro?</span>
-                      <button type="button" onClick={onDelete} className="text-bad underline">Sí</button>
-                      <button type="button" onClick={() => setConfirmDelete(false)} className="text-ink-2 underline">No</button>
-                    </span>
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* ---- Lo que se abre sobre la barra: avisos, colores y tempo ----
-               Va fuera del panel para que abrirlo no reordene los botones. */}
+      {/* ---- The score with its floating controls; on a wide screen the side panel takes the rest ---- */}
+      <div className="relative flex-1 min-w-0 flex flex-col">
+        {/* ---- Content ---- */}
+        {view === "pdf" ? (
+          // a single container for both the carousel and the zoomed view: the
+          // current page keeps its node (and canvas) across scale changes
           <div
-            className="absolute inset-x-3 pr-14 sm:pr-0 flex flex-col items-center gap-2 pointer-events-none"
-            style={{ bottom: "calc(4.75rem + var(--safe-b))" }}
+            ref={areaRef}
+            onScroll={onPagerScroll}
+            onTouchStart={onTouchStart}
+            className={pager ? "flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]" : "flex-1 overflow-auto [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent]"}
+            style={{ touchAction: pager && !tool && !pinching ? "pan-x" : "none" }}
           >
-            {footnote && <p className="card px-3 py-1.5 text-[11px] text-ink-2 shadow-md max-w-md text-center">{footnote}</p>}
-
-            {tempoOpen && linkedXml && (
-              <div className="pointer-events-auto card shadow-md px-4 py-2.5 flex items-center gap-3">
-                <span className="text-xs text-ink-2 tabular-nums whitespace-nowrap">♩ = {player.tempo}</span>
-                <input
-                  type="range"
-                  min={40}
-                  max={200}
-                  value={player.tempo}
-                  onChange={(e) => player.setTempo(Number(e.target.value))}
-                  disabled={player.playing}
-                  className="accent-(--accent) w-44 max-w-[45vw] disabled:opacity-40"
-                  aria-label="Tempo"
-                />
-              </div>
+            {pager && side > 0 && <div aria-hidden className="shrink-0 h-full" style={{ width: side }} />}
+            {Array.from({ length: record.pageCount }, (_, i) => i + 1).map((p) =>
+              pager || p === page ? (
+                <div
+                  key={p}
+                  className={
+                    pager
+                      ? `snap-center shrink-0 h-full flex items-center justify-center transition-opacity duration-200 ${p !== page ? "cursor-pointer" : ""}`
+                      : "w-fit mx-auto p-3"
+                  }
+                  onClick={pager && p !== page ? () => goTo(p) : undefined}
+                  style={
+                    pager
+                      ? {
+                          width: cell,
+                          paddingTop: chrome ? TOP_BAR : 8,
+                          paddingBottom: chrome ? BOTTOM_BAR : 8,
+                          // only the centered one is fully opaque; neighbors are just hinted at
+                          opacity: p === page ? 1 : 0.45,
+                        }
+                      : { paddingTop: chrome ? TOP_BAR : 12, paddingBottom: chrome ? BOTTOM_BAR : 12 }
+                  }
+                >
+                  {Math.abs(p - page) <= near && area.w > 0 ? (
+                    // a neighbor is only for looking and tapping: strokes belong to the centered page
+                    <div className={pager && p !== page ? "pointer-events-none" : undefined}>
+                      <PdfPage
+                        file={record.file}
+                        page={p}
+                        fit={pager ? { w: pageW, h: fit.h } : fit}
+                        zoom={zoom}
+                        strokes={strokesOf(p)}
+                        onStrokes={(s) => setStrokes(p, s)}
+                        tool={tool}
+                        color={color}
+                        penWidth={penWidth}
+                        finger={finger}
+                        fingerSize={fingerSize}
+                        guide={guideFor(p)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null,
             )}
-
-            {view === "pdf" && (tool === "pen" || tool === "finger") && (
-              <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1">
-                {tool === "finger" && (
-                  <>
-                    {FINGERS.map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => setFinger(f)}
-                        title={`Dedo ${f}`}
-                        aria-label={`Dedo ${f}`}
-                        aria-pressed={finger === f}
-                        className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold text-base transition-colors ${
-                          finger === f ? "bg-ink text-bg" : "text-ink-2 hover:text-ink"
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    ))}
-                    <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                  </>
-                )}
-                {PEN_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setColor(c.value)}
-                    title={c.label}
-                    aria-label={c.label}
-                    aria-pressed={color === c.value}
-                    className="w-8 h-8 rounded-full grid place-items-center"
-                  >
-                    <span
-                      className="w-5 h-5 rounded-full transition-transform"
-                      style={{
-                        background: c.value,
-                        boxShadow: "inset 0 0 0 1px rgb(0 0 0 / 0.12)",
-                        outline: color === c.value ? "2px solid var(--ink)" : "none",
-                        outlineOffset: "2px",
-                        transform: color === c.value ? "scale(1.1)" : undefined,
-                      }}
-                    />
-                  </button>
-                ))}
-                {tool === "finger" && (
-                  <>
-                    <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                    {FINGER_SIZES.map((z, i) => (
-                      <button
-                        key={z.id}
-                        type="button"
-                        onClick={() => setFingerSize(z.value)}
-                        title={z.label}
-                        aria-label={`Tamaño ${z.label.toLowerCase()}`}
-                        aria-pressed={fingerSize === z.value}
-                        className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold leading-none transition-colors ${
-                          fingerSize === z.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
-                        }`}
-                      >
-                        <span style={{ fontSize: 10 + i * 3 }}>{finger}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {tool === "pen" && (
-                  <>
-                    <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                    {PEN_WIDTHS.map((w, i) => (
-                      <button
-                        key={w.id}
-                        type="button"
-                        onClick={() => setPenWidth(w.value)}
-                        title={w.label}
-                        aria-label={`Grosor ${w.label.toLowerCase()}`}
-                        aria-pressed={penWidth === w.value}
-                        className={`w-8 h-8 rounded-full grid place-items-center transition-colors ${
-                          penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
-                        }`}
-                      >
-                        <span className="rounded-full bg-current" style={{ width: 6 + i * 4, height: 6 + i * 4 }} />
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
+            {pager && side > 0 && <div aria-hidden className="shrink-0 h-full" style={{ width: side }} />}
           </div>
-
-          {/* ---- Zoom: mando aparte, contra el borde ----
-               Se usa a cada rato y no compite por sitio con las herramientas. */}
-          {view === "pdf" && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 card shadow-md p-1 flex flex-col items-center">
-              <ToolButton label="Ampliar" onClick={() => zoomTo(zoom + 0.25)} disabled={zoom >= MAX_ZOOM}>
-                <PlusIcon />
-              </ToolButton>
-              <button
-                type="button"
-                onClick={() => zoomTo(1)}
-                disabled={zoom === 1}
-                title="Ver la página entera"
-                className="w-9 py-0.5 text-center text-[10px] tabular-nums text-ink-2 hover:text-ink disabled:text-ink-3 disabled:pointer-events-none"
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-              <ToolButton label="Reducir" onClick={() => zoomTo(zoom - 0.25)} disabled={zoom === 1}>
-                <MinusIcon />
-              </ToolButton>
+        ) : (
+          <div ref={areaRef} className={`flex-1 overflow-auto px-3 [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent] ${chrome ? "pt-24 pb-36" : "py-3"}`}>
+            <div className="max-w-4xl mx-auto">
+              {xmlError && <p className="text-sm text-bad">{xmlError}</p>}
+              {parsed ? <ScoreSheet parsed={parsed} active={player.active} showNames={showNames} /> : <p className="text-sm text-ink-2">Leyendo…</p>}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ---- Panel de herramientas ---- */}
-          <div className="absolute inset-x-3 flex justify-center pointer-events-none" style={{ bottom: "calc(0.75rem + var(--safe-b))" }}>
-            <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1.5 min-w-0 max-w-full">
-              {/* Lo que no cabe se desplaza a un lado; las dos acciones de la
-                  derecha se quedan siempre a la vista. */}
-              <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {view === "pdf" && (
-                  <>
-                    {record.pageCount > 1 && (
+        {!chrome && (
+          <button
+            type="button"
+            onClick={() => setChrome(true)}
+            className={`${circle} absolute right-3`}
+            style={{ top: "calc(0.75rem + var(--safe-t))" }}
+            aria-label="Mostrar controles"
+          >
+            {Eye}
+          </button>
+        )}
+
+        {chrome && (
+          <>
+            {/* ---- Barra superior: un único menú centrado, no una franja completa ---- */}
+            <div className="absolute inset-x-3 flex justify-center pointer-events-none" style={{ top: "calc(0.75rem + var(--safe-t))" }}>
+              <div className="pointer-events-auto card shadow-md flex items-center gap-1 p-1.5 w-full max-w-sm">
+                <button type="button" onClick={onClose} className="btn-circle w-9 h-9 shrink-0" aria-label="Volver">
+                  <ChevronIcon dir="left" className="w-4 h-4" />
+                </button>
+                <div className="min-w-0 flex-1 px-1.5">
+                  <p className="font-semibold text-sm truncate">{name}</p>
+                  <p className="text-[11px] text-ink-2 truncate">
+                    {view === "pdf" ? `Página ${page} de ${record.pageCount}` : "Partitura MusicXML vinculada"}
+                    {linkedXml && parsed && view === "pdf" ? " · se puede escuchar" : ""}
+                  </p>
+                </div>
+                {omrJob && <JobIndicator job={omrJob} onOpen={openTranscribe} />}
+                {planJob && <JobIndicator job={planJob} onOpen={() => { setNotesOpen(false); openPlan(); }} />}
+                <button
+                  type="button"
+                  onClick={() => setNotesOpen((v) => !v)}
+                  className={`btn-circle w-9 h-9 shrink-0 ${notesOpen ? "" : "!bg-surface !text-ink"}`}
+                  aria-label="Notas y opciones"
+                >
+                  <span className="text-sm leading-none">✎</span>
+                </button>
+                <button type="button" onClick={() => { setChrome(false); setNotesOpen(false); }} className="btn-circle w-9 h-9 shrink-0 !bg-surface !text-ink" aria-label="Ocultar controles">
+                  {EyeOff}
+                </button>
+              </div>
+            </div>
+
+            {/* ---- Panel de notas y opciones ---- */}
+            {notesOpen && (
+              <div
+                className="absolute inset-x-3 card p-3 shadow-md space-y-3 max-w-sm mx-auto"
+                style={{ top: "calc(4.25rem + var(--safe-t))" }}
+              >
+                <label className="block">
+                  <span className="text-xs text-ink-2">Nombre</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onBlur={commitName}
+                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                    className="mt-0.5 w-full rounded-2xl px-3 py-2 text-sm font-semibold bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => saveNotes(e.target.value)}
+                  placeholder="Notas personales sobre esta partitura…"
+                  rows={3}
+                  className="w-full rounded-2xl px-3 py-2 text-sm bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                />
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {linkedXml ? (
+                    <button type="button" onClick={() => void unlinkXml()} className="pill py-1">Quitar MusicXML vinculado</button>
+                  ) : (
+                    <button type="button" onClick={() => { setAskXml(true); setNotesOpen(false); }} className="pill py-1">Vincular MusicXML</button>
+                  )}
+                  <button type="button" onClick={openTranscribe} className="pill py-1">Transcribir a MusicXML</button>
+                  <span className="ml-auto">
+                    {!confirmDelete ? (
+                      <button type="button" onClick={() => setConfirmDelete(true)} className="text-bad hover:underline">Eliminar partitura</button>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="text-bad font-semibold">¿Seguro?</span>
+                        <button type="button" onClick={onDelete} className="text-bad underline">Sí</button>
+                        <button type="button" onClick={() => setConfirmDelete(false)} className="text-ink-2 underline">No</button>
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ---- Lo que se abre sobre la barra: avisos, colores y tempo ----
+                 Va fuera del panel para que abrirlo no reordene los botones. */}
+            <div
+              className="absolute inset-x-3 pr-14 sm:pr-0 flex flex-col items-center gap-2 pointer-events-none"
+              style={{ bottom: "calc(4.75rem + var(--safe-b))" }}
+            >
+              {footnote && <p className="card px-3 py-1.5 text-[11px] text-ink-2 shadow-md max-w-md text-center">{footnote}</p>}
+
+              {tempoOpen && linkedXml && (
+                <div className="pointer-events-auto card shadow-md px-4 py-2.5 flex items-center gap-3">
+                  <span className="text-xs text-ink-2 tabular-nums whitespace-nowrap">♩ = {player.tempo}</span>
+                  <input
+                    type="range"
+                    min={40}
+                    max={200}
+                    value={player.tempo}
+                    onChange={(e) => player.setTempo(Number(e.target.value))}
+                    disabled={player.playing}
+                    className="accent-(--accent) w-44 max-w-[45vw] disabled:opacity-40"
+                    aria-label="Tempo"
+                  />
+                </div>
+              )}
+
+              {view === "pdf" && (tool === "pen" || tool === "finger") && (
+                <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1">
+                  {tool === "finger" && (
+                    <>
+                      {FINGERS.map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setFinger(f)}
+                          title={`Dedo ${f}`}
+                          aria-label={`Dedo ${f}`}
+                          aria-pressed={finger === f}
+                          className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold text-base transition-colors ${
+                            finger === f ? "bg-ink text-bg" : "text-ink-2 hover:text-ink"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                      <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                    </>
+                  )}
+                  {PEN_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setColor(c.value)}
+                      title={c.label}
+                      aria-label={c.label}
+                      aria-pressed={color === c.value}
+                      className="w-8 h-8 rounded-full grid place-items-center"
+                    >
+                      <span
+                        className="w-5 h-5 rounded-full transition-transform"
+                        style={{
+                          background: c.value,
+                          boxShadow: "inset 0 0 0 1px rgb(0 0 0 / 0.12)",
+                          outline: color === c.value ? "2px solid var(--ink)" : "none",
+                          outlineOffset: "2px",
+                          transform: color === c.value ? "scale(1.1)" : undefined,
+                        }}
+                      />
+                    </button>
+                  ))}
+                  {tool === "finger" && (
+                    <>
+                      <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                      {FINGER_SIZES.map((z, i) => (
+                        <button
+                          key={z.id}
+                          type="button"
+                          onClick={() => setFingerSize(z.value)}
+                          title={z.label}
+                          aria-label={`Tamaño ${z.label.toLowerCase()}`}
+                          aria-pressed={fingerSize === z.value}
+                          className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold leading-none transition-colors ${
+                            fingerSize === z.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+                          }`}
+                        >
+                          <span style={{ fontSize: 10 + i * 3 }}>{finger}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {tool === "pen" && (
+                    <>
+                      <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                      {PEN_WIDTHS.map((w, i) => (
+                        <button
+                          key={w.id}
+                          type="button"
+                          onClick={() => setPenWidth(w.value)}
+                          title={w.label}
+                          aria-label={`Grosor ${w.label.toLowerCase()}`}
+                          aria-pressed={penWidth === w.value}
+                          className={`w-8 h-8 rounded-full grid place-items-center transition-colors ${
+                            penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+                          }`}
+                        >
+                          <span className="rounded-full bg-current" style={{ width: 6 + i * 4, height: 6 + i * 4 }} />
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ---- Zoom: mando aparte, contra el borde ----
+                 Se usa a cada rato y no compite por sitio con las herramientas. */}
+            {view === "pdf" && (
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 card shadow-md p-1 flex flex-col items-center">
+                <ToolButton label="Ampliar" onClick={() => zoomTo(zoom + 0.25)} disabled={zoom >= MAX_ZOOM}>
+                  <PlusIcon />
+                </ToolButton>
+                <button
+                  type="button"
+                  onClick={() => zoomTo(1)}
+                  disabled={zoom === 1}
+                  title="Ver la página entera"
+                  className="w-9 py-0.5 text-center text-[10px] tabular-nums text-ink-2 hover:text-ink disabled:text-ink-3 disabled:pointer-events-none"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <ToolButton label="Reducir" onClick={() => zoomTo(zoom - 0.25)} disabled={zoom === 1}>
+                  <MinusIcon />
+                </ToolButton>
+              </div>
+            )}
+
+            {/* ---- Panel de herramientas ---- */}
+            <div className="absolute inset-x-3 flex justify-center pointer-events-none" style={{ bottom: "calc(0.75rem + var(--safe-b))" }}>
+              <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1.5 min-w-0 max-w-full">
+                {/* Lo que no cabe se desplaza a un lado; las dos acciones de la
+                    derecha se quedan siempre a la vista. */}
+                <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {view === "pdf" && (
+                    <>
+                      {record.pageCount > 1 && (
+                        <Group>
+                          <ToolButton label="Página anterior" onClick={() => goTo(page - 1)} disabled={page === 1}>
+                            <ChevronIcon dir="left" className="w-4 h-4" />
+                          </ToolButton>
+                          <span className="px-1 text-xs tabular-nums text-ink-2 select-none">
+                            {page}
+                            <span className="text-ink-3">/{record.pageCount}</span>
+                          </span>
+                          <ToolButton label="Página siguiente" onClick={() => goTo(page + 1)} disabled={page === record.pageCount}>
+                            <ChevronIcon dir="right" className="w-4 h-4" />
+                          </ToolButton>
+                        </Group>
+                      )}
+
                       <Group>
-                        <ToolButton label="Página anterior" onClick={() => goTo(page - 1)} disabled={page === 1}>
-                          <ChevronIcon dir="left" className="w-4 h-4" />
+                        <ToolButton label="Lápiz" active={tool === "pen"} onClick={() => pickTool("pen")}>
+                          <PenIcon />
                         </ToolButton>
-                        <span className="px-1 text-xs tabular-nums text-ink-2 select-none">
-                          {page}
-                          <span className="text-ink-3">/{record.pageCount}</span>
-                        </span>
-                        <ToolButton label="Página siguiente" onClick={() => goTo(page + 1)} disabled={page === record.pageCount}>
-                          <ChevronIcon dir="right" className="w-4 h-4" />
+                        <ToolButton label="Subrayador" active={tool === "highlighter"} onClick={() => pickTool("highlighter")}>
+                          <MarkerIcon />
+                        </ToolButton>
+                        <ToolButton label="Digitación: toca una nota para escribir el dedo encima" active={tool === "finger"} onClick={() => pickTool("finger")}>
+                          <FingerIcon />
+                        </ToolButton>
+                        <ToolButton label="Borrador" active={tool === "eraser"} onClick={() => pickTool("eraser")}>
+                          <EraserIcon />
+                        </ToolButton>
+                        <ToolButton
+                          label="Deshacer lo último"
+                          onClick={() => setStrokes(page, strokesOf(page).slice(0, -1))}
+                          disabled={!strokesOf(page).length}
+                        >
+                          <UndoIcon />
                         </ToolButton>
                       </Group>
-                    )}
+                    </>
+                  )}
 
+                  {linkedXml && (
                     <Group>
-                      <ToolButton label="Lápiz" active={tool === "pen"} onClick={() => pickTool("pen")}>
-                        <PenIcon />
-                      </ToolButton>
-                      <ToolButton label="Subrayador" active={tool === "highlighter"} onClick={() => pickTool("highlighter")}>
-                        <MarkerIcon />
-                      </ToolButton>
-                      <ToolButton label="Digitación: toca una nota para escribir el dedo encima" active={tool === "finger"} onClick={() => pickTool("finger")}>
-                        <FingerIcon />
-                      </ToolButton>
-                      <ToolButton label="Borrador" active={tool === "eraser"} onClick={() => pickTool("eraser")}>
-                        <EraserIcon />
-                      </ToolButton>
+                      {view === "pdf" && (
+                        <ToolButton
+                          label={
+                            map?.approximate
+                              ? "No hay guía: los compases de este PDF no se pudieron cuadrar con la partitura"
+                              : "Guía que sigue el sonido sobre la página"
+                          }
+                          active={guideOn && !map?.approximate}
+                          disabled={!!map?.approximate}
+                          onClick={() => setGuideOn((v) => !v)}
+                        >
+                          <GuideIcon />
+                        </ToolButton>
+                      )}
                       <ToolButton
-                        label="Deshacer lo último"
-                        onClick={() => setStrokes(page, strokesOf(page).slice(0, -1))}
-                        disabled={!strokesOf(page).length}
+                        label={view === "pdf" ? "Ver la partitura con los nombres de las notas" : "Volver al PDF"}
+                        active={view === "xml"}
+                        onClick={() => setView((v) => (v === "pdf" ? "xml" : "pdf"))}
                       >
-                        <UndoIcon />
+                        <NoteNamesIcon />
                       </ToolButton>
-                    </Group>
-                  </>
-                )}
-
-                {linkedXml && (
-                  <Group>
-                    {view === "pdf" && (
-                      <ToolButton
-                        label={
-                          map?.approximate
-                            ? "No hay guía: los compases de este PDF no se pudieron cuadrar con la partitura"
-                            : "Guía que sigue el sonido sobre la página"
-                        }
-                        active={guideOn && !map?.approximate}
-                        disabled={!!map?.approximate}
-                        onClick={() => setGuideOn((v) => !v)}
-                      >
-                        <GuideIcon />
-                      </ToolButton>
-                    )}
-                    <ToolButton
-                      label={view === "pdf" ? "Ver la partitura con los nombres de las notas" : "Volver al PDF"}
-                      active={view === "xml"}
-                      onClick={() => setView((v) => (v === "pdf" ? "xml" : "pdf"))}
-                    >
-                      <NoteNamesIcon />
-                    </ToolButton>
-                    {view === "xml" && (
-                      <ToolChip label="Nombres de las notas" active={showNames} onClick={() => setShowNames((v) => !v)}>
-                        Nombres
+                      {view === "xml" && (
+                        <ToolChip label="Nombres de las notas" active={showNames} onClick={() => setShowNames((v) => !v)}>
+                          Nombres
+                        </ToolChip>
+                      )}
+                      <ToolChip label="Velocidad de reproducción" active={tempoOpen} onClick={() => setTempoOpen((v) => !v)}>
+                        ♩={player.tempo}
                       </ToolChip>
-                    )}
-                    <ToolChip label="Velocidad de reproducción" active={tempoOpen} onClick={() => setTempoOpen((v) => !v)}>
-                      ♩={player.tempo}
-                    </ToolChip>
-                  </Group>
-                )}
-              </div>
+                    </Group>
+                  )}
+                </div>
 
-              {/* En pantallas anchas las dos acciones van dentro de la barra;
-                  en móvil salen como botones flotantes aparte (más abajo). */}
-              <div className="hidden sm:flex shrink-0 items-center gap-1.5">{renderActions(false)}</div>
+                {/* En pantallas anchas las dos acciones van dentro de la barra;
+                    en móvil salen como botones flotantes aparte (más abajo). */}
+                <div className="hidden sm:flex shrink-0 items-center gap-1.5">{renderActions(false)}</div>
+              </div>
+            </div>
+
+            {/* ---- Móvil: Análisis y Escuchar como botones flotantes ---- */}
+            <div
+              className="sm:hidden absolute right-3 flex flex-col items-center gap-2 pointer-events-none"
+              style={{ bottom: "calc(4.75rem + var(--safe-b))" }}
+            >
+              {renderActions(true)}
+            </div>
+
+            {/* ---- Escritorio: pestaña en el borde para volver a abrir el panel plegado ---- */}
+            {wide && !panelOpen && (
+              <button
+                type="button"
+                onClick={() => showPanel(panelTab)}
+                title="Mostrar la sesión y el análisis"
+                aria-label="Mostrar la sesión y el análisis"
+                className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2.5 py-3 pl-2 pr-1.5 rounded-l-2xl bg-surface border border-r-0 border-line shadow-md text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+              >
+                <ChevronIcon dir="left" className="w-4 h-4" />
+                <SessionIcon className="w-5 h-5" />
+                <PlanIcon className="w-5 h-5" />
+              </button>
+            )}
+          </>
+        )}
+
+        {/* ---- Transcripción del PDF a MusicXML: otra hoja, sin salir de la partitura ---- */}
+        <Sheet open={transcribeOpen} onClose={() => setTranscribeOpen(false)} title="Transcribir la partitura" subtitle={name}>
+          <TranscribePanel scoreId={record.id} scoreName={record.name} pdf={record.file} pageCount={record.pageCount} hasXml={!!linkedXml} onUse={applyXml} />
+        </Sheet>
+
+        {/* ---- Cómo conseguir la reproducción ---- */}
+        {askXml && (
+          <div className="absolute inset-0 z-10 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => setAskXml(false)}>
+            <div className="card p-5 max-w-md w-full space-y-3" onClick={(e) => e.stopPropagation()}>
+              <h2 className="font-bold">Escuchar esta partitura</h2>
+              <p className="text-sm text-ink-2">
+                Un PDF es solo una imagen. Para tocar la pieza, mostrarte los nombres y seguir el sonido con una guía,
+                Opus Piano necesita el <strong>MusicXML</strong> de esa misma partitura.
+              </p>
+              <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
+                <p className="text-sm font-semibold">Vincular un MusicXML</p>
+                <p className="text-xs text-ink-2">
+                  En MuseScore: «Archivo → Exportar → MusicXML». En musescore.com y otras webs suele haber descarga .mxl.
+                </p>
+                <input
+                  ref={xmlInput}
+                  type="file"
+                  accept=".musicxml,.mxl,.xml"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && void linkXml(e.target.files[0])}
+                />
+                <button type="button" onClick={() => xmlInput.current?.click()} className="pill pill-active text-xs py-1.5">
+                  Elegir archivo
+                </button>
+              </div>
+              <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
+                <p className="text-sm font-semibold">O transcribirla desde el PDF</p>
+                <p className="text-xs text-ink-2">
+                  El servidor lee las páginas y escribe el MusicXML. Tarda unos minutos por página y sale un borrador, con fallos de
+                  ritmo aquí y allá, así que Opus Piano te señala los compases que no cuadran.
+                </p>
+                <button type="button" onClick={openTranscribe} className="pill text-xs py-1.5">
+                  Transcribir la partitura
+                </button>
+              </div>
+              {issue && <p className="text-xs text-bad">{issue}</p>}
+              <div className="flex justify-end">
+                <button type="button" onClick={() => setAskXml(false)} className="pill text-xs py-1.5">Cerrar</button>
+              </div>
             </div>
           </div>
+        )}
+      </div>
 
-          {/* ---- Móvil: Análisis y Escuchar como botones flotantes ---- */}
-          <div
-            className="sm:hidden absolute right-3 flex flex-col items-center gap-2 pointer-events-none"
-            style={{ bottom: "calc(4.75rem + var(--safe-b))" }}
-          >
-            {renderActions(true)}
+      {/* ---- Escritorio: sesión y análisis junto a la partitura ----
+           Las dos pestañas quedan montadas: el cronómetro sigue mientras se lee el análisis. */}
+      {wide && panelOpen && (
+        <aside className="w-[30rem] 2xl:w-[34rem] shrink-0 flex flex-col border-l border-line bg-surface" aria-label="Sesión y análisis">
+          <div className="shrink-0 flex items-center gap-2 px-3 pt-3 pb-2">
+            <div role="tablist" aria-label="Sesión o análisis" className="flex-1 flex rounded-full bg-surface-2 p-1">
+              {(["sesion", "analisis"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={panelTab === t}
+                  onClick={() => setPanelTab(t)}
+                  className={`flex-1 h-9 rounded-full text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors ${
+                    panelTab === t ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+                  }`}
+                >
+                  {t === "sesion" ? <SessionIcon className="w-4 h-4" /> : <PlanIcon className="w-4 h-4" />}
+                  {t === "sesion" ? "Sesión" : "Análisis"}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPanelOpen(false)}
+              className="btn-circle w-9 h-9 shrink-0 !bg-surface-2 !text-ink"
+              title="Ocultar el panel"
+              aria-label="Ocultar el panel"
+            >
+              <ChevronIcon dir="right" className="w-4 h-4" />
+            </button>
           </div>
-        </>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent] pl-4 pr-2 pt-1 pb-6">
+            <div role="tabpanel" hidden={panelTab !== "sesion"}>
+              <SessionPanel record={record} onPlanChange={onPlanChange} onOpenAnalysis={() => setPanelTab("analisis")} />
+            </div>
+            <div role="tabpanel" hidden={panelTab !== "analisis"}>
+              <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
+            </div>
+          </div>
+        </aside>
       )}
 
-      {/* ---- Análisis con IA: una hoja sobre la partitura ---- */}
-      <Sheet open={planOpen} onClose={() => setPlanOpen(false)} title="Análisis de la partitura" subtitle={name}>
-        <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
-      </Sheet>
-
-      {/* ---- Transcripción del PDF a MusicXML: otra hoja, sin salir de la partitura ---- */}
-      <Sheet open={transcribeOpen} onClose={() => setTranscribeOpen(false)} title="Transcribir la partitura" subtitle={name}>
-        <TranscribePanel scoreId={record.id} scoreName={record.name} pdf={record.file} pageCount={record.pageCount} hasXml={!!linkedXml} onUse={applyXml} />
-      </Sheet>
-
-      {/* ---- Cómo conseguir la reproducción ---- */}
-      {askXml && (
-        <div className="absolute inset-0 z-10 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => setAskXml(false)}>
-          <div className="card p-5 max-w-md w-full space-y-3" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-bold">Escuchar esta partitura</h2>
-            <p className="text-sm text-ink-2">
-              Un PDF es solo una imagen. Para tocar la pieza, mostrarte los nombres y seguir el sonido con una guía,
-              Opus Piano necesita el <strong>MusicXML</strong> de esa misma partitura.
-            </p>
-            <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-              <p className="text-sm font-semibold">Vincular un MusicXML</p>
-              <p className="text-xs text-ink-2">
-                En MuseScore: «Archivo → Exportar → MusicXML». En musescore.com y otras webs suele haber descarga .mxl.
-              </p>
-              <input
-                ref={xmlInput}
-                type="file"
-                accept=".musicxml,.mxl,.xml"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && void linkXml(e.target.files[0])}
-              />
-              <button type="button" onClick={() => xmlInput.current?.click()} className="pill pill-active text-xs py-1.5">
-                Elegir archivo
-              </button>
-            </div>
-            <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-              <p className="text-sm font-semibold">O transcribirla desde el PDF</p>
-              <p className="text-xs text-ink-2">
-                El servidor lee las páginas y escribe el MusicXML. Tarda unos minutos por página y sale un borrador, con fallos de
-                ritmo aquí y allá, así que Opus Piano te señala los compases que no cuadran.
-              </p>
-              <button type="button" onClick={openTranscribe} className="pill text-xs py-1.5">
-                Transcribir la partitura
-              </button>
-            </div>
-            {issue && <p className="text-xs text-bad">{issue}</p>}
-            <div className="flex justify-end">
-              <button type="button" onClick={() => setAskXml(false)} className="pill text-xs py-1.5">Cerrar</button>
-            </div>
-          </div>
-        </div>
+      {/* ---- Pantallas estrechas: análisis y sesión como hojas sobre la partitura ---- */}
+      {!wide && (
+        <>
+          <Sheet open={planOpen} onClose={() => setPlanOpen(false)} title="Análisis de la partitura" subtitle={name}>
+            <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
+          </Sheet>
+          <Sheet open={sessionOpen} onClose={() => setSessionOpen(false)} title="Sesión de estudio" subtitle={name}>
+            <SessionPanel
+              record={record}
+              onPlanChange={onPlanChange}
+              onOpenAnalysis={() => {
+                setSessionOpen(false);
+                setPlanOpen(true);
+              }}
+            />
+          </Sheet>
+        </>
       )}
     </div>
   );

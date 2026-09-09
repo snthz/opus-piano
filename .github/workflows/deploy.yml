@@ -86,5 +86,19 @@ jobs:
             echo "::warning::Falta el secreto DOKPLOY_WEBHOOK_URL: las imágenes están en ghcr.io pero no se ha avisado a Dokploy."
             exit 0
           fi
-          curl --fail --silent --show-error -X POST "$URL"
+          # El webhook del proveedor GitHub lee la rama del payload de push: sin
+          # cuerpo no encuentra ninguna y responde "Branch Not Match" con un 200,
+          # que --fail no detecta. De ahí que haya que mandar el ref y mirar la
+          # respuesta, no solo el código HTTP.
+          RESP=$(curl --fail --silent --show-error -X POST "$URL" \
+            -H "Content-Type: application/json" \
+            -H "x-github-event: push" \
+            -d "{\"ref\":\"refs/heads/${GITHUB_REF_NAME}\"}")
+          echo "Respuesta de Dokploy: $RESP"
+          case "$RESP" in
+            *"Branch Not Match"*)
+              echo "::error::Dokploy rechazó el aviso: la rama no coincide con la del servicio. Las imágenes están en ghcr.io pero no se ha desplegado."
+              exit 1
+              ;;
+          esac
           echo "Dokploy avisado: descargará ${WEB_IMAGE}:latest y reiniciará."

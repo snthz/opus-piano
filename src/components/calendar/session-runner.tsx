@@ -22,8 +22,22 @@ import { Chip, PlayIcon, StepIcon, StepStrip } from "./session-card";
  *
  * The clock lives in `useSessionRun`, saved to localStorage, so leaving the
  * page for the score and coming back picks up where it was.
+ *
+ * `compact` is the version beside the score in the reader: one narrow column,
+ * no back button (the panel has its own), and no link to the score.
  */
-export function SessionRunner({ entry, onExit, onDone }: { entry: AgendaEntry; onExit: () => void; onDone: () => void }) {
+export function SessionRunner({
+  entry,
+  onExit,
+  onDone,
+  compact = false,
+}: {
+  entry: AgendaEntry;
+  /** Back to the sessions list; without it, finishing offers a link to the sessions page. */
+  onExit?: () => void;
+  onDone: () => void;
+  compact?: boolean;
+}) {
   const { score, plan, session } = entry;
   const { settings } = useSettings();
   const steps = sessionSteps(plan, session);
@@ -71,22 +85,26 @@ export function SessionRunner({ entry, onExit, onDone }: { entry: AgendaEntry; o
   const chips = goalChips(session.goal);
 
   return (
-    <div className="space-y-4 lg:grid lg:grid-cols-[22rem_1fr] lg:gap-6 lg:space-y-0 lg:items-start">
+    <div className={compact ? "space-y-4" : "space-y-4 lg:grid lg:grid-cols-[22rem_1fr] lg:gap-6 lg:space-y-0 lg:items-start"}>
       {/* ---- Left (top on a phone): where we are and the clock ---- */}
-      <div className="space-y-4 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)]">
+      <div className={compact ? "space-y-4" : "space-y-4 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)]"}>
         <header className="flex items-center gap-3">
-          <button type="button" onClick={onExit} aria-label="Volver a las sesiones" className="btn-circle w-10 h-10 shrink-0 bg-surface text-ink border border-line">
-            <ChevronIcon dir="left" className="w-4 h-4" />
-          </button>
+          {onExit && (
+            <button type="button" onClick={onExit} aria-label="Volver a las sesiones" className="btn-circle w-10 h-10 shrink-0 bg-surface text-ink border border-line">
+              <ChevronIcon dir="left" className="w-4 h-4" />
+            </button>
+          )}
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2 truncate">
-              {score.name} · Sesión {session.ofGoal.n} de {session.ofGoal.total}
+              {/* beside the score its name is already on screen */}
+              {compact ? "" : `${score.name} · `}Sesión {session.ofGoal.n} de {session.ofGoal.total}
             </p>
-            <h2 className="font-bold leading-tight truncate">{session.goal.title}</h2>
+            {/* in the narrow panel the title gets two lines rather than an ellipsis */}
+            <h2 className={`font-bold leading-tight ${compact ? "line-clamp-2" : "truncate"}`}>{session.goal.title}</h2>
           </div>
         </header>
 
-        <section className="card p-5 space-y-5">
+        <section className={compact ? "card p-4 space-y-4" : "card p-5 space-y-5"}>
           <StepStrip steps={steps} current={state.finished ? steps.length : state.index} onPick={run.goTo} />
 
           {state.finished ? (
@@ -99,10 +117,10 @@ export function SessionRunner({ entry, onExit, onDone }: { entry: AgendaEntry; o
                     <StepIcon kind={step.kind} className="w-4 h-4" />
                     {STEP_LABELS[step.kind]} · paso {state.index + 1} de {steps.length}
                   </p>
-                  <div className="relative w-44 h-44 grid place-items-center text-ink">
-                    <ProgressRing progress={run.fraction} stroke={2.5} className="w-44 h-44" />
+                  <div className={`relative grid place-items-center text-ink ${compact ? "w-36 h-36" : "w-44 h-44"}`}>
+                    <ProgressRing progress={run.fraction} stroke={2.5} className={compact ? "w-36 h-36" : "w-44 h-44"} />
                     <div className="absolute text-center">
-                      <p className="text-5xl font-bold tabular-nums tracking-tight leading-none" aria-live="off">
+                      <p className={`font-bold tabular-nums tracking-tight leading-none ${compact ? "text-4xl" : "text-5xl"}`} aria-live="off">
                         {clock(run.remaining)}
                       </p>
                       <p className="mt-1.5 text-xs text-ink-2 tabular-nums">de {step.minutes} min</p>
@@ -198,9 +216,11 @@ export function SessionRunner({ entry, onExit, onDone }: { entry: AgendaEntry; o
                   <span className="text-ink-2">{session.goal.targetTempo}</span>
                 </p>
               )}
-              <Link href={`/scores?score=${encodeURIComponent(score.id)}`} className="pill text-xs py-1.5">
-                Abrir la partitura
-              </Link>
+              {!compact && (
+                <Link href={`/scores?score=${encodeURIComponent(score.id)}`} className="pill text-xs py-1.5">
+                  Abrir la partitura
+                </Link>
+              )}
             </section>
           )}
         </div>
@@ -349,7 +369,7 @@ function RoundButton({ label, onClick, disabled, muted, children }: { label: str
   );
 }
 
-function Finished({ minutes, onRepeat, onExit }: { minutes: number; onRepeat: () => void; onExit: () => void }) {
+function Finished({ minutes, onRepeat, onExit }: { minutes: number; onRepeat: () => void; onExit?: () => void }) {
   return (
     <div className="text-center space-y-4 py-2">
       <span className="mx-auto w-20 h-20 rounded-full bg-ok text-bg grid place-items-center">
@@ -362,9 +382,15 @@ function Finished({ minutes, onRepeat, onExit }: { minutes: number; onRepeat: ()
         <p className="text-sm text-ink-2">{minutes} minutos de estudio. Queda marcada como hecha.</p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
-        <button type="button" onClick={onExit} className="btn-primary text-sm">
-          Volver a mis sesiones
-        </button>
+        {onExit ? (
+          <button type="button" onClick={onExit} className="btn-primary text-sm">
+            Volver a mis sesiones
+          </button>
+        ) : (
+          <Link href="/calendar" className="btn-primary text-sm">
+            Ver mis sesiones
+          </Link>
+        )}
         <button type="button" onClick={onRepeat} className="pill text-xs py-1.5">
           Repetirla
         </button>
