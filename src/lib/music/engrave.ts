@@ -71,11 +71,34 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** Qué suena en un instante de la partitura, medido en negras desde el principio. */
+export interface EngravedEvent {
+  /** Negras transcurridas. */
+  at: number;
+  /**
+   * Todo lo que está sonando ahí, por su id en el SVG: no solo lo que ataca,
+   * también lo que viene sonando de antes. Una melodía de blancas sobre un
+   * acompañamiento de corcheas se queda encendida mientras dura, que es lo
+   * que se oye.
+   */
+  sounding: string[];
+}
+
+export interface EngravedScore {
+  /** El SVG de cada página. Se escalan solos al ancho que se les dé. */
+  pages: string[];
+  /** Ordenados por `at`: con la posición de la reproducción se sabe qué suena. */
+  events: EngravedEvent[];
+  /** En qué página está cada nota, para pasar de hoja mientras suena. */
+  pageOf: Map<string, number>;
+}
+
 /**
- * La partitura entera, página a página, en SVG: lo mismo que se imprimiría.
- * Los SVG se escalan solos al ancho que se les dé.
+ * La partitura entera, página a página, tal y como se imprimiría, más el mapa
+ * de cuándo suena cada nota. Las dos cosas salen del mismo grabado, así que
+ * los ids del mapa son los mismos que llevan las notas en el SVG.
  */
-export async function engraveScore(xml: string): Promise<string[]> {
+export async function engraveScore(xml: string): Promise<EngravedScore> {
   return enqueue(async () => {
     const tk = await getToolkit();
     tk.setOptions({
@@ -93,9 +116,28 @@ export async function engraveScore(xml: string): Promise<string[]> {
       pageMarginRight: 150,
     });
     if (!tk.loadData(xml)) throw new Error("Verovio no ha entendido el MusicXML");
+
     const pages: string[] = [];
-    for (let page = 1; page <= tk.getPageCount(); page++) pages.push(tk.renderToSVG(page));
-    return pages;
+    const pageOf = new Map<string, number>();
+    for (let page = 1; page <= tk.getPageCount(); page++) {
+      const svg = tk.renderToSVG(page);
+      pages.push(svg);
+      // qué hay en cada página se saca del propio SVG: es un id por elemento
+      // dibujado, y sale más barato que preguntárselo a Verovio uno a uno
+      for (const [, id] of svg.matchAll(/ id="([^"]+)"/g)) if (!pageOf.has(id)) pageOf.set(id, page - 1);
+    }
+
+    // El mapa dice qué entra y qué sale en cada instante; aquí se acumula para
+    // tener, en cada uno, la lista de lo que suena.
+    const live = new Set<string>();
+    const events: EngravedEvent[] = [];
+    for (const event of tk.renderToTimemap({ includeRests: false })) {
+      for (const id of event.off ?? []) live.delete(id);
+      for (const id of event.on ?? []) live.add(id);
+      events.push({ at: event.qstamp, sounding: [...live] });
+    }
+
+    return { pages, events, pageOf };
   });
 }
 

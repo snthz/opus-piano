@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { keyByVex, keyName } from "@/lib/music/keys";
 import { useSettings } from "@/lib/settings";
+import { EngravedScore } from "./engraved-score";
 import { ScoreSheet } from "./score-sheet";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 
@@ -10,12 +11,20 @@ interface Props {
   file: Blob;
 }
 
-/** Partitura MusicXML: información, controles de escucha y nombres, y los sistemas. */
+/**
+ * Una partitura MusicXML de la biblioteca.
+ *
+ * Se ve como está escrita —la partitura original, grabada, igual que un PDF
+ * enseña sus páginas—, y suena siguiéndose nota a nota sobre ella. El dibujo
+ * propio de la app es el otro modo: aplana las voces y se deja los adornos,
+ * pero es el único que puede escribir el nombre de cada nota debajo, que es
+ * para lo que está.
+ */
 export function MusicXmlViewer({ file }: Props) {
   const { settings } = useSettings();
-  const { parsed, error } = useParsedXml(file);
+  const { parsed, xml, error } = useParsedXml(file);
   const player = useScorePlayer(parsed);
-  const [showNames, setShowNames] = useState(false);
+  const [names, setNames] = useState(false);
 
   if (error) return <p className="text-sm text-bad">{error}</p>;
   if (!parsed) return <p className="text-sm text-ink-2">Leyendo la partitura…</p>;
@@ -27,12 +36,22 @@ export function MusicXmlViewer({ file }: Props) {
       </p>
 
       <PlaybackControls player={player}>
-        <button type="button" onClick={() => setShowNames((v) => !v)} className={`pill py-1.5 text-xs ${showNames ? "pill-active" : ""}`}>
-          {showNames ? "Ocultar nombres" : "Mostrar nombres"}
+        <button type="button" onClick={() => setNames((v) => !v)} className={`pill py-1.5 text-xs ${names ? "pill-active" : ""}`}>
+          {names ? "Ver la original" : "Nombres de las notas"}
         </button>
       </PlaybackControls>
 
-      <ScoreSheet parsed={parsed} active={player.active} showNames={showNames} />
+      {names || !xml ? (
+        <ScoreSheet parsed={parsed} active={player.active} showNames={names} />
+      ) : (
+        <EngravedScore
+          xml={xml}
+          position={player.position}
+          playing={player.playing}
+          // un MusicXML que Verovio no entienda se sigue leyendo con el dibujo de la app
+          fallback={<ScoreSheet parsed={parsed} active={player.active} showNames={false} />}
+        />
+      )}
     </div>
   );
 }

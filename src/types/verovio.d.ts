@@ -17,6 +17,17 @@ declare module "verovio/esm" {
     /** Un .mxl (zip) en base64. */
     loadZipDataBase64(data: string): boolean;
     renderToSVG(page: number): string;
+    /**
+     * Cuándo suena cada nota, con su id. `qstamp` va en negras desde el
+     * principio, que es justo lo que cuenta el reloj de la reproducción.
+     */
+    renderToTimemap(options?: { includeMeasures?: boolean; includeRests?: boolean }): {
+      qstamp: number;
+      tstamp: number;
+      on?: string[];
+      off?: string[];
+      measureOn?: string;
+    }[];
     getPageCount(): number;
     getVersion(): string;
   }

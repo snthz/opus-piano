@@ -4,10 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getAudioContext, playTimeline, unlockAudio, type PlaybackHandle } from "@/lib/audio/synth";
 import { buildTimeline, parseMusicXml, type ParsedScore } from "@/lib/music/musicxml";
 
-/** Lee y analiza un MusicXML. El resultado se asocia al Blob: si cambia, vuelve a ser null. */
-export function useParsedXml(file?: Blob): { parsed: ParsedScore | null; error: string | null } {
-  const [state, setState] = useState<{ file?: Blob; parsed: ParsedScore | null; error: string | null }>({
+/**
+ * Lee y analiza un MusicXML. Devuelve también el texto tal cual, que es lo
+ * que necesita el grabado (`engrave.ts`) para dibujar la partitura original
+ * sin volver a leer el Blob. El resultado se asocia al Blob: si cambia,
+ * vuelve a ser null.
+ */
+export function useParsedXml(file?: Blob): { parsed: ParsedScore | null; xml: string | null; error: string | null } {
+  const [state, setState] = useState<{ file?: Blob; parsed: ParsedScore | null; xml: string | null; error: string | null }>({
     parsed: null,
+    xml: null,
     error: null,
   });
 
@@ -16,15 +22,15 @@ export function useParsedXml(file?: Blob): { parsed: ParsedScore | null; error: 
     let cancelled = false;
     file
       .text()
-      .then((xml) => !cancelled && setState({ file, parsed: parseMusicXml(xml), error: null }))
-      .catch((e: unknown) => !cancelled && setState({ file, parsed: null, error: e instanceof Error ? e.message : String(e) }));
+      .then((xml) => !cancelled && setState({ file, parsed: parseMusicXml(xml), xml, error: null }))
+      .catch((e: unknown) => !cancelled && setState({ file, parsed: null, xml: null, error: e instanceof Error ? e.message : String(e) }));
     return () => {
       cancelled = true;
     };
   }, [file]);
 
-  if (!file || state.file !== file) return { parsed: null, error: null };
-  return { parsed: state.parsed, error: state.error };
+  if (!file || state.file !== file) return { parsed: null, xml: null, error: null };
+  return { parsed: state.parsed, xml: state.xml, error: state.error };
 }
 
 /** Notas que suenan ahora, por pentagrama, como índices globales dentro de cada uno. */

@@ -7,7 +7,8 @@ import { loadCatalogXml, MUSICXML_MIME, saveCatalogPiece } from "@/lib/catalog-l
 import { UserError } from "@/lib/user-error";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { EngravedSheet } from "./engraved-sheet";
+import { EngravedScore } from "./engraved-score";
+import { ScoreSheet } from "./score-sheet";
 import { PlaybackControls } from "./musicxml-viewer";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 import { keyByVex, keyName } from "@/lib/music/keys";
@@ -113,7 +114,12 @@ export function CatalogPreview({ piece }: { piece: CatalogPiece }) {
             </p>
           )}
           <PlaybackControls player={player} />
-          <EngravedSheet xml={xml} />
+          <EngravedScore
+            xml={xml}
+            position={player.position}
+            playing={player.playing}
+            fallback={parsed ? <ScoreSheet parsed={parsed} active={player.active} showNames={false} /> : null}
+          />
         </section>
       )}
 
