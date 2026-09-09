@@ -26,6 +26,7 @@ import { exercisePath, lessonPath } from "@/lib/routes";
 import { getScore, updateScorePlan, type ScoreRecord } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
 import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, splitTeacherRefs, type ChatTurn, type Goal, type Level, type PlanState } from "@/lib/study-plan";
+import { clearChat, readChat, writeChat } from "@/lib/teacher-chat-store";
 import { isAbort, UserError } from "@/lib/user-error";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Modal } from "@/components/ui/modal";
@@ -33,7 +34,7 @@ import { NumberField } from "@/components/ui/number-field";
 import { TimeField } from "@/components/ui/time-field";
 import { Select } from "@/components/ui/select";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { ChatIcon, CloseIcon, PlanIcon, SendIcon, StopIcon } from "./reader-icons";
+import { ChatIcon, CloseIcon, EraserIcon, PlanIcon, SendIcon, StopIcon } from "./reader-icons";
 import { useParsedXml } from "./use-score-player";
 
 interface Props {
@@ -864,6 +865,9 @@ const SUGGESTIONS = ["¿Cómo digito el pasaje más difícil?", "¿Qué escala y
  * conversation survives folding it, and a badge on the launcher says when an
  * answer arrived while it was closed.
  *
+ * The thread is saved per score (`teacher-chat-store`), so a reload picks it
+ * up where it was and each piece keeps its own conversation.
+ *
  * `launcherBottom` / `windowBottom`: distance from the bottom edge (safe area
  * added here), so each host keeps it clear of its own bars and buttons.
  */
@@ -882,7 +886,9 @@ export function TeacherChat({
 }) {
   const { settings } = useSettings();
   const [open, setOpen] = useState(false);
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [turns, setTurns] = useState<ChatTurn[]>(() => readChat(record.id));
+  // whose conversation is on screen: another score's swaps it in without waiting for an effect
+  const [chatOf, setChatOf] = useState(record.id);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [unread, setUnread] = useState(false);
@@ -899,7 +905,19 @@ export function TeacherChat({
     if (next) setUnread(false);
   };
 
+  if (chatOf !== record.id) {
+    setChatOf(record.id);
+    setTurns(readChat(record.id));
+  }
+
   useEffect(() => () => abort.current?.abort(), []);
+
+  // saved a moment after the last change, so a streaming answer doesn't write on every token
+  useEffect(() => {
+    if (!turns.length) return;
+    const t = setTimeout(() => writeChat(record.id, turns), 400);
+    return () => clearTimeout(t);
+  }, [record.id, turns]);
 
   // follows the answer as it streams in; only the message list scrolls, not the panel behind
   useEffect(() => {
@@ -975,6 +993,22 @@ export function TeacherChat({
               {typing ? "Escribiendo…" : busy ? "Respondiendo…" : "Conoce el análisis y la partitura"}
             </p>
           </div>
+          {turns.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                abort.current?.abort();
+                setTurns([]);
+                setError(null);
+                clearChat(record.id);
+              }}
+              aria-label="Borrar la conversación"
+              title="Borrar la conversación"
+              className="shrink-0 w-9 h-9 rounded-full text-ink-2 hover:text-ink hover:bg-surface/60 grid place-items-center transition-colors"
+            >
+              <EraserIcon className="w-5 h-5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => toggle(false)}
