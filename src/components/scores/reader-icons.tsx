@@ -39,10 +39,14 @@ export const MarkerIcon = ({ className }: Props) => (
   </StrokeIcon>
 );
 
+/** Goma de borrar inclinada, con su banda, apoyada en la línea que limpia. */
 export const EraserIcon = ({ className }: Props) => (
   <StrokeIcon className={className}>
-    <path d="m13.4 4.2 6.4 6.4a1.7 1.7 0 0 1 0 2.4l-5.6 5.6H9l-4.8-4.8a1.7 1.7 0 0 1 0-2.4l7.6-7.2a1.7 1.7 0 0 1 2.6 0z" />
-    <path d="m8.6 9 6.4 6.4" />
+    <g transform="rotate(-45 12 11.5)">
+      <rect x="4.5" y="8" width="15" height="7" rx="1.8" />
+      <path d="M10 8v7" />
+    </g>
+    <path d="M12.5 20.5h8" />
   </StrokeIcon>
 );
 
@@ -74,6 +78,15 @@ export const PlayIcon = ({ className }: Props) => (
 export const StopIcon = ({ className }: Props) => (
   <StrokeIcon className={className}>
     <rect x="6.8" y="6.8" width="10.4" height="10.4" rx="2.4" fill="currentColor" strokeWidth={1.4} />
+  </StrokeIcon>
+);
+
+/** Digitación: un 3 posado encima de una nota en línea adicional. */
+export const FingerIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <path d="M9.2 4.2h5.6l-3 3.5c1.9 0 3.3 1.1 3.3 2.6 0 1.7-1.4 2.8-3.1 2.8-1.3 0-2.4-.5-3-1.4" />
+    <ellipse cx="12" cy="18.6" rx="3.1" ry="2.2" fill="currentColor" strokeWidth={1.2} />
+    <path d="M6 18.6h12" />
   </StrokeIcon>
 );
 

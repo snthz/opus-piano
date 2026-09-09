@@ -3,7 +3,21 @@
 import { useEffect, useRef } from "react";
 import type { Stroke } from "@/lib/scores-db";
 
-export type Tool = "pen" | "highlighter" | "eraser";
+export type Tool = "pen" | "highlighter" | "eraser" | "finger";
+
+/** Dedos que se pueden escribir como digitación. */
+export const FINGERS = ["1", "2", "3", "4", "5"] as const;
+export type Finger = (typeof FINGERS)[number];
+/**
+ * Tamaños del número de digitación, relativos al ancho de la página. El medio
+ * es el de una edición impresa: la cifra mide más o menos un espacio de pentagrama.
+ */
+export const FINGER_SIZES = [
+  { id: "small", value: 0.012, label: "Pequeño" },
+  { id: "medium", value: 0.016, label: "Medio" },
+  { id: "large", value: 0.021, label: "Grande" },
+];
+export const DEFAULT_FINGER_SIZE = FINGER_SIZES[1].value;
 
 export const PEN_COLORS = [
   { id: "ink", value: "#111114", label: "Negro" },
@@ -31,15 +45,22 @@ interface Props {
   color: string;
   /** Grosor del lápiz relativo al ancho de la página; el subrayador tiene el suyo fijo. */
   penWidth?: number;
+  /** Dedo que escribe la herramienta de digitación. */
+  finger?: Finger;
+  /** Tamaño del número, relativo al ancho de la página. */
+  fingerSize?: number;
 }
 
 /**
  * Lienzo transparente sobre una página. Los trazos se guardan en coordenadas
  * relativas (0–1) para que sirvan a cualquier zoom, y se dibujan escalados.
  */
-export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, penWidth = DEFAULT_PEN_WIDTH }: Props) {
+export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, penWidth = DEFAULT_PEN_WIDTH, finger = "1", fingerSize = DEFAULT_FINGER_SIZE }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<Stroke | null>(null);
+
+  /** Una digitación centrada justo donde se apunta. */
+  const labelAt = (p: [number, number]): Stroke => ({ color, width: fingerSize, label: finger, points: [p] });
 
   const paint = (extra?: Stroke | null) => {
     const canvas = canvasRef.current;
@@ -52,6 +73,21 @@ export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, 
     ctx.lineJoin = "round";
     for (const s of [...strokes, ...(extra ? [extra] : [])]) {
       if (s.points.length === 0) continue;
+      if (s.label) {
+        // el número va centrado en su punto, con un halo blanco para leerse sobre las líneas del pentagrama
+        const [x, y] = s.points[0];
+        const size = s.width * width;
+        ctx.font = `700 ${size}px Georgia, "Times New Roman", serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = size * 0.18;
+        ctx.strokeStyle = "#fff";
+        ctx.strokeText(s.label, x * width, y * height);
+        ctx.fillStyle = s.color;
+        ctx.fillText(s.label, x * width, y * height);
+        continue;
+      }
       ctx.strokeStyle = s.color;
       ctx.globalAlpha = s.highlighter ? 0.35 : 1;
       ctx.lineWidth = s.width * width;
@@ -83,7 +119,8 @@ export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, 
   const erase = (p: [number, number]) => {
     const radius = 0.015;
     const keep = strokes.filter(
-      (s) => !s.points.some(([x, y]) => Math.hypot((x - p[0]) * (width / height), y - p[1]) < radius * (width / height) + s.width),
+      (s) =>
+        !s.points.some(([x, y]) => Math.hypot((x - p[0]) * (width / height), y - p[1]) < radius * (width / height) + s.width),
     );
     if (keep.length !== strokes.length) onChange(keep);
   };
@@ -95,6 +132,11 @@ export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, 
     const p = toPoint(e);
     if (tool === "eraser") {
       erase(p);
+      return;
+    }
+    if (tool === "finger") {
+      drawing.current = labelAt(p);
+      paint(drawing.current);
       return;
     }
     drawing.current = {
@@ -113,7 +155,12 @@ export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, 
       return;
     }
     if (!drawing.current) return;
-    drawing.current.points.push(toPoint(e));
+    if (tool === "finger") {
+      // se puede arrastrar para afinar dónde queda antes de soltar
+      drawing.current = labelAt(toPoint(e));
+    } else {
+      drawing.current.points.push(toPoint(e));
+    }
     paint(drawing.current);
   };
 

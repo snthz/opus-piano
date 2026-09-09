@@ -22,6 +22,7 @@ import { JobIndicator, jobLabel } from "./job-indicator";
 import { PdfPage } from "./pdf-page";
 import {
   EraserIcon,
+  FingerIcon,
   GuideIcon,
   MarkerIcon,
   MinusIcon,
@@ -33,7 +34,7 @@ import {
   StopIcon,
   UndoIcon,
 } from "./reader-icons";
-import { DEFAULT_PEN_WIDTH, PEN_COLORS, PEN_WIDTHS, type Tool } from "./score-annotator";
+import { DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, FINGERS, FINGER_SIZES, PEN_COLORS, PEN_WIDTHS, type Finger, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { StudyPlanPanel } from "./study-plan";
 import { TranscribePanel } from "./transcribe-panel";
@@ -183,6 +184,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [tool, setTool] = useState<Tool | null>(null);
   const [color, setColor] = useState(PEN_COLORS[0].value);
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH);
+  const [finger, setFinger] = useState<Finger>("1");
+  const [fingerSize, setFingerSize] = useState(DEFAULT_FINGER_SIZE);
   const [annotations, setAnnotations] = useState<Annotations>(record.annotations ?? {});
   const [chrome, setChrome] = useState(true);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -758,6 +761,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                       tool={tool}
                       color={color}
                       penWidth={penWidth}
+                      finger={finger}
+                      fingerSize={fingerSize}
                       guide={guideFor(p)}
                     />
                   </div>
@@ -888,8 +893,28 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
               </div>
             )}
 
-            {view === "pdf" && tool === "pen" && (
+            {view === "pdf" && (tool === "pen" || tool === "finger") && (
               <div className="pointer-events-auto card shadow-md p-1.5 flex items-center gap-1">
+                {tool === "finger" && (
+                  <>
+                    {FINGERS.map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setFinger(f)}
+                        title={`Dedo ${f}`}
+                        aria-label={`Dedo ${f}`}
+                        aria-pressed={finger === f}
+                        className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold text-base transition-colors ${
+                          finger === f ? "bg-ink text-bg" : "text-ink-2 hover:text-ink"
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                    <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                  </>
+                )}
                 {PEN_COLORS.map((c) => (
                   <button
                     key={c.id}
@@ -912,25 +937,46 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                     />
                   </button>
                 ))}
-                <span aria-hidden className="w-px h-5 mx-1 bg-line" />
-                {PEN_WIDTHS.map((w, i) => (
-                  <button
-                    key={w.id}
-                    type="button"
-                    onClick={() => setPenWidth(w.value)}
-                    title={w.label}
-                    aria-label={`Grosor ${w.label.toLowerCase()}`}
-                    aria-pressed={penWidth === w.value}
-                    className={`w-8 h-8 rounded-full grid place-items-center transition-colors ${
-                      penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
-                    }`}
-                  >
-                    <span
-                      className="rounded-full bg-current"
-                      style={{ width: 6 + i * 4, height: 6 + i * 4 }}
-                    />
-                  </button>
-                ))}
+                {tool === "finger" && (
+                  <>
+                    <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                    {FINGER_SIZES.map((z, i) => (
+                      <button
+                        key={z.id}
+                        type="button"
+                        onClick={() => setFingerSize(z.value)}
+                        title={z.label}
+                        aria-label={`Tamaño ${z.label.toLowerCase()}`}
+                        aria-pressed={fingerSize === z.value}
+                        className={`w-8 h-8 rounded-full grid place-items-center font-serif font-bold leading-none transition-colors ${
+                          fingerSize === z.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+                        }`}
+                      >
+                        <span style={{ fontSize: 10 + i * 3 }}>{finger}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {tool === "pen" && (
+                  <>
+                    <span aria-hidden className="w-px h-5 mx-1 bg-line" />
+                    {PEN_WIDTHS.map((w, i) => (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => setPenWidth(w.value)}
+                        title={w.label}
+                        aria-label={`Grosor ${w.label.toLowerCase()}`}
+                        aria-pressed={penWidth === w.value}
+                        className={`w-8 h-8 rounded-full grid place-items-center transition-colors ${
+                          penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+                        }`}
+                      >
+                        <span className="rounded-full bg-current" style={{ width: 6 + i * 4, height: 6 + i * 4 }} />
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -987,11 +1033,14 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                       <ToolButton label="Subrayador" active={tool === "highlighter"} onClick={() => pickTool("highlighter")}>
                         <MarkerIcon />
                       </ToolButton>
+                      <ToolButton label="Digitación: toca una nota para escribir el dedo encima" active={tool === "finger"} onClick={() => pickTool("finger")}>
+                        <FingerIcon />
+                      </ToolButton>
                       <ToolButton label="Borrador" active={tool === "eraser"} onClick={() => pickTool("eraser")}>
                         <EraserIcon />
                       </ToolButton>
                       <ToolButton
-                        label="Deshacer el último trazo"
+                        label="Deshacer lo último"
                         onClick={() => setStrokes(page, strokesOf(page).slice(0, -1))}
                         disabled={!strokesOf(page).length}
                       >

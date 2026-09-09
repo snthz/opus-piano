@@ -6,10 +6,12 @@ import type { PlanState } from "@/lib/study-plan";
 /** A stroke drawn on a page, in coordinates relative (0-1) to the page size. */
 export interface Stroke {
   color: string;
-  /** Width relative to the page's own width. */
+  /** Width relative to the page's own width. For a label, its font size. */
   width: number;
   /** Highlighter stroke: semi-transparent and wide. */
   highlighter?: boolean;
+  /** Text (a fingering number) drawn at the single point instead of a line. */
+  label?: string;
   points: [number, number][];
 }
 
