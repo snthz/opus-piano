@@ -3,7 +3,7 @@
 import { readNdjson } from "@/lib/ndjson";
 import { postStream } from "@/lib/plan/client";
 import type { NamingSystem } from "@/lib/music/pitch";
-import { HISTORY_TURNS, type ChatTurn } from "@/lib/study-plan";
+import { HISTORY_TURNS, type ChatTurn, type Level } from "@/lib/study-plan";
 import { UserError } from "@/lib/user-error";
 
 /**
@@ -25,6 +25,8 @@ export async function teacherAvailable(): Promise<boolean> {
 
 export interface AskTeacherInput {
   naming: NamingSystem;
+  /** Por dónde anda el alumno, del ajuste; el profesor ajusta lo que da por sabido. */
+  level?: Level;
   /** La conversación hasta ahora, con la pregunta nueva al final. */
   history: ChatTurn[];
   onDelta: (text: string) => void;
@@ -36,7 +38,7 @@ export async function askGeneralTeacher(input: AskTeacherInput): Promise<void> {
     "/api/teacher",
     {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ naming: input.naming, history: input.history.slice(-HISTORY_TURNS) }),
+      body: JSON.stringify({ naming: input.naming, level: input.level, history: input.history.slice(-HISTORY_TURNS) }),
     },
     input.signal,
   );

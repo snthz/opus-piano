@@ -24,7 +24,7 @@ import { EXERCISES } from "@/data/exercises";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { exercisePath, lessonPath } from "@/lib/routes";
 import { getScore, updateScorePlan, type ScoreRecord } from "@/lib/scores-db";
-import { useSettings } from "@/lib/settings";
+import { getSettings, useSettings } from "@/lib/settings";
 import { goalRange, LEVEL_LABELS, LEVELS, MAX_PAGES, splitTeacherRefs, type ChatTurn, type Goal, type Level, type PlanState } from "@/lib/study-plan";
 import { clearChat, readChat, writeChat } from "@/lib/teacher-chat-store";
 import { isAbort, UserError } from "@/lib/user-error";
@@ -58,7 +58,9 @@ const DEFAULT_PREFS: FormPrefs = { level: "principiante", minutesPerDay: 20, day
 
 function readPrefs(): FormPrefs {
   try {
-    return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<FormPrefs>) };
+    // El nivel sale de Ajustes mientras el formulario no lo cambie: es el
+    // mismo alumno en todas las partituras.
+    return { ...DEFAULT_PREFS, level: getSettings().level, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<FormPrefs>) };
   } catch {
     return DEFAULT_PREFS;
   }

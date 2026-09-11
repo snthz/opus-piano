@@ -4,7 +4,7 @@ import { GLOSSARY } from "@/data/glossary";
 import { LESSON_SECTIONS } from "@/data/lessons";
 import { PATH } from "@/data/path";
 import type { NamingSystem } from "@/lib/music/pitch";
-import { HISTORY_TURNS } from "@/lib/study-plan";
+import { HISTORY_TURNS, LEVELS, LEVEL_LABELS, type Level } from "@/lib/study-plan";
 
 /**
  * El profesor general: el que no está mirando ninguna partitura.
@@ -25,6 +25,8 @@ export const MAX_QUESTION_CHARS = 2000;
 
 export const teacherRequestSchema = z.object({
   naming: z.enum(["latino", "anglosajon"]),
+  /** Por dónde anda quien pregunta; opcional, que el ajuste es reciente. */
+  level: z.enum(LEVELS).optional(),
   history: z
     .array(
       z.object({
@@ -68,7 +70,7 @@ const naming = (system: NamingSystem) =>
     ? "Nombra las notas en latino (do, re, mi, fa, sol, la, si)."
     : "Nombra las notas en anglosajón (C, D, E, F, G, A, B).";
 
-export function teacherInstructions(system: NamingSystem): string {
+export function teacherInstructions(system: NamingSystem, level?: Level): string {
   return [
     "Eres profesor o profesora de piano y lenguaje musical en Opus Piano, una app gratuita en español para aprender a leer " +
       "partituras y tocar el piano. Te escribe un alumno con una duda suelta: teoría, cómo se lee algo, técnica, cómo organizar " +
@@ -78,6 +80,9 @@ export function teacherInstructions(system: NamingSystem): string {
     "Tutea. Ve al grano: sin preámbulo y sin repetir la pregunta. Normalmente menos de 150 palabras, y solo te extiendes si te " +
       "piden explicar algo largo. Texto plano, sin Markdown ni encabezados; si haces una lista, usa guiones.",
     naming(system) + " Las digitaciones van con números del 1 al 5 (1 = pulgar) e indica la mano: MD (derecha) o MI (izquierda).",
+    level
+      ? `El alumno dice que su nivel es ${LEVEL_LABELS[level].toLowerCase()}: ajusta el vocabulario y lo que das por sabido, sin mencionarlo.`
+      : "",
     "Si algo no lo sabes o depende de ver la partitura, dilo en una frase en lugar de inventarlo.",
     "",
     "CITA LAS PÁGINAS DE LA APP",

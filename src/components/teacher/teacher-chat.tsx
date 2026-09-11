@@ -72,6 +72,7 @@ export function TeacherChat() {
     try {
       await askGeneralTeacher({
         naming: settings.naming,
+        level: settings.level,
         history,
         signal: ac.signal,
         onDelta: (t) =>

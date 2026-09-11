@@ -53,30 +53,39 @@ function makeQuestion(pool: Question[], prev?: Question): Question {
 export function NoteReading() {
   const { settings } = useSettings();
   const { stats, answer } = useExerciseSession("notas");
-  const [mode, setMode] = useState<ClefMode>("treble");
+  // La clave de partida es la de Ajustes; en cuanto se toca el control manda
+  // lo elegido aquí.
+  const [clef, setClef] = useState<ClefMode | null>(null);
+  const mode = clef ?? settings.defaultClef;
   const [range, setRange] = useState<Range>("staff");
   const [accidentals, setAccidentals] = useState(false);
   const pool = useMemo(() => buildPool(mode, range, accidentals), [mode, range, accidentals]);
-  const [q, setQ] = useState<Question>(() => makeQuestion(buildPool("treble", "staff", false)));
   const [chosenAcc, setChosenAcc] = useState(0);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [chosen, setChosen] = useState<Letter | null>(null);
 
+  // La pregunta va con su repertorio: si cambian los ajustes del ejercicio
+  // (o llegan los del usuario tras hidratar), se hace otra del nuevo.
+  const [asked, setAsked] = useState<{ pool: Question[]; q: Question }>(() => ({ pool, q: makeQuestion(pool) }));
+  if (asked.pool !== pool) {
+    setAsked({ pool, q: makeQuestion(pool) });
+    setFeedback(null);
+    setChosen(null);
+    setChosenAcc(0);
+  }
+  const q = asked.q;
+
   const next = useCallback(() => {
-    setQ((prev) => makeQuestion(pool, prev));
+    setAsked((prev) => ({ pool, q: makeQuestion(pool, prev.q) }));
     setFeedback(null);
     setChosen(null);
     setChosenAcc(0);
   }, [pool]);
 
   const regenerate = (m: ClefMode, r: Range, a: boolean) => {
-    setMode(m);
+    setClef(m);
     setRange(r);
     setAccidentals(a);
-    setQ(makeQuestion(buildPool(m, r, a)));
-    setFeedback(null);
-    setChosen(null);
-    setChosenAcc(0);
   };
 
   const choose = (letter: Letter) => {

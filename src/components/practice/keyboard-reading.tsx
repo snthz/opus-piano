@@ -48,28 +48,34 @@ export function KeyboardReading() {
   const { settings } = useSettings();
   const { stats, answer } = useExerciseSession("teclado");
   const midiInput = useMidi(true);
-  const [mode, setMode] = useState<ClefMode>("treble");
+  // La clave de partida es la de Ajustes hasta que se toca el control.
+  const [clef, setClef] = useState<ClefMode | null>(null);
+  const mode = clef ?? settings.defaultClef;
   const [accidentals, setAccidentals] = useState(false);
   const [labels, setLabels] = useState<"c" | "all" | "none">("c");
   const pool = useMemo(() => buildPool(mode, accidentals), [mode, accidentals]);
-  const [q, setQ] = useState<Question>(() => makeQuestion(buildPool("treble", false)));
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [wrongs, setWrongs] = useState<number[]>([]);
 
+  // La pregunta va con su repertorio: al cambiar los ajustes se hace otra.
+  const [asked, setAsked] = useState<{ pool: Question[]; q: Question }>(() => ({ pool, q: makeQuestion(pool) }));
+  if (asked.pool !== pool) {
+    setAsked({ pool, q: makeQuestion(pool) });
+    setFeedback(null);
+    setWrongs([]);
+  }
+  const q = asked.q;
   const target = toMidi(q.pitch);
 
   const next = useCallback(() => {
-    setQ((prev) => makeQuestion(pool, prev));
+    setAsked((prev) => ({ pool, q: makeQuestion(pool, prev.q) }));
     setFeedback(null);
     setWrongs([]);
   }, [pool]);
 
   const regenerate = (m: ClefMode, a: boolean) => {
-    setMode(m);
+    setClef(m);
     setAccidentals(a);
-    setQ(makeQuestion(buildPool(m, a)));
-    setFeedback(null);
-    setWrongs([]);
   };
 
   const press = (midi: number) => {

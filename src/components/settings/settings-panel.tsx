@@ -10,6 +10,7 @@ import { clearScores, scoresSize } from "@/lib/scores-db";
 import { playNote, unlockAudio } from "@/lib/audio/synth";
 import { connectMidi, disconnectMidi, setMidiDevice, useMidi } from "@/lib/midi";
 import { fromMidi, fullName } from "@/lib/music/pitch";
+import { LEVELS, LEVEL_LABELS } from "@/lib/study-plan";
 import { THEMES } from "@/lib/theme";
 
 function formatBytes(b: number): string {
@@ -60,6 +61,28 @@ export function SettingsPanel() {
         </Row>
         <Row label="Nombres en el teclado" hint="Etiquetas sobre las teclas del piano virtual.">
           <Toggle checked={settings.keyLabels} onChange={(v) => update({ keyLabels: v })} label="Nombres en el teclado" />
+        </Row>
+      </section>
+
+      <section className="card p-5 space-y-4">
+        <h2 className="font-bold">Cómo practicas</h2>
+        <Row label="Tu nivel" hint="Lo que el profesor da por sabido y la respuesta por defecto al analizar una partitura.">
+          <Segmented
+            options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))}
+            value={settings.level}
+            onChange={(v) => update({ level: v as typeof settings.level })}
+          />
+        </Row>
+        <Row label="Clave de partida" hint="Con la que empiezan los ejercicios de lectura; dentro de cada uno se puede cambiar.">
+          <Segmented
+            options={[
+              { value: "treble", label: "Sol" },
+              { value: "bass", label: "Fa" },
+              { value: "both", label: "Ambas" },
+            ]}
+            value={settings.defaultClef}
+            onChange={(v) => update({ defaultClef: v as typeof settings.defaultClef })}
+          />
         </Row>
       </section>
 

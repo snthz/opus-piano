@@ -7,5 +7,5 @@ import { teacherInstructions, type TeacherRequest } from "@/lib/teacher";
  * `study-plan.ts`; aquí solo se decide qué se le cuenta al modelo.
  */
 export function askGeneralTeacher(req: TeacherRequest, signal?: AbortSignal, onUsage?: UsageSink): AsyncGenerator<string> {
-  return streamAnswer(teacherInstructions(req.naming), req.history, signal, onUsage);
+  return streamAnswer(teacherInstructions(req.naming, req.level), req.history, signal, onUsage);
 }

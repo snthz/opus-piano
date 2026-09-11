@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { NamingSystem } from "@/lib/music/pitch";
+import type { Level } from "@/lib/study-plan";
 import type { Theme } from "@/lib/theme";
 
 export interface Settings {
@@ -19,6 +20,17 @@ export interface Settings {
   midi: boolean;
   /** Puerto MIDI elegido; null = todos los conectados */
   midiDevice: string | null;
+  /**
+   * Por dónde anda el alumno. Es la respuesta por defecto al analizar una
+   * partitura y lo que el profesor general da por supuesto al contestar:
+   * hasta ahora había que decírselo cada vez, o no se decía nunca.
+   */
+  level: Level;
+  /**
+   * La clave con la que se practica por defecto. Quien se atasca con la mano
+   * izquierda practica en fa, y no tiene por qué cambiarlo en cada ejercicio.
+   */
+  defaultClef: "treble" | "bass" | "both";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +41,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   midi: false,
   midiDevice: null,
+  level: "principiante",
+  defaultClef: "treble",
 };
 
 const STORAGE_KEY = "etude:settings";
