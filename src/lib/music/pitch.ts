@@ -141,6 +141,11 @@ export function midiToFrequency(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
+/** La inversa: nota MIDI (con decimales) de una frecuencia. 60.5 es un do central medio semitono alto. */
+export function frequencyToMidi(freq: number): number {
+  return 69 + 12 * Math.log2(freq / 440);
+}
+
 /** Índice diatónico absoluto (C0 = 0, D0 = 1 …). Útil para posiciones en el pentagrama. */
 export function diatonicIndex(p: Pitch): number {
   return p.octave * 7 + LETTERS.indexOf(p.letter);
