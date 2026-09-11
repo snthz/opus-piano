@@ -10,7 +10,7 @@ import { keyByVex, keyName } from "@/lib/music/keys";
 import { frequencyToMidi, fromMidi, noteName } from "@/lib/music/pitch";
 import type { RhythmLevel } from "@/lib/music/rhythm";
 import { getAudioContext, playClick, unlockAudio } from "@/lib/audio/synth";
-import { micSupported, startListening, type Listener } from "@/lib/audio/listen";
+import { startListening, useMicSupported, type Listener } from "@/lib/audio/listen";
 import { expectedNotes, gradeSinging } from "@/lib/practice/singing";
 import { useSettings } from "@/lib/settings";
 import { UserError } from "@/lib/user-error";
@@ -22,6 +22,7 @@ type Phase = "idle" | "countin" | "singing" | "done";
 export function SolfegeReading() {
   const { settings } = useSettings();
   const { stats, answer } = useExerciseSession("solfeo");
+  const canSing = useMicSupported();
   const [keyVex, setKeyVex] = useState("C");
   const [clef, setClef] = useState<"treble" | "bass">("treble");
   const [tsId, setTsId] = useState("4-4");
@@ -205,7 +206,7 @@ export function SolfegeReading() {
       }
     >
       <p className="text-sm text-ink-2 text-center">
-        {micSupported()
+        {canSing
           ? "Lee la melodía con los nombres de las notas y cántala: la app escucha y te dice cuáles has afinado."
           : "Lee la melodía en voz alta con los nombres de las notas (y cántala si puedes). Luego escúchala y compara."}
       </p>
@@ -232,7 +233,7 @@ export function SolfegeReading() {
         <button type="button" onClick={() => setShowNames((v) => !v)} className={`pill py-1.5 text-xs ${showNames ? "pill-active" : ""}`}>
           {showNames ? "Ocultar nombres" : "Mostrar nombres"}
         </button>
-        {micSupported() && (
+        {canSing && (
           <button
             type="button"
             onClick={() => void sing()}

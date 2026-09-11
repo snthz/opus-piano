@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { getAudioContext } from "./synth";
 import { detectPitch, OnsetDetector, rms, spectralFlux } from "./pitch-detect";
 import { UserError } from "@/lib/user-error";
@@ -37,8 +38,25 @@ const FFT_SIZE = 2048;
 /** Floor for the spectrum in dB: silence comes as -Infinity and would break the arithmetic. */
 const DB_FLOOR = -140;
 
+/**
+ * There's a microphone to ask for. It's false outside the browser and also
+ * over plain HTTP from another machine: `mediaDevices` only exists in a
+ * secure context, so localhost and HTTPS have it and `http://192.168.…` does
+ * not.
+ */
 export function micSupported(): boolean {
   return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+}
+
+const noSubscribe = () => () => {};
+
+/**
+ * The same, for rendering. Prerendering has no microphone, so asking
+ * directly inside a component would paint one thing on the server and
+ * another after hydrating; this reads false until the browser takes over.
+ */
+export function useMicSupported(): boolean {
+  return useSyncExternalStore(noSubscribe, micSupported, () => false);
 }
 
 /**

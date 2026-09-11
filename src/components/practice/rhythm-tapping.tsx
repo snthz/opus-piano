@@ -6,7 +6,7 @@ import { ExerciseShell, SettingRow, Choice, useExerciseSession, type Feedback } 
 import { TIME_SIGNATURE_BY_ID, measureBeats } from "@/lib/music/meter";
 import { generateRhythm, rhythmToEasyScore, type RhythmLevel, type RhythmNote } from "@/lib/music/rhythm";
 import { getAudioContext, playClick, playNote, unlockAudio } from "@/lib/audio/synth";
-import { micSupported, startListening, type Listener } from "@/lib/audio/listen";
+import { startListening, useMicSupported, type Listener } from "@/lib/audio/listen";
 import { useSettings } from "@/lib/settings";
 import { UserError } from "@/lib/user-error";
 
@@ -27,6 +27,7 @@ interface Onset {
 export function RhythmTapping() {
   const { settings } = useSettings();
   const { stats, answer } = useExerciseSession("ritmo");
+  const canClap = useMicSupported();
   const [tsId, setTsId] = useState("4-4");
   const [level, setLevel] = useState<RhythmLevel>(1);
   const [bpm, setBpm] = useState(80);
@@ -239,7 +240,7 @@ export function RhythmTapping() {
           <SettingRow label={`Tempo ♩ = ${bpm}`}>
             <input type="range" min={50} max={140} value={bpm} onChange={(e) => setBpm(Number(e.target.value))} className="accent-(--accent) w-40" aria-label="Tempo" />
           </SettingRow>
-          {micSupported() && (
+          {canClap && (
             <SettingRow label="Cómo lo marcas">
               <Choice active={input === "tap"} onClick={() => { setInput("tap"); regenerate(); }}>En la pantalla</Choice>
               <Choice active={input === "mic"} onClick={() => { setInput("mic"); regenerate(); }}>Con palmas</Choice>
