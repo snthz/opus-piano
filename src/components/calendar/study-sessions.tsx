@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { addDays, agendaByDay, dayKey, nextSession, parseDay, startOfWeek, WEEKDAY_LETTERS, weekSummary, type ScheduledScore } from "@/lib/agenda";
-import { listScores, onScoresChange, toggleStudyDay } from "@/lib/scores-db";
+import { listScores, onScoresChange, recordSessionReview, toggleStudyDay } from "@/lib/scores-db";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { SessionCard } from "./session-card";
@@ -79,6 +79,13 @@ export function StudySessions() {
           setActive(null);
         }}
         onDone={() => void toggleStudyDay(activeEntry.score.id, activeEntry.session.day)}
+        onReview={(outcome) =>
+          void recordSessionReview(activeEntry.score.id, activeEntry.session.day, {
+            goalId: activeEntry.session.goal.id,
+            outcome,
+            at: Date.now(),
+          })
+        }
       />
     );
   }

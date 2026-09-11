@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { SessionRunner } from "@/components/calendar/session-runner";
 import { dayKey, parseDay, scoreSession } from "@/lib/agenda";
-import { getScore, toggleStudyDay, type ScoreRecord } from "@/lib/scores-db";
-import type { PlanState } from "@/lib/study-plan";
+import { getScore, recordSessionReview, toggleStudyDay, type ScoreRecord } from "@/lib/scores-db";
+import type { Outcome, PlanState } from "@/lib/study-plan";
 
 const longDay = (key: string) => parseDay(key).toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" });
 
@@ -33,6 +33,11 @@ export function SessionPanel({
   const markDone = async (day: string) => {
     await toggleStudyDay(record.id, day);
     // re-read rather than patching in memory: the schedule may have moved on underneath
+    onPlanChange((await getScore(record.id))?.plan);
+  };
+
+  const review = async (day: string, goalId: string, outcome: Outcome) => {
+    await recordSessionReview(record.id, day, { goalId, outcome, at: Date.now() });
     onPlanChange((await getScore(record.id))?.plan);
   };
 
@@ -74,7 +79,13 @@ export function SessionPanel({
     <div className="space-y-3">
       <p className={`px-1 text-xs font-medium ${when === "overdue" ? "text-bad" : "text-ink-2"}`}>{label}</p>
       {/* keyed by day: a new session gets a fresh clock */}
-      <SessionRunner key={`${record.id}-${day}`} entry={entry} compact onDone={() => void markDone(day)} />
+      <SessionRunner
+        key={`${record.id}-${day}`}
+        entry={entry}
+        compact
+        onDone={() => void markDone(day)}
+        onReview={(outcome) => void review(day, entry.session.goal.id, outcome)}
+      />
     </div>
   );
 }

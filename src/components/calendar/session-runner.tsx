@@ -11,7 +11,7 @@ import { parseBpm } from "@/lib/music/fingering";
 import { TIME_SIGNATURE_BY_ID } from "@/lib/music/meter";
 import { clock, useSessionRun } from "@/lib/session-run";
 import { useSettings } from "@/lib/settings";
-import { goalChips } from "@/lib/study-plan";
+import { goalChips, OUTCOMES, OUTCOME_LABELS, type Outcome } from "@/lib/study-plan";
 import { Chip, PlayIcon, StepIcon, StepStrip } from "./session-card";
 
 /**
@@ -30,12 +30,15 @@ export function SessionRunner({
   entry,
   onExit,
   onDone,
+  onReview,
   compact = false,
 }: {
   entry: AgendaEntry;
   /** Back to the sessions list; without it, finishing offers a link to the sessions page. */
   onExit?: () => void;
   onDone: () => void;
+  /** Cómo ha ido el objetivo; sin esto no se pregunta. */
+  onReview?: (outcome: Outcome) => void;
   compact?: boolean;
 }) {
   const { score, plan, session } = entry;
@@ -82,6 +85,9 @@ export function SessionRunner({
   }, [toggle]);
 
   const total = steps.reduce((n, s) => n + s.minutes, 0);
+  // La respuesta se guarda con la partitura; aquí solo hace falta para dejar
+  // de preguntar y decir qué pasa con el plan.
+  const [reviewed, setReviewed] = useState<Outcome | null>(null);
   const chips = goalChips(session.goal);
 
   return (
@@ -108,7 +114,13 @@ export function SessionRunner({
           <StepStrip steps={steps} current={state.finished ? steps.length : state.index} onPick={run.goTo} />
 
           {state.finished ? (
-            <Finished minutes={total} onRepeat={run.reset} onExit={onExit} />
+            <Finished
+              minutes={total}
+              onRepeat={run.reset}
+              onExit={onExit}
+              onReview={onReview && ((outcome) => { setReviewed(outcome); onReview(outcome); })}
+              reviewed={reviewed}
+            />
           ) : (
             step && (
               <>
@@ -369,7 +381,26 @@ function RoundButton({ label, onClick, disabled, muted, children }: { label: str
   );
 }
 
-function Finished({ minutes, onRepeat, onExit }: { minutes: number; onRepeat: () => void; onExit?: () => void }) {
+/** Qué le pasa al plan con cada respuesta, dicho después de contestar. */
+const REVIEW_EFFECT: Record<Outcome, string> = {
+  conseguido: "Objetivo cumplido: las sesiones que le quedaban quedan libres.",
+  casi: "Seguimos con el plan tal como está.",
+  cuesta: "Le añadimos una sesión más; las siguientes se corren un día.",
+};
+
+function Finished({
+  minutes,
+  onRepeat,
+  onExit,
+  onReview,
+  reviewed,
+}: {
+  minutes: number;
+  onRepeat: () => void;
+  onExit?: () => void;
+  onReview?: (outcome: Outcome) => void;
+  reviewed: Outcome | null;
+}) {
   return (
     <div className="text-center space-y-4 py-2">
       <span className="mx-auto w-20 h-20 rounded-full bg-ok text-bg grid place-items-center">
@@ -381,6 +412,30 @@ function Finished({ minutes, onRepeat, onExit }: { minutes: number; onRepeat: ()
         <p className="text-xl font-bold">Sesión completada</p>
         <p className="text-sm text-ink-2">{minutes} minutos de estudio. Queda marcada como hecha.</p>
       </div>
+
+      {/* El cronómetro dice cuánto has estado, no cómo ha ido. Eso solo lo
+          sabes tú, y es lo que mueve el plan de aquí en adelante. */}
+      {onReview && (
+        <div className="rounded-2xl bg-surface-2 px-4 py-3 space-y-2">
+          {reviewed ? (
+            <p className="text-sm text-ink-2">
+              <strong className="text-ink">{OUTCOME_LABELS[reviewed]}.</strong> {REVIEW_EFFECT[reviewed]}
+            </p>
+          ) : (
+            <>
+              <p className="text-sm font-medium">¿Cómo ha ido el objetivo?</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {OUTCOMES.map((outcome) => (
+                  <button key={outcome} type="button" onClick={() => onReview(outcome)} className="pill text-xs py-1.5">
+                    {OUTCOME_LABELS[outcome]}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap justify-center gap-2">
         {onExit ? (
           <button type="button" onClick={onExit} className="btn-primary text-sm">

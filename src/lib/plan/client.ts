@@ -152,6 +152,8 @@ export async function askTeacher(input: AskInput): Promise<void> {
         scoreName: input.scoreName,
         plan: input.state.plan,
         progress: input.state.progress,
+        // Cómo le va: el profesor sabe así si un objetivo se atasca.
+        reviews: Object.values(input.state.reviews ?? {}).map(({ goalId, outcome }) => ({ goalId, outcome })),
         summary: input.parsed ? summarizeScore(input.parsed) : "",
         history: input.history.slice(-HISTORY_TURNS),
       }),
