@@ -11,10 +11,25 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 - Las partituras (PDF / MusicXML), con sus anotaciones y notas, se guardan en el dispositivo (IndexedDB)
   y, con cuenta, también en el servidor: se abren desde cualquier dispositivo y se sincronizan al entrar.
 - Símbolos musicales con las fuentes originales del estándar SMuFL (Bravura) y notación con VexFlow.
+- **La app escucha lo que tocas**, no solo lo que pulsas en la pantalla:
+  - **Teclado MIDI** (Web MIDI, donde el navegador lo admita): responde a los ejercicios tocando las
+    teclas, y en el **modo espera** la partitura no avanza hasta que tocas lo que hay escrito (con una
+    mano callada, esa la tocas tú y la app pone la otra).
+  - **Micrófono**: el ejercicio de ritmo se marca con palmas y el de solfeo se canta y se corrige nota
+    a nota, ignorando la octava. No se graba ni se envía nada: cada fragmento se mide y se descarta.
+- **Ensayar, no solo escuchar**: repetir unos compases en bucle, callar una mano, cuenta atrás y subir
+  el tempo unos bpm en cada vuelta.
+- **Práctica adaptativa**: cada nota, armadura, símbolo o intervalo lleva su ficha y su caja de repaso
+  espaciado; lo que fallas vuelve a salir antes y lo que ya sabes se aparta. En `/practice` se ve qué se
+  te resiste. Estas fichas se quedan en el dispositivo: son el cuaderno del ejercicio, no un resultado.
 - **Plan de estudio con IA** para cada partitura: análisis (tonalidad, escala que dominar, tempo, forma),
   qué practicar antes (enlazado a las lecciones y ejercicios de la app), objetivos progresivos por compases
   con digitaciones y consejos, rutina semanal, seguimiento de objetivos y un chat con el «profesor».
   Lo prepara Claude con la clave de API del servidor: el usuario no configura ni paga nada, solo necesita cuenta.
+  **El plan se corrige solo**: al terminar cada sesión se pregunta cómo ha ido, y un objetivo que cuesta gana
+  otra sesión (el resto del calendario se corre con él) mientras que uno conseguido libera las que le quedaban.
+- **Las sesiones, en el calendario del móvil** (`.ics`, con aviso diez minutos antes): es lo que avisa con la
+  app cerrada y sin conexión, sin montar notificaciones push.
 - **Catálogo de dominio público** (`/scores/catalog`): 21 piezas en MusicXML de bibliotecas de dominio
   público (Für Elise, el preludio BWV 846, Clementi, Satie, Chopin, Joplin… y cuatro arreglos fáciles de las
   mismas bibliotecas para empezar), ordenadas por nivel, cada una con un análisis breve de cómo abordarla.
@@ -202,8 +217,10 @@ partitura e instrucciones), [`src/lib/plan/client.ts`](src/lib/plan/client.ts) e
   leyendo la partitura.
 - **Dónde se guarda**: con la partitura, en IndexedDB y, con cuenta, en la columna `Score.plan` del servidor,
   sincronizado igual que las notas y los trazos (gana el `updatedAt` más reciente).
-- **Chat**: «Pregunta al profesor» (`/api/study-plan/ask`) envía el plan, el resumen de la partitura y los
-  últimos 12 turnos; la respuesta llega palabra a palabra. El historial del chat no se guarda.
+- **Chat**: «Pregunta al profesor» (`/api/study-plan/ask`) envía el plan, el resumen de la partitura, cómo han
+  ido las sesiones y los últimos 12 turnos; la respuesta llega palabra a palabra. La conversación se guarda en
+  el dispositivo (una por partitura, y otra para el profesor general), así que sigue donde se dejó; no se
+  sincroniza con la cuenta.
 
 ### Transcribir un PDF a MusicXML (OMR)
 
