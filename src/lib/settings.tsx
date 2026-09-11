@@ -15,6 +15,10 @@ export interface Settings {
   keyLabels: boolean;
   /** Tema de la interfaz; "system" sigue al sistema operativo */
   theme: Theme;
+  /** Escuchar el teclado MIDI (si el navegador puede); se reconecta solo al abrir la app */
+  midi: boolean;
+  /** Puerto MIDI elegido; null = todos los conectados */
+  midiDevice: string | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +27,8 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 0.7,
   keyLabels: true,
   theme: "system",
+  midi: false,
+  midiDevice: null,
 };
 
 const STORAGE_KEY = "etude:settings";
@@ -66,6 +72,11 @@ function subscribe(listener: () => void) {
     listeners.delete(listener);
     window.removeEventListener("storage", onStorage);
   };
+}
+
+/** Los ajustes fuera de React (los módulos que no son componentes). */
+export function getSettings(): Settings {
+  return read();
 }
 
 export function updateSettings(patch: Partial<Settings>) {
