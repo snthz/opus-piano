@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { recordAnswer } from "@/lib/progress";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { SignupNudge } from "@/components/account/signup-nudge";
@@ -13,25 +13,35 @@ export interface SessionStats {
   bestStreak: number;
 }
 
+const EMPTY_STATS: SessionStats = { total: 0, correct: 0, streak: 0, bestStreak: 0 };
+
 /** Estadísticas de la sesión actual; cada respuesta se guarda también en el progreso global. */
 export function useExerciseSession(exerciseId: string) {
-  const [stats, setStats] = useState<SessionStats>({ total: 0, correct: 0, streak: 0, bestStreak: 0 });
+  const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
+  // La racha va también en una referencia: guardar la respuesta es un efecto, y
+  // un actualizador de estado tiene que ser puro (React lo vuelve a ejecutar al
+  // re-renderizar, y ahí la respuesta se contaría dos veces).
+  const streak = useRef(0);
+
   const answer = useCallback(
     (correct: boolean) => {
-      setStats((s) => {
-        const streak = correct ? s.streak + 1 : 0;
-        recordAnswer(exerciseId, correct, streak);
-        return {
-          total: s.total + 1,
-          correct: s.correct + (correct ? 1 : 0),
-          streak,
-          bestStreak: Math.max(s.bestStreak, streak),
-        };
-      });
+      streak.current = correct ? streak.current + 1 : 0;
+      const current = streak.current;
+      recordAnswer(exerciseId, correct, current);
+      setStats((s) => ({
+        total: s.total + 1,
+        correct: s.correct + (correct ? 1 : 0),
+        streak: current,
+        bestStreak: Math.max(s.bestStreak, current),
+      }));
     },
     [exerciseId],
   );
-  const reset = useCallback(() => setStats({ total: 0, correct: 0, streak: 0, bestStreak: 0 }), []);
+
+  const reset = useCallback(() => {
+    streak.current = 0;
+    setStats(EMPTY_STATS);
+  }, []);
   return { stats, answer, reset };
 }
 
