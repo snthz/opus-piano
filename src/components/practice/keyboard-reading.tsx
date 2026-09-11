@@ -5,7 +5,7 @@ import { Score } from "@/components/notation/score";
 import { PianoKeyboard } from "@/components/notation/piano-keyboard";
 import { ExerciseShell, SettingRow, Choice, useExerciseSession, type Feedback } from "./exercise-shell";
 import { diatonicIndex, fromDiatonicIndex, toEasyScore, fullName, toMidi, fromMidi, type Pitch } from "@/lib/music/pitch";
-import { pickDifferent } from "@/lib/random";
+import { nextItem, recordItem } from "@/lib/practice/item-stats";
 import { useSettings } from "@/lib/settings";
 import { playNote, unlockAudio } from "@/lib/audio/synth";
 
@@ -21,15 +21,25 @@ interface Question {
   pitch: Pitch;
 }
 
-function makeQuestion(mode: ClefMode, accidentals: boolean, prev?: Question): Question {
-  const clef = mode === "both" ? (Math.random() < 0.5 ? "treble" : "bass") : mode;
-  const [lo, hi] = RANGE[clef];
-  const indices: number[] = [];
-  for (let i = diatonicIndex(lo); i <= diatonicIndex(hi); i++) indices.push(i);
-  const idx = pickDifferent(indices, prev && prev.clef === clef ? diatonicIndex(prev.pitch) : undefined);
-  let pitch = fromDiatonicIndex(idx);
-  if (accidentals && Math.random() < 0.5) pitch = { ...pitch, accidental: Math.random() < 0.5 ? 1 : -1 };
-  return { clef, pitch };
+/** La misma ficha que en «Leer notas»: la nota y en qué clave se lee. */
+const itemKey = (q: Question) => `${q.clef}|${toEasyScore(q.pitch)}`;
+
+function buildPool(mode: ClefMode, accidentals: boolean): Question[] {
+  const clefs: ("treble" | "bass")[] = mode === "both" ? ["treble", "bass"] : [mode];
+  const pool: Question[] = [];
+  for (const clef of clefs) {
+    const [lo, hi] = RANGE[clef];
+    for (let i = diatonicIndex(lo); i <= diatonicIndex(hi); i++) {
+      const pitch = fromDiatonicIndex(i);
+      pool.push({ clef, pitch });
+      if (accidentals) for (const accidental of [1, -1]) pool.push({ clef, pitch: { ...pitch, accidental } });
+    }
+  }
+  return pool;
+}
+
+function makeQuestion(pool: Question[], prev?: Question): Question {
+  return nextItem("teclado", pool, itemKey, prev);
 }
 
 export function KeyboardReading() {
@@ -38,22 +48,23 @@ export function KeyboardReading() {
   const [mode, setMode] = useState<ClefMode>("treble");
   const [accidentals, setAccidentals] = useState(false);
   const [labels, setLabels] = useState<"c" | "all" | "none">("c");
-  const [q, setQ] = useState<Question>(() => makeQuestion("treble", false));
+  const pool = useMemo(() => buildPool(mode, accidentals), [mode, accidentals]);
+  const [q, setQ] = useState<Question>(() => makeQuestion(buildPool("treble", false)));
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [wrongs, setWrongs] = useState<number[]>([]);
 
   const target = toMidi(q.pitch);
 
   const next = useCallback(() => {
-    setQ((prev) => makeQuestion(mode, accidentals, prev));
+    setQ((prev) => makeQuestion(pool, prev));
     setFeedback(null);
     setWrongs([]);
-  }, [mode, accidentals]);
+  }, [pool]);
 
   const regenerate = (m: ClefMode, a: boolean) => {
     setMode(m);
     setAccidentals(a);
-    setQ(makeQuestion(m, a));
+    setQ(makeQuestion(buildPool(m, a)));
     setFeedback(null);
     setWrongs([]);
   };
@@ -62,6 +73,7 @@ export function KeyboardReading() {
     if (feedback) return;
     if (midi === target) {
       answer(wrongs.length === 0);
+      recordItem("teclado", itemKey(q), wrongs.length === 0);
       setFeedback({
         correct: true,
         message: (
@@ -75,6 +87,7 @@ export function KeyboardReading() {
       setWrongs((w) => [...w, midi]);
       if (wrongs.length >= 2) {
         answer(false);
+        recordItem("teclado", itemKey(q), false);
         setFeedback({
           correct: false,
           message: (

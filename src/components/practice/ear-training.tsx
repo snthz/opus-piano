@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ExerciseShell, OptionButton, SettingRow, Choice, useExerciseSession, type Feedback } from "./exercise-shell";
 import { INTERVALS, type IntervalInfo } from "@/lib/music/scales";
 import { playSequence, unlockAudio, type PlaybackHandle } from "@/lib/audio/synth";
-import { pickDifferent, randInt } from "@/lib/random";
+import { nextItem, recordItem } from "@/lib/practice/item-stats";
+import { randInt } from "@/lib/random";
 import { useSettings } from "@/lib/settings";
 
 type Motion = "asc" | "desc" | "harm";
@@ -21,16 +22,20 @@ interface Question {
   motion: Motion;
 }
 
+const MOTIONS: Motion[] = ["asc", "desc", "harm"];
+
+/** Una sexta ascendente no se reconoce igual que la misma sonando a la vez: cada combinación lleva su ficha. */
+const itemKey = (q: { interval: IntervalInfo; motion: Motion }) => `${q.interval.semitones}|${q.motion}`;
+
 function makeQuestion(set: string, motion: Motion | "mixto", prev?: Question): Question {
-  const semis = SETS[set];
-  const interval = pickDifferent(
-    semis.map((s) => INTERVALS.find((i) => i.semitones === s)!),
-    prev?.interval,
-    (a, b) => a.semitones === b.semitones,
-  );
-  const m: Motion = motion === "mixto" ? (["asc", "desc", "harm"] as Motion[])[randInt(0, 2)] : motion;
-  const root = randInt(55, 72);
-  return { interval, root, motion: m };
+  const motions = motion === "mixto" ? MOTIONS : [motion];
+  const pool = SETS[set].flatMap((s) => {
+    const interval = INTERVALS.find((i) => i.semitones === s)!;
+    return motions.map((m) => ({ interval, motion: m }));
+  });
+  const choice = nextItem("oido", pool, itemKey, prev);
+  // La altura desde la que suena sí es al azar: lo que se aprende es el intervalo, no el par de notas.
+  return { ...choice, root: randInt(55, 72) };
 }
 
 export function EarTraining() {
@@ -84,6 +89,7 @@ export function EarTraining() {
     const correct = i.semitones === q.interval.semitones;
     setChosen(i.semitones);
     answer(correct);
+    recordItem("oido", itemKey(q), correct);
     setFeedback({
       correct,
       message: (

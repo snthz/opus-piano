@@ -4,7 +4,8 @@ import { useCallback, useState } from "react";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ExerciseShell, OptionButton, SettingRow, Choice, useExerciseSession, type Feedback } from "./exercise-shell";
 import { SYMBOL_CATEGORIES, ALL_SYMBOLS, type SymbolEntry } from "@/data/symbols";
-import { pickDifferent, sample, shuffle } from "@/lib/random";
+import { nextItem, recordItem } from "@/lib/practice/item-stats";
+import { sample, shuffle } from "@/lib/random";
 
 type Direction = "glyph-name" | "name-glyph";
 
@@ -20,7 +21,7 @@ function pool(category: string): SymbolEntry[] {
 
 function makeQuestion(category: string, prev?: Question): Question {
   const items = pool(category);
-  const target = pickDifferent(items, prev?.target, (a, b) => a.id === b.id);
+  const target = nextItem("simbolos", items, (s) => s.id, prev?.target);
   const sameCat = SYMBOL_CATEGORIES.find((c) => c.items.some((i) => i.id === target.id))?.items ?? items;
   const distractorsPool = sameCat.filter((i) => i.id !== target.id);
   let distractors = sample(distractorsPool, 3);
@@ -64,6 +65,7 @@ export function SymbolFlashcards() {
     const correct = s.id === q.target.id;
     setChosen(s.id);
     answer(correct);
+    recordItem("simbolos", q.target.id, correct);
     setFeedback({
       correct,
       message: (

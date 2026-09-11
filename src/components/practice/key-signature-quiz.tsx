@@ -5,7 +5,8 @@ import { Score } from "@/components/notation/score";
 import { ExerciseShell, OptionButton, SettingRow, Choice, useExerciseSession, type Feedback } from "./exercise-shell";
 import { MAJOR_KEYS, MINOR_KEYS, keyName, relativeKey, keyAccidentals, type KeyInfo } from "@/lib/music/keys";
 import { LATIN_NAMES } from "@/lib/music/pitch";
-import { pickDifferent, sample, shuffle } from "@/lib/random";
+import { nextItem, recordItem } from "@/lib/practice/item-stats";
+import { sample, shuffle } from "@/lib/random";
 import { useSettings } from "@/lib/settings";
 
 type Mode = "mayor" | "menor" | "ambas";
@@ -18,7 +19,8 @@ interface Question {
 function makeQuestion(mode: Mode, maxAcc: number, prev?: Question): Question {
   const base = mode === "mayor" ? MAJOR_KEYS : mode === "menor" ? MINOR_KEYS : [...MAJOR_KEYS, ...MINOR_KEYS];
   const items = base.filter((k) => Math.abs(k.fifths) <= maxAcc);
-  const target = pickDifferent(items, prev?.target, (a, b) => a.vex === b.vex);
+  // Cada tonalidad lleva su ficha: la armadura que se te atraganta vuelve antes.
+  const target = nextItem("armaduras", items, (k) => k.vex, prev?.target);
   const sameMode = items.filter((k) => k.mode === target.mode && k.vex !== target.vex);
   // Distractores cercanos: preferimos tonalidades con ±1 o ±2 alteraciones.
   const near = sameMode.filter((k) => Math.abs(k.fifths - target.fifths) <= 2);
@@ -57,6 +59,7 @@ export function KeySignatureQuiz() {
     const correct = k.vex === q.target.vex;
     setChosen(k.vex);
     answer(correct);
+    recordItem("armaduras", q.target.vex, correct);
     const { letters, accidental } = keyAccidentals(q.target);
     const accText = letters.length
       ? letters.map((l) => `${LATIN_NAMES[l]}${accidental === 1 ? "♯" : "♭"}`).join(", ")
