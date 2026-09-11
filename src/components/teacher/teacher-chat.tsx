@@ -8,6 +8,7 @@ import { exercisePath, lessonPath } from "@/lib/routes";
 import { useSettings } from "@/lib/settings";
 import { splitTeacherRefs, type ChatTurn } from "@/lib/study-plan";
 import { askGeneralTeacher, teacherAvailable } from "@/lib/teacher-client";
+import { clearChat, GENERAL_THREAD, readChat, writeChat } from "@/lib/teacher-chat-store";
 import { MAX_QUESTION_CHARS } from "@/lib/teacher";
 import { isAbort, UserError } from "@/lib/user-error";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
@@ -32,7 +33,9 @@ export function TeacherChat() {
   const { user } = useAuth();
   const { settings } = useSettings();
   const [available, setAvailable] = useState<boolean | null>(null);
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  // La conversación sigue donde se dejó: sin memoria, un profesor no puede
+  // responder a «lo que me dijiste ayer» y lo respondido no se puede releer.
+  const [turns, setTurns] = useState<ChatTurn[]>(() => readChat(GENERAL_THREAD));
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,14 @@ export function TeacherChat() {
 
   useEffect(() => {
     if (turns.length) endRef.current?.scrollIntoView({ block: "nearest" });
+  }, [turns]);
+
+  // Se guarda un momento después del último cambio, para no escribir en cada
+  // palabra mientras llega la respuesta.
+  useEffect(() => {
+    if (!turns.length) return;
+    const t = setTimeout(() => writeChat(GENERAL_THREAD, turns), 400);
+    return () => clearTimeout(t);
   }, [turns]);
 
   const ask = async () => {
@@ -110,6 +121,23 @@ export function TeacherChat() {
 
   return (
     <div className="space-y-3">
+      {turns.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              abort.current?.abort();
+              clearChat(GENERAL_THREAD);
+              setTurns([]);
+              setError(null);
+            }}
+            className="pill py-1 text-xs"
+          >
+            Empezar de nuevo
+          </button>
+        </div>
+      )}
+
       {turns.length > 0 && (
         <div className="space-y-2">
           {turns.map((t, i) => (

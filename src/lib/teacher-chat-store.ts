@@ -3,16 +3,23 @@
 import type { ChatTurn } from "@/lib/study-plan";
 
 /**
- * The conversation with the teacher, kept per score in localStorage: a reload
- * (or a walk to another page and back) finds the same thread, and each score
- * keeps its own, so what was asked about one piece never shows up under
+ * The conversation with the teacher, kept per thread in localStorage: a
+ * reload (or a walk to another page and back) finds the same thread, and each
+ * score keeps its own, so what was asked about one piece never shows up under
  * another.
+ *
+ * For a tutor, remembering is half of it: a chat that starts blank every time
+ * can't be asked "and what you told me yesterday?", and the student can't
+ * reread the answer they got.
  *
  * Only the device stores it. It's a study aid, not a document to sync, and
  * the answers already depend on a plan that lives on the same device.
  */
 
-const key = (scoreId: string) => `etude:chat:${scoreId}`;
+/** The teacher that isn't about any score in particular (`/teacher`). */
+export const GENERAL_THREAD = "general";
+
+const key = (threadId: string) => `etude:chat:${threadId}`;
 
 /** Enough to remember the session; far more than the prompt sends back. */
 const MAX_TURNS = 40;
@@ -32,9 +39,9 @@ function trim(turns: ChatTurn[]): ChatTurn[] {
   return kept;
 }
 
-export function readChat(scoreId: string): ChatTurn[] {
+export function readChat(threadId: string): ChatTurn[] {
   try {
-    const raw = localStorage.getItem(key(scoreId));
+    const raw = localStorage.getItem(key(threadId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -47,18 +54,18 @@ export function readChat(scoreId: string): ChatTurn[] {
   }
 }
 
-export function writeChat(scoreId: string, turns: ChatTurn[]) {
+export function writeChat(threadId: string, turns: ChatTurn[]) {
   try {
-    if (turns.length) localStorage.setItem(key(scoreId), JSON.stringify(trim(turns)));
-    else localStorage.removeItem(key(scoreId));
+    if (turns.length) localStorage.setItem(key(threadId), JSON.stringify(trim(turns)));
+    else localStorage.removeItem(key(threadId));
   } catch {
     /* no storage, or full: the chat still works for this visit */
   }
 }
 
-export function clearChat(scoreId: string) {
+export function clearChat(threadId: string) {
   try {
-    localStorage.removeItem(key(scoreId));
+    localStorage.removeItem(key(threadId));
   } catch {
     /* no storage available */
   }
