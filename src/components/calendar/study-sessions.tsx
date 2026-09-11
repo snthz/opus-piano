@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { addDays, agendaByDay, dayKey, nextSession, parseDay, startOfWeek, WEEKDAY_LETTERS, weekSummary, type ScheduledScore } from "@/lib/agenda";
+import { addDays, agendaByDay, dayKey, nextSession, parseDay, startOfWeek, WEEKDAY_LETTERS, weekSummary, type AgendaEntry, type ScheduledScore } from "@/lib/agenda";
+import { pendingEntries, sessionsToIcs } from "@/lib/calendar-export";
 import { listScores, onScoresChange, recordSessionReview, toggleStudyDay } from "@/lib/scores-db";
 import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -164,6 +165,8 @@ export function StudySessions() {
             </button>
           )}
         </div>
+
+        <ExportButton byDay={byDay} from={today} />
       </section>
 
       {/* ---- El día ---- */}
@@ -207,6 +210,40 @@ export function StudySessions() {
           ))
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Las sesiones al calendario del dispositivo.
+ *
+ * Es la única forma honesta de que un aviso llegue con la app cerrada sin
+ * montar notificaciones push (servidor, claves, suscripciones) solo para
+ * decir «son las seis»: el calendario del móvil ya lo hace, y sin conexión.
+ * Cada sesión va con una alarma diez minutos antes.
+ */
+function ExportButton({ byDay, from }: { byDay: Map<string, AgendaEntry[]>; from: string }) {
+  const pending = pendingEntries(byDay, from);
+  if (!pending.length) return null;
+
+  const download = () => {
+    const blob = new Blob([sessionsToIcs(pending)], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "opus-piano-sesiones.ics";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="px-1 lg:px-0">
+      <button type="button" onClick={download} className="pill w-full justify-center py-1.5 text-xs">
+        Añadir al calendario ({pending.length})
+      </button>
+      <p className="mt-1.5 text-[11px] text-ink-3">
+        Las {pending.length === 1 ? "sesión que queda" : `${pending.length} sesiones que quedan`}, con aviso diez minutos antes.
+      </p>
     </div>
   );
 }
