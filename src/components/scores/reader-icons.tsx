@@ -116,6 +116,15 @@ export const NoteNamesIcon = ({ className }: Props) => (
   </StrokeIcon>
 );
 
+/** Ensayar un trozo: las barras de repetición. */
+export const RehearseIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <path d="M4.5 4.5v15M8 4.5v15M20 4.5v15M16.5 4.5v15" />
+    <circle cx="11.8" cy="9.5" r="1" fill="currentColor" stroke="none" />
+    <circle cx="11.8" cy="14.5" r="1" fill="currentColor" stroke="none" />
+  </StrokeIcon>
+);
+
 /** Sesión de estudio: un cronómetro. */
 export const SessionIcon = ({ className }: Props) => (
   <StrokeIcon className={className}>

@@ -6,7 +6,8 @@ import type { Stroke } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
 import { AnnotationOptions, AnnotationTools, Group, ToolButton } from "./annotation-tools";
 import { EngravedScore } from "./engraved-score";
-import { NoteNamesIcon, PlayIcon, StopIcon } from "./reader-icons";
+import { NoteNamesIcon, PlayIcon, RehearseIcon, StopIcon } from "./reader-icons";
+import { RehearsePanel } from "./rehearse-panel";
 import { ScoreAnnotator, DEFAULT_FINGER_SIZE, DEFAULT_PEN_WIDTH, PEN_COLORS, type Finger, type Tool } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
@@ -39,6 +40,7 @@ export function MusicXmlViewer({ file, annotations }: Props) {
   const { parsed, xml, error } = useParsedXml(file);
   const player = useScorePlayer(parsed);
   const [names, setNames] = useState(false);
+  const [rehearse, setRehearse] = useState(false);
   const [measure, setMeasure] = useState<number | null>(null);
 
   const [tool, setTool] = useState<Tool | null>(null);
@@ -110,6 +112,16 @@ export function MusicXmlViewer({ file, annotations }: Props) {
       {/* Los mandos van al pie y se quedan a la vista al desplazar la partitura,
           como en el lector de PDF: se usan mientras se lee, no antes de leer. */}
       <div className="sticky z-10 flex flex-col items-center gap-2" style={{ bottom: "calc(0.75rem + var(--safe-b))" }}>
+        {rehearse && (
+          <div className="w-full max-w-md">
+            <RehearsePanel
+              player={player}
+              measures={parsed.measures.length}
+              staves={parsed.clefs.length === 2 ? ["derecha", "izquierda"] : parsed.clefs.map((_, i) => `pentagrama ${i + 1}`)}
+              beatsPerBar={parsed.time.num}
+            />
+          </div>
+        )}
         {writable && <AnnotationOptions state={state} />}
 
         <div className="card flex max-w-full items-center gap-1.5 overflow-x-auto p-1.5 shadow-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -133,6 +145,9 @@ export function MusicXmlViewer({ file, annotations }: Props) {
             <ToolButton label={names ? "Ver la partitura original" : "Ver el nombre de cada nota"} active={names} onClick={() => setNames((v) => !v)}>
               <NoteNamesIcon />
             </ToolButton>
+            <ToolButton label="Ensayar un trozo" active={rehearse} onClick={() => setRehearse((v) => !v)}>
+              <RehearseIcon />
+            </ToolButton>
           </Group>
 
           {/* Por dónde va: el compás es lo que se busca al perderse. */}
@@ -142,7 +157,7 @@ export function MusicXmlViewer({ file, annotations }: Props) {
                 Compás <span className="font-semibold text-ink">{parsed.measures[measure - 1]?.number ?? measure}</span>
               </>
             ) : (
-              <span className="text-ink-3">♩ = {player.tempo}</span>
+              <span className="text-ink-3">♩ = {player.currentTempo}</span>
             )}
           </span>
 
