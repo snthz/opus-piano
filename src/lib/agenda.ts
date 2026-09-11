@@ -283,6 +283,39 @@ export function planKey(plan: StudyPlan): KeyInfo | null {
   return parseKeyName(plan.analysis.key);
 }
 
+/* ---------- The plan answering back ---------- */
+
+/** Extra sessions a single goal can earn from "this one's hard". */
+export const MAX_EXTRA_SESSIONS = 3;
+
+/**
+ * The plan as it stands after what the student said at the end of each
+ * session.
+ *
+ * A plan that never changes is a plan that stops being true by the second
+ * week: the model guessed how many sessions each goal needed before anyone
+ * had played a note. So a goal reported as hard earns another session — the
+ * rest of the calendar moves along with it, which is the honest thing — and a
+ * goal reported as achieved is done, freeing whatever it had left.
+ *
+ * Nothing is rewritten: the answers are stored apart and the plan is derived
+ * from them, so the plan the model wrote can always be read as it was.
+ */
+export function adjustedPlan(state: PlanState): { plan: StudyPlan; progress: Record<string, boolean> } {
+  const reviews = Object.values(state.reviews ?? {});
+  if (!reviews.length) return { plan: state.plan, progress: state.progress };
+
+  const progress = { ...state.progress };
+  const goals = state.plan.goals.map((goal) => {
+    const mine = reviews.filter((r) => r.goalId === goal.id);
+    if (!mine.length) return goal;
+    if (mine.some((r) => r.outcome === "conseguido")) progress[goal.id] = true;
+    const hard = mine.filter((r) => r.outcome === "cuesta").length;
+    return hard ? { ...goal, sessions: goal.sessions + Math.min(MAX_EXTRA_SESSIONS, hard) } : goal;
+  });
+  return { plan: { ...state.plan, goals }, progress };
+}
+
 /* ---------- Every scheduled score ---------- */
 
 /** What the sessions view needs from a score; keeps it independent of IndexedDB and testable. */
@@ -308,10 +341,11 @@ export function agendaByDay(scores: ScheduledScore[]): Map<string, AgendaEntry[]
   for (const score of scores) {
     const state = score.plan;
     if (!state?.schedule) continue;
-    for (const session of planSessions(state.plan, state.schedule, state.progress)) {
+    const { plan, progress } = adjustedPlan(state);
+    for (const session of planSessions(plan, state.schedule, progress)) {
       const entry: AgendaEntry = {
         score: { id: score.id, name: score.name },
-        plan: state.plan,
+        plan,
         schedule: state.schedule,
         session,
       };
@@ -374,12 +408,13 @@ export type ScoreSession =
 export function scoreSession(score: ScheduledScore, today = dayKey(new Date())): ScoreSession {
   const state = score.plan;
   if (!state?.schedule) return null;
-  const sessions = planSessions(state.plan, state.schedule, state.progress);
+  const { plan, progress } = adjustedPlan(state);
+  const sessions = planSessions(plan, state.schedule, progress);
   const pick = sessions.find((s) => s.day === today) ?? sessions.find((s) => !s.done);
   if (!pick) return { kind: "done" };
   return {
     kind: "session",
-    entry: { score: { id: score.id, name: score.name }, plan: state.plan, schedule: state.schedule, session: pick },
+    entry: { score: { id: score.id, name: score.name }, plan, schedule: state.schedule, session: pick },
     when: pick.day === today ? "today" : pick.day < today ? "overdue" : "upcoming",
   };
 }

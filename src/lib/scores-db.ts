@@ -1,7 +1,7 @@
 "use client";
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { PlanState } from "@/lib/study-plan";
+import type { PlanState, SessionReview } from "@/lib/study-plan";
 
 /** A stroke drawn on a page, in coordinates relative (0-1) to the page size. */
 export interface Stroke {
@@ -141,6 +141,21 @@ export async function toggleStudyDay(scoreId: string, day: string): Promise<void
   if (done[day]) delete done[day];
   else done[day] = true;
   await updateScorePlan(scoreId, { ...state, schedule: { ...state.schedule, done } });
+}
+
+/**
+ * Saves how a session went. One answer per day: repeating the session
+ * overwrites its answer instead of counting twice.
+ */
+export async function recordSessionReview(
+  scoreId: string,
+  day: string,
+  review: SessionReview,
+): Promise<void> {
+  const rec = await getScore(scoreId);
+  const state = rec?.plan;
+  if (!state) return;
+  await updateScorePlan(scoreId, { ...state, reviews: { ...state.reviews, [day]: review } });
 }
 
 export async function deleteScore(id: string): Promise<void> {

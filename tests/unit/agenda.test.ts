@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   addMinutes,
+  adjustedPlan,
   agendaByDay,
   dayKey,
   defaultSchedule,
   describeSchedule,
+  MAX_EXTRA_SESSIONS,
   MAX_SESSIONS,
   nextSession,
   parseDay,
@@ -312,5 +314,77 @@ describe("la sesión que se enseña junto a la partitura", () => {
 
   test("con todo hecho lo dice, en vez de inventarse una sesión", () => {
     expect(scoreSession(score(schedule, { g1: true, g2: true }), "2026-09-20")).toEqual({ kind: "done" });
+  });
+});
+
+/**
+ * El plan contesta: lo que el alumno dice al acabar cada sesión cambia lo que
+ * queda por delante. El plan original no se toca — las respuestas van aparte y
+ * el ajuste se deduce —, así que siempre se puede leer lo que escribió el modelo.
+ */
+describe("adjustedPlan", () => {
+  const state = (plan: StudyPlan, reviews: PlanState["reviews"], progress: Record<string, boolean> = {}): PlanState => ({
+    plan,
+    progress,
+    reviews,
+    model: "claude-sonnet-5",
+    createdAt: 1,
+    schedule,
+  });
+
+  test("sin respuestas, el plan es el que era", () => {
+    const plan = makePlan([goal("g1", 2)]);
+    const out = adjustedPlan(state(plan, undefined));
+    expect(out.plan).toBe(plan);
+  });
+
+  test("un objetivo que cuesta gana una sesión por cada vez que se dice", () => {
+    const plan = makePlan([goal("g1", 2), goal("g2", 3)]);
+    const once = adjustedPlan(state(plan, { "2026-09-07": { goalId: "g1", outcome: "cuesta", at: 1 } }));
+    expect(once.plan.goals[0].sessions).toBe(3);
+    expect(once.plan.goals[1].sessions).toBe(3);
+
+    const twice = adjustedPlan(
+      state(plan, {
+        "2026-09-07": { goalId: "g1", outcome: "cuesta", at: 1 },
+        "2026-09-09": { goalId: "g1", outcome: "cuesta", at: 2 },
+      }),
+    );
+    expect(twice.plan.goals[0].sessions).toBe(4);
+  });
+
+  test("«casi» no cambia nada: el plan ya contaba con ello", () => {
+    const plan = makePlan([goal("g1", 2)]);
+    const out = adjustedPlan(state(plan, { "2026-09-07": { goalId: "g1", outcome: "casi", at: 1 } }));
+    expect(out.plan.goals[0].sessions).toBe(2);
+    expect(out.progress).toEqual({});
+  });
+
+  test("conseguido da el objetivo por hecho y libera lo que le quedaba", () => {
+    const plan = makePlan([goal("g1", 4), goal("g2", 2)]);
+    const out = adjustedPlan(state(plan, { "2026-09-07": { goalId: "g1", outcome: "conseguido", at: 1 } }));
+    expect(out.progress.g1).toBe(true);
+    // las cuatro sesiones de g1 quedan marcadas, y g2 sigue donde estaba
+    const sessions = planSessions(out.plan, schedule, out.progress);
+    expect(sessions.filter((s) => s.goal.id === "g1").every((s) => s.done)).toBe(true);
+    expect(sessions.filter((s) => s.goal.id === "g2").some((s) => s.done)).toBe(false);
+  });
+
+  test("un objetivo no puede crecer sin fin por mucho que se atragante", () => {
+    const plan = makePlan([goal("g1", 2)]);
+    const reviews: PlanState["reviews"] = {};
+    for (let i = 1; i <= 8; i++) reviews[`2026-09-0${i}`] = { goalId: "g1", outcome: "cuesta", at: i };
+    expect(adjustedPlan(state(plan, reviews)).plan.goals[0].sessions).toBe(2 + MAX_EXTRA_SESSIONS);
+  });
+
+  test("las sesiones de más corren el resto del calendario", () => {
+    const plan = makePlan([goal("g1", 1), goal("g2", 1)]);
+    const before = planSessions(plan, schedule);
+    const after = adjustedPlan(state(plan, { "2026-09-07": { goalId: "g1", outcome: "cuesta", at: 1 } }));
+    const sessions = planSessions(after.plan, schedule, after.progress);
+    expect(sessions).toHaveLength(3);
+    // g2 pasa del segundo día de estudio al tercero
+    expect(before.find((s) => s.goal.id === "g2")!.day).toBe("2026-09-09");
+    expect(sessions.find((s) => s.goal.id === "g2")!.day).toBe("2026-09-11");
   });
 });

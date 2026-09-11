@@ -100,11 +100,39 @@ export const studyPlanSchema = z.object({
 export type StudyPlan = z.infer<typeof studyPlanSchema>;
 export type Goal = z.infer<typeof goalSchema>;
 
+/**
+ * How a session went, in the student's own words. Three answers and no more:
+ * at the end of a session nobody fills in a form, and three is enough to know
+ * whether the plan is going too fast or too slow.
+ */
+export const OUTCOMES = ["conseguido", "casi", "cuesta"] as const;
+export type Outcome = (typeof OUTCOMES)[number];
+
+export const OUTCOME_LABELS: Record<Outcome, string> = {
+  conseguido: "Lo he conseguido",
+  casi: "Casi",
+  cuesta: "Me cuesta",
+};
+
+export const sessionReviewSchema = z.object({
+  goalId: z.string().max(20),
+  outcome: z.enum(OUTCOMES),
+  /** Epoch ms, to tell an answer given today from one given a month ago. */
+  at: z.number().int().positive(),
+});
+export type SessionReview = z.infer<typeof sessionReviewSchema>;
+
 /** What's saved with the score (locally and on the account). */
 export const planStateSchema = z.object({
   plan: studyPlanSchema,
   /** Completed goals: { "<goalId>": true } */
   progress: z.record(z.string().max(20), z.boolean()),
+  /**
+   * How each session went: { "2026-09-10": { … } }. Optional because plans
+   * made before it existed don't have it. This is what lets the plan answer
+   * back instead of just being followed.
+   */
+  reviews: z.record(z.string().max(10), sessionReviewSchema).optional(),
   model: z.string().max(80),
   createdAt: z.number().int().positive(),
   /**
@@ -250,6 +278,8 @@ export interface ChatTurn {
 
 /** Most recent turns sent; the prompt already carries the plan and score. */
 export const HISTORY_TURNS = 12;
+/** Cap on the session answers sent to the teacher: a plan has 200 sessions at most. */
+const MAX_SESSIONS_TRACKED = 200;
 const QUESTION_MAX_CHARS = 2_000;
 
 export const askRequestSchema = z.object({
@@ -257,6 +287,8 @@ export const askRequestSchema = z.object({
   scoreName: z.string().max(300),
   plan: studyPlanSchema,
   progress: z.record(z.string().max(20), z.boolean()),
+  /** Cómo han ido las sesiones, para que el profesor sepa por dónde va el alumno. */
+  reviews: z.array(z.object({ goalId: z.string().max(20), outcome: z.enum(OUTCOMES) })).max(MAX_SESSIONS_TRACKED).optional(),
   summary: z.string().max(SUMMARY_MAX_CHARS + 200),
   history: z
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(QUESTION_MAX_CHARS * 8) }))
@@ -331,11 +363,26 @@ export interface AskContext {
   scoreName: string;
   plan: StudyPlan;
   progress: Record<string, boolean>;
+  reviews?: { goalId: string; outcome: Outcome }[];
   summary: string;
+}
+
+/** «g2: cuesta ×2, casi» — cómo le está yendo cada objetivo, en una línea. */
+function reviewSummary(reviews: { goalId: string; outcome: Outcome }[]): string {
+  const byGoal = new Map<string, Map<Outcome, number>>();
+  for (const review of reviews) {
+    const counts = byGoal.get(review.goalId) ?? new Map<Outcome, number>();
+    counts.set(review.outcome, (counts.get(review.outcome) ?? 0) + 1);
+    byGoal.set(review.goalId, counts);
+  }
+  return [...byGoal]
+    .map(([goalId, counts]) => `${goalId}: ${[...counts].map(([outcome, n]) => (n > 1 ? `${outcome} ×${n}` : outcome)).join(", ")}`)
+    .join("; ");
 }
 
 export function askInstructions(ctx: AskContext): string {
   const done = ctx.plan.goals.filter((g) => ctx.progress[g.id]).map((g) => g.id);
+  const reviews = ctx.reviews?.length ? reviewSummary(ctx.reviews) : "";
   return [
     "Eres profesor o profesora de piano en Opus Piano, una app en español para aprender a leer partituras y tocar el piano. " +
       "El alumno estudia una partitura con un plan que tú preparaste y te escribe por chat sobre ella: digitaciones, cómo abordar un pasaje, " +
@@ -353,6 +400,7 @@ export function askInstructions(ctx: AskContext): string {
     `Partitura: «${ctx.scoreName}».`,
     `Plan de estudio (JSON): ${JSON.stringify(ctx.plan)}`,
     done.length ? `Objetivos ya cumplidos: ${done.join(", ")}.` : "Todavía no ha cumplido ningún objetivo.",
+    reviews ? `Cómo dice el alumno que le van las sesiones — ${reviews}. Tenlo en cuenta: si un objetivo se le atraganta, ayúdale con ese.` : "",
     ctx.summary ? `\nContenido de la partitura (MusicXML):\n${ctx.summary}` : "\nNo se dispone del contenido nota a nota de la partitura (solo del plan).",
     "",
     catalog(),
