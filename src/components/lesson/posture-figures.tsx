@@ -298,18 +298,21 @@ export const HAND_POINTS: FigurePoint[] = [
 ];
 
 /**
- * Antebrazo, mano y dedos como una sola silueta: se dibujan dos veces, primero
- * con el trazo más grueso (que hace de contorno) y después con el de dentro,
- * que tapa las uniones y deja la mano de una pieza.
+ * Silueta del antebrazo, la mano y el dedo de perfil, en un solo trazado
+ * cerrado: la muñeca se estrecha, el dorso sube hasta el nudillo y el dedo
+ * baja en curva hasta apoyar la yema en la tecla, con el pulgar delante.
  */
-const ARCH_PARTS = (d: number) => (
-  <>
-    <path d="M8 66 L98 70" strokeWidth={20 + d} />
-    <path d="M92 70 L148 60" strokeWidth={22 + d} />
-    <path d="M146 58 C170 60 178 86 174 120" strokeWidth={14 + d} />
-    <path d="M112 76 C106 96 110 112 118 122" strokeWidth={13 + d} />
-  </>
-);
+const ARCH_SILHOUETTE =
+  "M4 56 C40 55 72 57 92 58 C104 58 112 53 124 49 C136 45 146 44 152 47 " +
+  "C168 52 178 68 180 86 C181 100 178 112 174 120 C171 127 162 128 158 122 " +
+  "C156 116 160 106 160 98 C160 86 152 74 142 70 C136 68 130 70 124 74 " +
+  "C120 86 116 104 116 118 C116 126 106 128 102 121 C100 110 102 94 104 82 " +
+  "C100 78 96 77 92 78 C72 79 40 79 4 78 Z";
+
+/** El dedo de al lado, un poco más atrás y más alto: solo asoma por detrás. */
+const ARCH_BACK_FINGER =
+  "M158 40 C176 44 190 60 194 78 C196 92 192 106 188 112 C184 119 174 119 170 114 " +
+  "C168 108 174 98 174 90 C174 78 166 66 156 62 Z";
 
 export function HandArchFigure({ className = "" }: { className?: string }) {
   return (
@@ -321,33 +324,31 @@ export function HandArchFigure({ className = "" }: { className?: string }) {
     >
       {/* Teclas de perfil: la blanca delante, la negra detrás y más alta */}
       <rect x={24} y={126} width={234} height={18} rx={3} fill={PANEL} stroke={SOFT} strokeWidth={1.5} />
-      <rect x={198} y={110} width={58} height={16} rx={2} fill="var(--ink-2)" />
+      <rect x={204} y={110} width={52} height={16} rx={2} fill="var(--ink-2)" />
 
       {/* La pelota que cabe bajo el arco */}
-      <circle cx={140} cy={96} r={22} fill="none" stroke={SOFT} strokeWidth={1.5} strokeDasharray={DASH} />
-      {/* Dedo de detrás: solo para dar profundidad */}
-      <path
-        d="M140 62 C158 66 166 90 158 122"
-        fill="none"
-        stroke={SOFT}
-        strokeWidth={12}
-        strokeLinecap="round"
-      />
+      <circle cx={140} cy={100} r={19} fill="none" stroke={SOFT} strokeWidth={1.5} strokeDasharray={DASH} />
 
-      <g fill="none" stroke={INK} strokeLinecap="round" strokeLinejoin="round">
-        {ARCH_PARTS(3)}
+      <path d={ARCH_BACK_FINGER} fill={FURNITURE} stroke={SOFT} strokeWidth={1.5} strokeLinejoin="round" />
+      <path d={ARCH_SILHOUETTE} fill={PANEL} stroke={INK} strokeWidth={2.5} strokeLinejoin="round" />
+
+      {/* Pliegues: muñeca, nudillo, articulaciones del dedo y uña */}
+      <g fill="none" stroke={INK} strokeWidth={1.2} strokeLinecap="round" opacity={0.55}>
+        <path d="M95 61 Q98 68 95 75" />
+        <path d="M146 49 Q150 52 152 56" />
+        <path d="M176 78 Q180 82 179 90" />
+        <path d="M176 110 Q178 114 173 119" />
+        <path d="M112 112 Q116 116 114 121" />
       </g>
-      <g fill="none" stroke={PANEL} strokeLinecap="round" strokeLinejoin="round">
-        {ARCH_PARTS(0)}
-      </g>
+      <path d="M162 120 Q168 125 172 119" fill="none" stroke={INK} strokeWidth={1.2} strokeLinecap="round" />
 
-      {/* Alineación antebrazo–muñeca–nudillos, por encima de la silueta */}
-      <line x1={14} y1={67} x2={150} y2={60} stroke={SOFT} strokeWidth={1.5} strokeDasharray={DASH} />
+      {/* Alineación antebrazo–muñeca–nudillos */}
+      <line x1={12} y1={67} x2={146} y2={56} stroke={SOFT} strokeWidth={1.5} strokeDasharray={DASH} />
 
-      <Badge x={72} y={44} n={1} />
-      <Badge x={152} y={32} n={2} />
-      <Badge x={206} y={90} n={3} />
-      <Badge x={92} y={112} n={4} />
+      <Badge x={72} y={38} n={1} />
+      <Badge x={156} y={26} n={2} />
+      <Badge x={214} y={96} n={3} />
+      <Badge x={86} y={110} n={4} />
     </svg>
   );
 }
@@ -368,15 +369,24 @@ export function WristFigure({ variant, className = "" }: { variant: Height; clas
         ? "Muñeca hundida por debajo de los nudillos."
         : "Muñeca levantada por encima de los nudillos.";
 
+  // Antebrazo y mano son dos tramos rectos que se quiebran solo en la muñeca
+  // (x=68), como la articulación real; el dedo baja en curva hasta la tecla.
+  const silhouette =
+    `M6 41 L68 ${y - 9} L104 44 ` +
+    "C118 44 128 56 128 70 C128 80 126 86 122 88 C116 88 114 80 114 72 " +
+    `C114 62 108 58 100 60 L68 ${y + 9} L6 59 Z`;
+
   return (
     <svg viewBox="0 0 160 110" role="img" aria-label={label} className={`w-full ${className}`}>
-      <rect x={68} y={84} width={86} height={12} rx={3} fill={SKIN} stroke={SOFT} strokeWidth={1.5} />
+      <rect x={68} y={84} width={86} height={12} rx={3} fill={PANEL} stroke={SOFT} strokeWidth={1.5} />
       <line x1={8} y1={50} x2={150} y2={50} stroke={SOFT} strokeWidth={1.5} strokeDasharray={DASH} />
-      <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-        <path d={`M8 48 L70 ${y} L106 50`} stroke={tone} strokeWidth={5} />
-        <path d="M106 50 C122 54 128 66 126 84" stroke={INK} strokeWidth={4.5} />
+      <path d={silhouette} fill={PANEL} stroke={tone} strokeWidth={2.5} strokeLinejoin="round" />
+      {/* Pliegue de la muñeca y del nudillo */}
+      <g fill="none" stroke={INK} strokeWidth={1.2} strokeLinecap="round" opacity={0.55}>
+        <path d={`M70 ${y - 6} Q73 ${y} 70 ${y + 6}`} />
+        <path d="M104 46 Q107 48 108 52" />
       </g>
-      <circle cx={70} cy={y} r={4.5} fill={INK} />
+      <circle cx={68} cy={y} r={3.5} fill={tone} />
     </svg>
   );
 }
@@ -386,20 +396,31 @@ export function WristFigure({ variant, className = "" }: { variant: Height; clas
 // ---------------------------------------------------------------------------
 
 /**
- * Silueta de la mano derecha vista desde arriba. Se dibuja dos veces: la
- * primera con trazo grueso (el contorno) y la segunda solo con relleno, que
- * tapa las líneas interiores y deja la mano como una sola figura.
+ * Mano derecha vista desde arriba, en un solo contorno: la muñeca entra por
+ * abajo (y sale del dibujo), el pulgar se abre a la izquierda y los dedos se
+ * separan con las membranas a distinta altura.
  */
-const HAND_PARTS = (
-  <>
-    <rect x={52} y={96} width={78} height={66} rx={24} />
-    <rect x={58} y={40} width={17} height={64} rx={8.5} transform="rotate(-7 66 100)" />
-    <rect x={79} y={30} width={17} height={74} rx={8.5} transform="rotate(-1 87 100)" />
-    <rect x={100} y={40} width={17} height={64} rx={8.5} transform="rotate(5 108 100)" />
-    <rect x={119} y={56} width={16} height={50} rx={8} transform="rotate(12 127 100)" />
-    <rect x={40} y={104} width={17} height={58} rx={8.5} transform="rotate(40 48 118)" />
-  </>
-);
+const HAND_TOP_SILHOUETTE =
+  "M62 206 C60 190 58 180 58 170 C48 160 32 142 22 122 C14 110 22 98 32 102 " +
+  "C38 108 44 118 48 126 C52 124 54 116 54 104 C52 90 52 70 54 60 C55 46 73 46 74 60 " +
+  "C76 74 76 90 74 104 C74 110 78 110 78 104 C77 88 77 56 78 46 C79 32 97 32 98 46 " +
+  "C99 60 99 90 98 106 C98 112 102 112 102 106 C101 90 101 66 102 56 C103 42 121 42 122 56 " +
+  "C123 70 123 96 122 112 C122 118 126 118 126 112 C125 102 125 92 126 86 C127 72 145 74 146 86 " +
+  "C147 100 146 124 142 140 C136 160 128 184 124 206 Z";
+
+/** Pliegues de las articulaciones, dos por dedo y uno en el pulgar y la muñeca. */
+const HAND_TOP_CREASES = [
+  "M57 74 Q64 71 71 74",
+  "M57 90 Q64 87 71 90",
+  "M81 62 Q88 59 95 62",
+  "M81 82 Q88 79 95 82",
+  "M105 72 Q112 69 119 72",
+  "M105 92 Q112 89 119 92",
+  "M129 100 Q136 97 143 100",
+  "M129 114 Q136 111 143 114",
+  "M27 132 Q34 127 41 124",
+  "M70 190 Q92 184 116 190",
+];
 
 export function HandTopFigure({ className = "" }: { className?: string }) {
   return (
@@ -409,17 +430,17 @@ export function HandTopFigure({ className = "" }: { className?: string }) {
       aria-label="Mano derecha vista desde arriba con los dedos numerados del 1 (pulgar) al 5 (meñique)."
       className={`w-full ${className}`}
     >
-      <g fill={PANEL} stroke={INK} strokeWidth={3}>
-        {HAND_PARTS}
+      <path d={HAND_TOP_SILHOUETTE} fill={PANEL} stroke={INK} strokeWidth={2.5} strokeLinejoin="round" />
+      <g fill="none" stroke={INK} strokeWidth={1.2} strokeLinecap="round" opacity={0.55}>
+        {HAND_TOP_CREASES.map((d) => (
+          <path key={d} d={d} />
+        ))}
       </g>
-      <g fill={PANEL} stroke="none">
-        {HAND_PARTS}
-      </g>
-      <Badge x={26} y={142} n={1} />
-      <Badge x={64} y={48} n={2} />
-      <Badge x={88} y={38} n={3} />
-      <Badge x={112} y={48} n={4} />
-      <Badge x={136} y={66} n={5} />
+      <Badge x={27} y={112} n={1} />
+      <Badge x={64} y={64} n={2} />
+      <Badge x={88} y={52} n={3} />
+      <Badge x={112} y={62} n={4} />
+      <Badge x={136} y={92} n={5} />
     </svg>
   );
 }
