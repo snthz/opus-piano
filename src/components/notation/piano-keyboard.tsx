@@ -14,6 +14,8 @@ export interface PianoKeyboardProps {
   highlight?: number[];
   /** Segundo color de resaltado (p. ej. respuesta correcta) */
   highlightAlt?: number[];
+  /** Teclas pulsadas desde fuera (un teclado MIDI): se hunden igual que al tocarlas aquí */
+  held?: number[];
   /** Etiquetas: todas, solo los do, o ninguna. Si se omite, usa el ajuste del usuario. */
   labels?: "all" | "c" | "none";
   /** Reproduce la nota al pulsar */
@@ -38,6 +40,7 @@ export function PianoKeyboard({
   to = 72,
   highlight = [],
   highlightAlt = [],
+  held = [],
   labels,
   sound = true,
   onPress,
@@ -83,7 +86,7 @@ export function PianoKeyboard({
   const fillFor = (midi: number, black: boolean) => {
     if (highlight.includes(midi)) return HIGHLIGHT;
     if (highlightAlt.includes(midi)) return "var(--ok)";
-    if (pressed === midi) return black ? "#4a4650" : "#e6e6ee";
+    if (pressed === midi || held.includes(midi)) return black ? "#4a4650" : "#e6e6ee";
     return black ? "#1c1917" : "#fbf7ef";
   };
 

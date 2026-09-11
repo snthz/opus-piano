@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth";
 import { openAuthModal } from "@/lib/auth-modal";
 import { clearScores, scoresSize } from "@/lib/scores-db";
 import { playNote, unlockAudio } from "@/lib/audio/synth";
+import { connectMidi, disconnectMidi, setMidiDevice, useMidi } from "@/lib/midi";
+import { fromMidi, fullName } from "@/lib/music/pitch";
 import { THEMES } from "@/lib/theme";
 
 function formatBytes(b: number): string {
@@ -90,6 +92,8 @@ export function SettingsPanel() {
         </Row>
       </section>
 
+      <MidiSection />
+
       <section className="card p-5 space-y-4">
         <h2 className="font-bold">Cuenta y sincronización</h2>
         <p className="text-sm text-ink-2">
@@ -144,6 +148,64 @@ export function SettingsPanel() {
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * El teclado MIDI: conectarlo, elegir puerto si hay varios y ver que llega lo
+ * que se toca. Si el navegador no admite Web MIDI se dice, en vez de dejar un
+ * botón que no hace nada.
+ */
+function MidiSection() {
+  const { settings } = useSettings();
+  const midi = useMidi(true);
+  const connected = midi.status === "on";
+
+  return (
+    <section className="card p-5 space-y-4">
+      <h2 className="font-bold">Teclado MIDI</h2>
+      <p className="text-sm text-ink-2">
+        Con un teclado conectado por USB o Bluetooth, los ejercicios y las partituras escuchan lo que tocas de
+        verdad. Sin él, todo funciona igual con el teclado de la pantalla.
+      </p>
+
+      {!midi.supported ? (
+        <p className="text-sm rounded-2xl bg-surface-2 px-4 py-3 text-ink-2">
+          Este navegador no admite teclados MIDI. Funciona en Chrome, Edge y Opera (Android incluido).
+        </p>
+      ) : (
+        <>
+          <Row label="Escuchar el teclado" hint="Se vuelve a conectar solo al abrir la app.">
+            <Toggle
+              checked={connected}
+              onChange={(v) => (v ? void connectMidi() : disconnectMidi())}
+              label="Escuchar el teclado MIDI"
+            />
+          </Row>
+
+          {connected && midi.devices.length > 1 && (
+            <Row label="Qué teclado" hint="Con varios conectados, cuál escuchar.">
+              <Segmented
+                options={[{ value: "", label: "Todos" }, ...midi.devices.map((d) => ({ value: d.id, label: d.name }))]}
+                value={midi.deviceId ?? ""}
+                onChange={(v) => setMidiDevice(v || null)}
+              />
+            </Row>
+          )}
+
+          {connected && (
+            <p className="text-xs text-ink-3">
+              {midi.devices.length === 0
+                ? "No hay ningún teclado conectado todavía."
+                : midi.active.length
+                  ? `Suena: ${midi.active.map((m) => fullName(fromMidi(m), settings.naming)).join(", ")}`
+                  : "Toca una tecla para comprobar que llega."}
+            </p>
+          )}
+          {midi.error && <p className="text-xs text-bad">{midi.error}</p>}
+        </>
+      )}
+    </section>
   );
 }
 
