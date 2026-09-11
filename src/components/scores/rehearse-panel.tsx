@@ -1,6 +1,10 @@
 "use client";
 
+import { MidiConnect } from "@/components/midi/midi-connect";
 import { NumberField } from "@/components/ui/number-field";
+import { useMidi } from "@/lib/midi";
+import { fromMidi, noteName } from "@/lib/music/pitch";
+import { useSettings } from "@/lib/settings";
 import type { useScorePlayer } from "./use-score-player";
 
 /**
@@ -23,6 +27,8 @@ export function RehearsePanel({
   staves: string[];
   beatsPerBar: number;
 }) {
+  const { settings } = useSettings();
+  const midi = useMidi(true);
   const { practice, setPractice } = player;
   const range = practice.range ?? { from: 1, to: measures };
   const looping = !!practice.range || practice.loop;
@@ -126,7 +132,40 @@ export function RehearsePanel({
         </div>
       </Row>
 
-      {looping && player.playing && (
+      {midi.supported && (
+        <>
+          <Row
+            label="Espera a que toques"
+            hint={
+              practice.silentStaves.length
+                ? "La partitura avanza cuando tocas; la otra mano la pone la app."
+                : "La partitura no avanza hasta que tocas lo que hay escrito."
+            }
+          >
+            <Toggle
+              checked={practice.follow}
+              onChange={(v) => setPractice({ follow: v })}
+              label="Esperar a que toques"
+            />
+          </Row>
+
+          {practice.follow && midi.status !== "on" && <MidiConnect className="justify-start" />}
+
+          {practice.follow && player.playing && (
+            <p className="text-xs text-ink-3">
+              Toca{" "}
+              <strong className="text-ink">
+                {player.expected.map((m) => noteName(fromMidi(m), settings.naming)).join(" + ") || "…"}
+              </strong>
+              {" · "}
+              {player.step + 1} de {player.steps.length}
+              {player.mistakes > 0 && ` · ${player.mistakes} nota${player.mistakes === 1 ? "" : "s"} de más`}
+            </p>
+          )}
+        </>
+      )}
+
+      {looping && player.playing && !practice.follow && (
         <p className="text-xs text-ink-3">
           Vuelta {player.pass + 1}
           {practice.tempoStep > 0 && ` · ♩ = ${player.currentTempo}`}

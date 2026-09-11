@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { playNote } from "@/lib/audio/synth";
+import { useMidiNotes } from "@/lib/midi";
 import { keyByVex, keyName } from "@/lib/music/keys";
 import type { Stroke } from "@/lib/scores-db";
 import { useSettings } from "@/lib/settings";
@@ -42,6 +44,14 @@ export function MusicXmlViewer({ file, annotations }: Props) {
   const [names, setNames] = useState(false);
   const [rehearse, setRehearse] = useState(false);
   const [measure, setMeasure] = useState<number | null>(null);
+
+  // En modo espera, lo que se toca en el teclado MIDI es lo que mueve la
+  // partitura. Suena por el piano de la app: un controlador no suena solo.
+  useMidiNotes((e) => {
+    if (!e.on) return;
+    if (settings.sound) playNote(e.midi, { duration: 0.9, velocity: Math.max(0.3, e.velocity) * settings.volume });
+    player.played(e.midi);
+  }, player.practice.follow && player.playing);
 
   const [tool, setTool] = useState<Tool | null>(null);
   const [color, setColor] = useState(PEN_COLORS[0].value);
