@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { getUser, onAuthChange } from "@/lib/auth";
+import { clearItemStats } from "@/lib/practice/item-stats";
 
 /**
  * Exercise progress.
@@ -178,12 +179,16 @@ export async function syncProgress(): Promise<void> {
 export function clearLocalProgress() {
   writeJson(QUEUE_KEY, []);
   write({});
+  // the per-item record never leaves the device, so nothing restores it: it
+  // goes with the progress it belongs to
+  clearItemStats();
   setSync({ lastSync: null, pending: 0, error: null, busy: false, account: !!getUser() });
 }
 
 export async function resetProgress() {
   writeJson(QUEUE_KEY, []);
   write({});
+  clearItemStats();
   setSync({ pending: 0 });
   if (getUser()) await fetch("/api/progress", { method: "DELETE" }).catch(() => {});
 }
