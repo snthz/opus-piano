@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { PracticeStats, ExerciseBadge } from "@/components/practice/practice-stats";
+import { WeakPoints } from "@/components/practice/weak-points";
 import { EXERCISES } from "@/data/exercises";
 import { exercisePath } from "@/lib/routes";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -54,6 +55,7 @@ export default function PracticaPage() {
           </li>
         ))}
       </ul>
+      <WeakPoints />
     </div>
   );
 }
