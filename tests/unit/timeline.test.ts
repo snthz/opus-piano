@@ -5,7 +5,7 @@
  * hacer que una mano se adelante a la otra para el resto de la pieza.
  */
 import { describe, expect, test } from "bun:test";
-import { buildTimeline, type ParsedScore, type XmlMeasure } from "@/lib/music/musicxml";
+import { buildTimeline, measureOffsets, type ParsedScore, type XmlMeasure } from "@/lib/music/musicxml";
 import { parseStaffCode } from "@/lib/music/musicxml-build";
 
 /** Una partitura de piano: cada compás son dos líneas, mano derecha e izquierda. */
@@ -81,5 +81,44 @@ describe("línea de tiempo de las dos manos", () => {
     ]);
     expect(entries(s, 0)).toEqual([0, 4]);
     expect(entries(s, 1)).toEqual([4]);
+  });
+});
+
+describe("ensayar un trozo", () => {
+  const four = piano([
+    ["C4/w", "C3/w"],
+    ["D4/w", "D3/w"],
+    ["E4/w", "E3/w"],
+    ["F4/w", "F3/w"],
+  ]);
+
+  test("solo suenan los compases pedidos, y empezando por cero", () => {
+    const notes = buildTimeline(four, { range: { from: 2, to: 3 } });
+    expect(notes.map((n) => n.start)).toEqual([0, 0, 4, 4]);
+    expect(notes.every((n) => n.midis.length === 1)).toBe(true);
+    // re y mi, las dos manos: nada del compás 1 ni del 4
+    expect([...new Set(notes.flatMap((n) => n.midis))].sort((a, b) => a - b)).toEqual([50, 52, 62, 64]);
+  });
+
+  test("un compás suelto vale, y los límites se recortan a la pieza", () => {
+    expect(buildTimeline(four, { range: { from: 3, to: 3 } })).toHaveLength(2);
+    expect(buildTimeline(four, { range: { from: 3, to: 99 } })).toHaveLength(4);
+    expect(buildTimeline(four, { range: { from: 0, to: 1 } })).toHaveLength(2);
+    // al revés se entiende igual
+    expect(buildTimeline(four, { range: { from: 9, to: 2 } })).toHaveLength(2);
+  });
+
+  test("la mano callada se sigue viendo y contando: solo no suena", () => {
+    const notes = buildTimeline(four, { silentStaves: [1] });
+    const left = notes.filter((n) => n.refs[0].staff === 1);
+    expect(left).toHaveLength(4);
+    expect(left.every((n) => n.silent)).toBe(true);
+    expect(notes.filter((n) => n.refs[0].staff === 0).every((n) => !n.silent)).toBe(true);
+  });
+
+  test("measureOffsets dice por qué negra empieza cada compás impreso", () => {
+    expect(measureOffsets(four)).toEqual([0, 4, 8, 12]);
+    // con anacrusa, el primer compás dura lo que ocupa
+    expect(measureOffsets(piano([["C4/q", "C3/q"], ["D4/w", "D3/w"]]))).toEqual([0, 1]);
   });
 });

@@ -379,9 +379,47 @@ export interface ScoreTimelineNote {
   beats: number;
   /** Staff and position (among that staff's notes) of each visual note it covers. */
   refs: { staff: number; index: number }[];
+  /** Seen but not heard: the hand the student is playing. */
+  silent?: boolean;
+}
+
+export interface TimelineOptions {
+  /**
+   * Printed measures to play, 1-based and inclusive. Repeats are ignored
+   * inside a range: drilling four measures means those four, in order.
+   */
+  range?: { from: number; to: number };
+  /** Staves that are drawn and followed but don't sound. */
+  silentStaves?: number[];
 }
 
 const beatsOf = (events: XmlEvent[]) => events.reduce((sum, e) => sum + e.beats, 0);
+
+/** How long each printed measure lasts, in quarter notes (its longest staff). */
+function measureLengths(score: ParsedScore): number[] {
+  const nominal = (score.time.num * 4) / score.time.den;
+  return score.measures.map((m) => {
+    const longest = m.staves.reduce((max, events) => Math.max(max, beatsOf(events)), 0);
+    return longest > 0 ? longest : nominal;
+  });
+}
+
+/**
+ * Where each printed measure starts, in quarter notes, with no repeats
+ * expanded — which is how the engraving counts time, and therefore what the
+ * highlight over the real score needs to know when playback starts in the
+ * middle of the piece.
+ */
+export function measureOffsets(score: ParsedScore): number[] {
+  const lengths = measureLengths(score);
+  const offsets: number[] = [];
+  let clock = 0;
+  for (const length of lengths) {
+    offsets.push(clock);
+    clock += length;
+  }
+  return offsets;
+}
 
 /**
  * Timeline for playing the piece: tied notes merge into one so they don't
@@ -394,16 +432,28 @@ const beatsOf = (events: XmlEvent[]) => events.reduce((sum, e) => sum + e.beats,
  * the whole piece: if the left hand is missing a beat in measure 3, it shows
  * up in measure 3 only, not compounding into everything after. A measure's
  * length is its longest staff's, so a pickup or short final measure still counts.
+ *
+ * With a range, only those measures are played and nothing repeats: what a
+ * student drills is a passage, in order, as many times as they want.
  */
-export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
-  const out: ScoreTimelineNote[] = [];
-  const order = expandRepeats(score.measures);
+/** The measures of a range, clamped to the piece and in order. */
+function rangeOrder(range: { from: number; to: number }, total: number): number[] {
+  const from = Math.max(1, Math.min(range.from, total));
+  const to = Math.max(from, Math.min(range.to, total));
+  const order: number[] = [];
+  for (let m = from; m <= to; m++) order.push(m - 1);
+  return order;
+}
 
-  const nominal = (score.time.num * 4) / score.time.den;
-  const lengths = score.measures.map((m) => {
-    const longest = m.staves.reduce((max, events) => Math.max(max, beatsOf(events)), 0);
-    return longest > 0 ? longest : nominal;
-  });
+export function buildTimeline(score: ParsedScore, options: TimelineOptions = {}): ScoreTimelineNote[] {
+  const out: ScoreTimelineNote[] = [];
+  const silent = new Set(options.silentStaves ?? []);
+  const range = options.range;
+  const order = range
+    ? rangeOrder(range, score.measures.length)
+    : expandRepeats(score.measures);
+
+  const lengths = measureLengths(score);
   const starts: number[] = [];
   let clock = 0;
   for (const mi of order) {
@@ -439,6 +489,7 @@ export function buildTimeline(score: ParsedScore): ScoreTimelineNote[] {
               note = held;
             } else {
               note = { midis: [midi], start: t, beats: ev.beats, refs: [{ staff, index }] };
+              if (silent.has(staff)) note.silent = true;
               out.push(note);
             }
             if (heldIntoNext(ev, i)) next.set(midi, note);

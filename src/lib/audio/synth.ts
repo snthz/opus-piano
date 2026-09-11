@@ -306,6 +306,11 @@ export interface TimelineNote {
   start: number;
   /** Duration in quarter notes. */
   beats: number;
+  /**
+   * Counts for the clock and for the highlight, but doesn't sound: the hand
+   * the student is playing while the app plays the other one.
+   */
+  silent?: boolean;
 }
 
 /**
@@ -364,7 +369,7 @@ export function playTimeline(
       const when = start + n.start * beatSec;
       if (when > horizon) break;
       const dur = n.beats * beatSec;
-      for (const m of n.midis) stops.push(playNote(m, { when, duration: dur * 0.95 }));
+      if (!n.silent) for (const m of n.midis) stops.push(playNote(m, { when, duration: dur * 0.95 }));
       timeouts.push(window.setTimeout(() => !stopped && opts.onNote?.(index), Math.max(0, (when - c.currentTime) * 1000)));
       next++;
     }
