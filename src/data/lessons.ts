@@ -81,10 +81,23 @@ export const LESSON_SECTIONS: LessonSection[] = [
         glyph: "keyboardPedalPed",
         minutes: 14,
       },
+    ],
+  },
+  {
+    id: "al-piano",
+    title: "III. Sentarse al piano",
+    lessons: [
+      {
+        slug: "postura",
+        title: "Postura y posición de la mano",
+        summary: "Cómo sentarse, a qué altura, el arco de la mano y ejercicios para tocar sin tensión.",
+        glyph: "fingering1",
+        minutes: 9,
+      },
       {
         slug: "piano",
         title: "Técnica básica del piano",
-        summary: "Postura, numeración de los dedos, posición de la mano y lectura a dos manos.",
+        summary: "Numeración de los dedos, paso del pulgar, pedal y lectura a dos manos.",
         glyph: "fingering3",
         minutes: 10,
       },

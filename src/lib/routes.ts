@@ -14,6 +14,7 @@ const LESSON_SLUGS: Record<string, string> = {
   simbolos: "symbols",
   armaduras: "key-signatures",
   escalas: "scales",
+  postura: "posture",
   piano: "piano",
 };
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LessonLayout, Section, P, Figure } from "@/components/lesson/lesson-layout";
 import { Callout } from "@/components/lesson/callout";
 import { Score } from "@/components/notation/score";
@@ -8,11 +9,11 @@ import { PlayButton } from "@/components/audio/play-button";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
-  title: "Técnica de piano: postura, dedos y manos",
+  title: "Técnica de piano: dedos, pulgar y dos manos",
   description:
-    "Cómo sentarse al piano, la posición de la mano, la numeración de los dedos, el paso del pulgar y los primeros ejercicios de lectura a dos manos.",
+    "La numeración de los dedos, la posición de do, el paso del pulgar en la escala, el pedal derecho y los primeros ejercicios de lectura a dos manos.",
   path: "/theory/piano",
-  keywords: ["técnica de piano", "postura al piano", "digitación piano", "numeración de los dedos", "tocar con las dos manos"],
+  keywords: ["técnica de piano", "digitación piano", "numeración de los dedos", "paso del pulgar", "tocar con las dos manos"],
   type: "article",
 });
 
@@ -21,12 +22,15 @@ const fiveFinger = [60, 62, 64, 65, 67, 65, 64, 62, 60];
 export default function Page() {
   return (
     <LessonLayout slug="piano">
-      <Section title="Postura">
+      <Section title="Antes de empezar: la postura">
         <P>
-          Una buena postura evita lesiones y hace que todo sea más fácil. Siéntate en la mitad delantera de la
-          banqueta, con la espalda recta pero relajada, a una altura en la que los <strong>antebrazos queden
-          horizontales</strong> y los codos ligeramente por delante del cuerpo. Los pies apoyados en el suelo,
-          el derecho cerca del pedal.
+          Esta lección da por hecho que ya estás bien sentado: en la mitad delantera de la banqueta, con los{" "}
+          <strong>antebrazos horizontales</strong> y los pies en el suelo. Si aún no lo has ajustado, la
+          lección de{" "}
+          <Link href="/theory/posture" className="underline underline-offset-2">
+            postura y posición de la mano
+          </Link>{" "}
+          lo explica con ilustraciones y ejercicios; aquí va solo el resumen.
         </P>
         <ul className="grid sm:grid-cols-2 gap-3 text-sm">
           {[

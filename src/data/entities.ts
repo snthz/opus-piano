@@ -29,6 +29,7 @@ export const LESSON_ENTITIES: Record<string, ConceptEntity> = {
   simbolos: { name: "Notación musical", wikipedia: "https://es.wikipedia.org/wiki/Notaci%C3%B3n_musical" },
   armaduras: { name: "Armadura de clave", wikipedia: "https://es.wikipedia.org/wiki/Armadura_(m%C3%BAsica)" },
   escalas: { name: "Escala musical", wikipedia: "https://es.wikipedia.org/wiki/Escala_musical" },
+  postura: { name: "Postura corporal", wikipedia: "https://es.wikipedia.org/wiki/Postura_corporal" },
   piano: { name: "Piano", wikipedia: "https://es.wikipedia.org/wiki/Piano" },
 };
 

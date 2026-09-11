@@ -58,7 +58,8 @@ export const PATH: PathStage[] = [
     title: "3. Las dos manos",
     goal: "Tocar una pieza entera de principio a fin con las dos manos.",
     steps: [
-      { kind: "lesson", ref: "piano", why: "Postura, numeración de los dedos y cómo se lee un pentagrama doble." },
+      { kind: "lesson", ref: "postura", why: "Antes de tocar con las dos manos, la altura de la banqueta y el arco de la mano. Corregirlo ahora cuesta cinco minutos; más tarde, meses." },
+      { kind: "lesson", ref: "piano", why: "Numeración de los dedos, paso del pulgar y cómo se lee un pentagrama doble." },
       { kind: "piece", ref: "cumpleanos-feliz-facil", why: "Empieza antes del compás: la anacrusa se entiende tocándola. Y la izquierda ya lleva bajo y acordes." },
       { kind: "piece", ref: "greensleeves-facil", why: "Puntillos en la derecha y un bajo que dibuja el acorde: las dos manos hacen cosas distintas a la vez." },
       { kind: "exercise", ref: "solfeo", why: "Cantar lo que lees fija la altura mucho antes que los dedos." },
