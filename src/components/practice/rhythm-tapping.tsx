@@ -6,9 +6,13 @@ import { ExerciseShell, SettingRow, Choice, useExerciseSession, type Feedback } 
 import { TIME_SIGNATURE_BY_ID, measureBeats } from "@/lib/music/meter";
 import { generateRhythm, rhythmToEasyScore, type RhythmLevel, type RhythmNote } from "@/lib/music/rhythm";
 import { getAudioContext, playClick, playNote, unlockAudio } from "@/lib/audio/synth";
+import { micSupported, startListening, type Listener } from "@/lib/audio/listen";
 import { useSettings } from "@/lib/settings";
+import { UserError } from "@/lib/user-error";
 
 type Phase = "idle" | "countin" | "playing" | "done";
+/** Con qué se marca el ritmo: el botón de la pantalla o dando palmas. */
+type Input = "tap" | "mic";
 
 const TOLERANCE = 0.13; // segundos
 const TS_OPTIONS = ["4-4", "3-4", "2-4", "6-8"];
@@ -33,10 +37,14 @@ export function RhythmTapping() {
   const [results, setResults] = useState<Record<number, string>>({});
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [playhead, setPlayhead] = useState(-1);
+  const [input, setInput] = useState<Input>("tap");
+  const [micError, setMicError] = useState<string | null>(null);
+  const [flash, setFlash] = useState(0);
   const onsets = useRef<Onset[]>([]);
   const extraTaps = useRef(0);
   const timeouts = useRef<number[]>([]);
   const phaseRef = useRef<Phase>("idle");
+  const listener = useRef<Listener | null>(null);
 
   const ts = TIME_SIGNATURE_BY_ID[tsId];
   const measures = useMemo(() => rhythm.map((m) => rhythmToEasyScore(m)), [rhythm]);
@@ -45,7 +53,17 @@ export function RhythmTapping() {
     timeouts.current.forEach((t) => window.clearTimeout(t));
     timeouts.current = [];
   };
-  useEffect(() => clear, []);
+  const stopMic = () => {
+    listener.current?.stop();
+    listener.current = null;
+  };
+  useEffect(
+    () => () => {
+      clear();
+      stopMic();
+    },
+    [],
+  );
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;
@@ -54,6 +72,7 @@ export function RhythmTapping() {
 
   const regenerate = (id = tsId, lv = level, b = bars) => {
     clear();
+    stopMic();
     setRhythm(generateRhythm(TIME_SIGNATURE_BY_ID[id], lv, b));
     setResults({});
     setFeedback(null);
@@ -69,7 +88,27 @@ export function RhythmTapping() {
     clear();
     setResults({});
     setFeedback(null);
+    setMicError(null);
+    setFlash(0);
     extraTaps.current = 0;
+
+    // Con palmas, el micrófono tiene que estar escuchando antes de la cuenta
+    // atrás: el permiso lo pide aquí, dentro del clic que ha traído hasta aquí.
+    if (input === "mic") {
+      stopMic();
+      try {
+        listener.current = await startListening({
+          onOnset: (time) => {
+            tap(time);
+            setFlash((n) => n + 1);
+          },
+        });
+      } catch (e) {
+        setMicError(e instanceof UserError ? e.message : "No se pudo usar el micrófono.");
+        setInput("tap");
+        return;
+      }
+    }
     const beatSec = (60 / bpm) * (ts.kind === "compuesto" ? 1 : 1);
     // En compases compuestos el pulso es negra con puntillo: clic cada 1.5 negras.
     const pulse = ts.beatValue * (60 / bpm);
@@ -115,6 +154,7 @@ export function RhythmTapping() {
   const finish = () => {
     setPhaseBoth("done");
     setPlayhead(-1);
+    stopMic();
     const list = onsets.current;
     const hits = list.filter((o) => o.hit).length;
     const styles: Record<number, string> = {};
@@ -135,10 +175,13 @@ export function RhythmTapping() {
     });
   };
 
-  const tap = () => {
+  /** `at` viene del micrófono, en el reloj del audio; sin él, el golpe es de ahora. */
+  const tap = (at?: number) => {
     if (phaseRef.current !== "playing" && phaseRef.current !== "countin") return;
-    const now = getAudioContext().currentTime;
-    if (settings.sound) playNote(76, { duration: 0.15, velocity: 0.5 });
+    const now = at ?? getAudioContext().currentTime;
+    // Con el micrófono abierto no se responde con un sonido: lo oiría y lo
+    // contaría como otro golpe.
+    if (settings.sound && at === undefined) playNote(76, { duration: 0.15, velocity: 0.5 });
     const candidate = onsets.current
       .filter((o) => !o.hit && Math.abs(o.time - now) <= TOLERANCE)
       .sort((a, b) => Math.abs(a.time - now) - Math.abs(b.time - now))[0];
@@ -196,12 +239,25 @@ export function RhythmTapping() {
           <SettingRow label={`Tempo ♩ = ${bpm}`}>
             <input type="range" min={50} max={140} value={bpm} onChange={(e) => setBpm(Number(e.target.value))} className="accent-(--accent) w-40" aria-label="Tempo" />
           </SettingRow>
+          {micSupported() && (
+            <SettingRow label="Cómo lo marcas">
+              <Choice active={input === "tap"} onClick={() => { setInput("tap"); regenerate(); }}>En la pantalla</Choice>
+              <Choice active={input === "mic"} onClick={() => { setInput("mic"); regenerate(); }}>Con palmas</Choice>
+            </SettingRow>
+          )}
         </>
       }
     >
       <p className="text-sm text-ink-2 text-center">
-        Pulsa el botón (o la barra espaciadora) en cada nota, siguiendo el metrónomo. Primero suena un compás de espera.
+        {input === "mic"
+          ? "Da una palmada (o golpea la mesa) en cada nota, siguiendo el metrónomo. Primero suena un compás de espera."
+          : "Pulsa el botón (o la barra espaciadora) en cada nota, siguiendo el metrónomo. Primero suena un compás de espera."}
       </p>
+      {input === "mic" && (
+        <p className="text-center text-xs text-ink-3">
+          Mejor con auriculares: por el altavoz, el micrófono también oye el metrónomo y lo cuenta como palmas.
+        </p>
+      )}
       <div className="flex justify-center">
         <Score
           time={`${ts.numerator}/${ts.denominator}`}
@@ -228,6 +284,20 @@ export function RhythmTapping() {
             {phase === "done" ? "Repetir" : "▶ Empezar"}
           </button>
         </div>
+      ) : input === "mic" ? (
+        <div className="flex justify-center">
+          <div
+            role="status"
+            className={`flex h-24 w-full max-w-xs flex-col items-center justify-center gap-1 rounded-3xl font-semibold transition-colors ${
+              phase === "countin" ? "bg-surface-3 text-ink-2" : "bg-surface-2"
+            }`}
+          >
+            <span>{phase === "countin" ? "Espera…" : "Da palmas"}</span>
+            <span className="text-xs font-medium text-ink-3">
+              {flash === 0 ? "escuchando el micrófono" : `${flash} golpe${flash === 1 ? "" : "s"}`}
+            </span>
+          </div>
+        </div>
       ) : (
         <div className="flex justify-center">
           <button
@@ -245,6 +315,7 @@ export function RhythmTapping() {
           </button>
         </div>
       )}
+      {micError && <p className="text-xs text-center text-bad">{micError}</p>}
       {!settings.sound && <p className="text-xs text-center text-bad">Activa el sonido en Ajustes para usar el metrónomo.</p>}
     </ExerciseShell>
   );
