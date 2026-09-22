@@ -92,6 +92,18 @@
   }
 }
 
+/* En una tableta (pantalla ancha pero táctil, como un iPad) la partitura se lee
+   en el atril: la cabecera del sitio solo le roba alto. Con el lector abierto
+   se va, y quedan sus herramientas y el panel de estudio. */
+@media (min-width: 48rem) and (any-pointer: coarse) {
+  :root[data-reader] {
+    --header-h: 0px;
+  }
+  :root[data-reader] [data-app-header] {
+    display: none;
+  }
+}
+
 /* Paleta oscura. `data-theme` lo marca el script de arranque del layout a
    partir de la preferencia guardada ("system" resuelve con matchMedia), así
    que aquí no hace falta repetir la consulta de medios. */

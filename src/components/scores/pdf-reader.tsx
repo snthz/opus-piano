@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { dayKey, scoreSession } from "@/lib/agenda";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { parseMusicXml, unpackMxl } from "@/lib/music/musicxml";
 import { getPageSize } from "@/lib/pdf-thumbnail";
 import { analyzePdf, buildMeasureMap, locate, type MeasureMap } from "@/lib/score-layout";
@@ -22,6 +21,7 @@ import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Sheet } from "@/components/ui/sheet";
 import { JobIndicator, jobLabel } from "./job-indicator";
 import { PdfPage } from "./pdf-page";
+import { PomodoroChip } from "./pomodoro-panel";
 import {
   GuideIcon,
   MinusIcon,
@@ -67,8 +67,15 @@ const BOTTOM_BAR = 88;
 const MAX_ZOOM = 4;
 /** Starting zoom on desktop: there's width to spare, and bigger reads better. */
 const DESKTOP_ZOOM = 1.5;
-/** True desktop: wide and mouse-driven. Mobile/tablet start at the full page, however wide the screen. */
-const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches;
+/**
+ * True desktop: wide and mouse-driven. Mobile/tablet start at the full page,
+ * however wide the screen: an iPad with a trackpad reports a fine pointer too,
+ * so any touchscreen at all counts it out.
+ */
+const isDesktop = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches &&
+  !window.matchMedia("(any-pointer: coarse)").matches;
 /**
  * Wide enough for the side panel (session and analysis) next to the score.
  * Below this, both open as sheets over the page.
@@ -224,9 +231,6 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   const map = layout && layout.of === parsed ? layout.map : null;
   const pager = zoom === 1;
-  // whether there's a session to offer in the narrow layouts (with the side panel it's already on screen)
-  const today = useMemo(() => dayKey(new Date()), []);
-  const hasSession = useMemo(() => scoreSession(record, today)?.kind === "session", [record, today]);
 
   /* ---------- Carousel geometry ---------- */
 
@@ -672,6 +676,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     player.stop();
     setSessionOpen(true);
   };
+  /** The pomodoro lives in the session tab: beside the score when wide, else in its sheet. */
+  const openPomodoro = () => {
+    if (wide) showPanel("sesion");
+    else openSession();
+  };
   const planShown = planOpen || (wide && panelOpen && panelTab === "analisis");
 
   /** Analysis and Play buttons. `floating`: two loose circles (mobile); otherwise pills with text in the toolbar. */
@@ -680,11 +689,12 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     const playLabel = player.playing ? "Detener" : "Escuchar";
     return (
       <>
-        {hasSession && !wide && (
+        {/* the session sheet also holds the pomodoro, so it's always on offer in the narrow layouts */}
+        {!wide && (
           <button
             type="button"
             onClick={openSession}
-            title="Sesión de estudio de esta partitura"
+            title="Sesión de estudio y pomodoro"
             aria-label={floating ? "Sesión de estudio" : undefined}
             className={`pointer-events-auto inline-flex items-center justify-center font-semibold transition-colors ${
               floating ? "w-12 h-12 rounded-full shadow-md bg-surface text-ink-2 hover:text-ink" : "h-10 px-3.5 gap-1.5 rounded-full text-xs bg-surface-2 text-ink-2 hover:text-ink"
@@ -848,6 +858,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                 </div>
                 {omrJob && <JobIndicator job={omrJob} onOpen={openTranscribe} />}
                 {planJob && <JobIndicator job={planJob} onOpen={() => { setNotesOpen(false); openPlan(); }} />}
+                <PomodoroChip onOpen={() => { setNotesOpen(false); openPomodoro(); }} />
                 <button
                   type="button"
                   onClick={() => setNotesOpen((v) => !v)}
@@ -1119,7 +1130,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           record={record}
           state={record.plan}
           parsed={parsed}
-          launcherBottom={narrow ? (hasSession ? "15.75rem" : "12.25rem") : undefined}
+          launcherBottom={narrow ? "15.75rem" : undefined}
           windowBottom={narrow ? "5.25rem" : undefined}
         />
       )}
@@ -1131,12 +1142,13 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           aria-label="Sesión y análisis"
           aria-hidden={!panelOpen}
           inert={!panelOpen}
+          // narrower on a tablet in landscape (1024px): at 34rem the score kept under half the screen
           className={`shrink-0 overflow-hidden bg-surface border-l transition-[width,border-color] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
-            panelOpen ? "w-[34rem] 2xl:w-[38rem] border-line" : "w-0 border-transparent"
+            panelOpen ? "w-[27rem] xl:w-[34rem] 2xl:w-[38rem] border-line" : "w-0 border-transparent"
           }`}
         >
         {/* full width inside, so nothing reflows while the panel moves */}
-        <div className="w-[34rem] 2xl:w-[38rem] h-full flex flex-col">
+        <div className="w-[27rem] xl:w-[34rem] 2xl:w-[38rem] h-full flex flex-col">
             <div className="shrink-0 flex items-center gap-2 px-3 pt-3 pb-2">
               <div role="tablist" aria-label="Sesión o análisis" className="flex-1 flex rounded-full bg-surface-2 p-1">
                 {(["sesion", "analisis"] as const).map((t) => (
