@@ -176,10 +176,11 @@ function Step({ label, disabled, onClick, children }: { label: string; disabled?
 }
 
 /**
- * The clock in the reader's toolbar while a pomodoro is on: the phase's colour
- * and the time left. Tapping it opens the study panel where the controls are.
+ * Floating clock over the score while a pomodoro is on: its ring ticks down
+ * live with the time left, phase-coloured, so it reads at a glance without
+ * opening anything. Tapping it opens the study panel where the controls are.
  */
-export function PomodoroChip({ onOpen }: { onOpen: () => void }) {
+export function PomodoroFloatingButton({ onOpen }: { onOpen: () => void }) {
   const p = usePomodoro();
   if (!p.active) return null;
   const onBreak = p.state.phase !== "focus";
@@ -189,12 +190,12 @@ export function PomodoroChip({ onOpen }: { onOpen: () => void }) {
       onClick={onOpen}
       title={`${PHASE_LABELS[p.state.phase]} · ${p.running ? "en marcha" : "en pausa"}`}
       aria-label={`Pomodoro: ${PHASE_LABELS[p.state.phase]}, quedan ${clock(p.remaining)}`}
-      className={`h-9 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums shrink-0 transition-colors ${
-        onBreak ? "bg-ok-soft text-ok" : p.running ? "bg-ink text-bg" : "bg-surface-2 text-ink-2"
-      }`}
+      className={`relative grid place-items-center w-14 h-14 rounded-full shadow-lg shrink-0 transition-colors ${
+        onBreak ? "bg-mint text-ok" : "bg-peach text-ink"
+      } ${!p.running ? "opacity-70" : ""}`}
     >
-      <TomatoIcon className="w-4 h-4" />
-      {clock(p.remaining)}
+      <ProgressRing progress={p.fraction} stroke={2.5} className="absolute inset-0 w-14 h-14" />
+      <span className="relative text-[13px] font-bold tabular-nums leading-none">{clock(p.remaining)}</span>
     </button>
   );
 }

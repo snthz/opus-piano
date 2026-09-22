@@ -18,7 +18,6 @@ import { PenIcon, PlayIcon } from "./reader-icons";
 import { DotsIcon, EmptyLibraryIcon, SearchIcon, SharedIcon } from "./library-icons";
 import { CoverDot, CoverTag, ScoreCover, TileText } from "./score-cover";
 import { useScoreCover } from "./use-score-cover";
-import { useResumeTranscriptions } from "./use-resume-transcriptions";
 
 /** Ruta de la biblioteca; la partitura abierta va en `?score=<id>`. */
 const LIBRARY_PATH = "/scores";
@@ -33,8 +32,6 @@ export function ScoreLibrary() {
   const [added, setAdded] = useState(false);
   const sync = useScoresSync();
   const { user } = useAuth();
-  // Lo que se quedó reconociéndose en el servidor vuelve a engancharse aquí.
-  useResumeTranscriptions();
 
   // La partitura abierta la manda la URL: así sobrevive a recargar la página y
   // el botón «atrás» del navegador vuelve a la biblioteca.
