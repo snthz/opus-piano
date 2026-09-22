@@ -24,6 +24,8 @@ interface Props {
   guide?: { box: MeasureBox; frac: number } | null;
 }
 
+const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 /**
  * Una página del PDF ajustada a una caja, con la capa de anotaciones y la guía
  * de reproducción encima. Se dibuja con la densidad de la pantalla.
@@ -31,12 +33,18 @@ interface Props {
 export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color, penWidth, finger, fingerSize, guide }: Props) {
   const [dims, setDims] = useState<{ page: number; width: number; height: number } | null>(null);
   const [holder, setHolder] = useState<HTMLDivElement | null>(null);
+  // a failure says what went wrong on the page itself, instead of a gray box
+  // forever; tied to its file and page so another page starts clean
+  const [failure, setFailure] = useState<{ file: Blob; page: number; message: string } | null>(null);
+  const error = failure && failure.file === file && failure.page === page ? failure.message : null;
   /** Lienzo pintado y la resolución (página y px de ancho) a la que se trazó */
   const drawn = useRef<{ canvas: HTMLCanvasElement; key: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    getPageSize(file, page).then((d) => !cancelled && setDims({ page, ...d }));
+    getPageSize(file, page)
+      .then((d) => !cancelled && setDims({ page, ...d }))
+      .catch((e) => !cancelled && setFailure({ file, page, message: describe(e) }));
     return () => {
       cancelled = true;
     };
@@ -66,19 +74,32 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
     if (cur && cur.key === key && cur.canvas.parentNode === holder) return;
     let cancelled = false;
     const draw = () =>
-      renderPage(file, page, (cssW / dims.width) * dpr).then((canvas) => {
-        if (cancelled) return;
-        canvas.style.width = `${cssW}px`;
-        canvas.style.height = `${cssH}px`;
-        holder.replaceChildren(canvas);
-        drawn.current = { canvas, key };
-      });
+      renderPage(file, page, (cssW / dims.width) * dpr)
+        .then((canvas) => {
+          if (cancelled) return;
+          canvas.style.width = `${cssW}px`;
+          canvas.style.height = `${cssH}px`;
+          holder.replaceChildren(canvas);
+          drawn.current = { canvas, key };
+        })
+        .catch((e) => !cancelled && setFailure({ file, page, message: describe(e) }));
     const timer = setTimeout(draw, cur ? 160 : 0);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [ready, holder, file, page, cssW, cssH, dims]);
+
+  if (error) {
+    return (
+      <div className="bg-surface rounded-2xl grid place-items-center p-6 text-center" style={{ width: fit.w, height: Math.min(fit.h, 240) }}>
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">No se pudo mostrar esta página</p>
+          <p className="text-xs text-ink-2 break-words">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!ready) return <div className="bg-white/60 rounded" style={{ width: fit.w, height: fit.h }} />;
 

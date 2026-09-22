@@ -10,7 +10,7 @@
     "gen:smufl": "node scripts/gen-smufl.mjs",
     "gen:sw": "node scripts/gen-sw.mjs",
     "gen:bbox": "bun scripts/gen-glyph-bbox.mjs",
-    "build": "prisma generate && node scripts/gen-smufl.mjs && node scripts/gen-sw.mjs && next build",
+    "build": "prisma generate && node scripts/copy-pdf-worker.mjs && node scripts/gen-smufl.mjs && node scripts/gen-sw.mjs && next build",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
