@@ -858,12 +858,10 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     return box?.page === p ? { box, frac: cursor.frac } : null;
   };
 
-  const statusLine =
-    parsed && guideOn && !map
-      ? "Buscando los compases en la página…"
-      : map?.approximate && guideOn && view === "pdf"
-        ? "Sin guía: no se pudieron cuadrar los compases con la página. Puedes seguir la pieza con los nombres de las notas."
-        : null;
+  // Cuando los compases no cuadran con la página no hace falta decirlo encima
+  // de la partitura: el botón de la guía se queda apagado y su rótulo explica
+  // por qué. Un cartel ahí tapaba la música para contar lo mismo.
+  const statusLine = parsed && guideOn && !map ? "Buscando los compases en la página…" : null;
   // with its panel closed, the running task is summarized below, in addition to the ring above
   const backgroundJob = !planShown && planJob?.status === "running" ? planJob : undefined;
   const footnote = statusLine ?? (backgroundJob ? `${jobLabel(backgroundJob.kind)} · ${backgroundJob.label}` : null);
