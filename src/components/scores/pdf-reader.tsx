@@ -1228,7 +1228,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
         {/* ---- Cómo conseguir la reproducción ---- */}
         {askXml && (
-          <div className="absolute inset-0 z-10 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => setAskXml(false)}>
+          // z-40: por encima de todo lo del lector —barras y pomodoro (z-20) y
+          // el chat del profesor (z-30)—, que si no se quedan sobre el diálogo
+          <div className="absolute inset-0 z-40 bg-ink/40 flex items-end sm:items-center justify-center p-3" onClick={() => setAskXml(false)}>
             <div className="card p-5 max-w-md w-full space-y-3" onClick={(e) => e.stopPropagation()}>
               <h2 className="font-bold">Escuchar esta partitura</h2>
               <p className="text-sm text-ink-2">
