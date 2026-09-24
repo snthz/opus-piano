@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { getUser, onAuthChange } from "@/lib/auth";
 import {
+  isReadable,
   listScores,
   markSynced,
   onScoresChange,
@@ -156,14 +157,18 @@ async function pushMeta(rec: ScoreRecord, server: ServerScore): Promise<void> {
 
 /* ---------- Descarga ---------- */
 
+/** The local copy if it still reads; a Blob Safari lost (see scores-db) counts as missing, so it's fetched again. */
+const usable = async (b: Blob | undefined) => (b && (await isReadable(b)) ? b : undefined);
+
+async function fetchFile(id: string): Promise<Blob> {
+  const res = await fetch(`/api/scores/${id}/file`, { cache: "no-store" });
+  if (!res.ok) throw new Error("No se pudo descargar la partitura");
+  return res.blob();
+}
+
 async function download(s: ServerScore, local?: ScoreRecord): Promise<void> {
-  let file = local?.file;
-  if (!file) {
-    const res = await fetch(`/api/scores/${s.id}/file`, { cache: "no-store" });
-    if (!res.ok) throw new Error("No se pudo descargar la partitura");
-    file = await res.blob();
-  }
-  let linkedXml = local?.linkedXml;
+  const file = (await usable(local?.file)) ?? (await fetchFile(s.id));
+  let linkedXml = await usable(local?.linkedXml);
   if (s.hasXml && !linkedXml) {
     const res = await fetch(`/api/scores/${s.id}/xml`, { cache: "no-store" });
     if (res.ok) linkedXml = await res.blob();
@@ -239,25 +244,41 @@ async function run(): Promise<void> {
     const local = await listScores();
     const localIds = new Set(local.map((l) => l.id));
 
+    // One score failing (too big, over quota, a lost file) must not hold the
+    // rest back: the first error is reported, the others still sync.
+    let failure: string | null = null;
+    const attempt = async (work: () => Promise<void>) => {
+      try {
+        await work();
+      } catch (e) {
+        failure ??= e instanceof Error ? e.message : "No se pudo sincronizar";
+      }
+    };
+
     // 3. Local → servidor
     for (const rec of local) {
       const s = remote.get(rec.id);
       if (!s || !s.uploaded) {
-        await upload(rec);
+        await attempt(() => upload(rec));
         continue;
       }
-      const localAt = rec.updatedAt ?? rec.addedAt;
-      if (!rec.syncedAt || localAt > s.updatedAt || rec.xmlDirty) await pushMeta(rec, s);
-      else if (s.updatedAt > localAt) await download(s, rec);
-      else if (s.hasXml && !rec.linkedXml) await download(s, rec);
+      await attempt(async () => {
+        const localAt = rec.updatedAt ?? rec.addedAt;
+        if (!rec.syncedAt || localAt > s.updatedAt || rec.xmlDirty) await pushMeta(rec, s);
+        else if (s.updatedAt > localAt) return download(s, rec);
+        else if (s.hasXml && !rec.linkedXml) return download(s, rec);
+        // a file Safari can no longer read comes down again; both sides hold the same metadata here
+        else if (!(await isReadable(rec.file)) || (rec.linkedXml && !(await isReadable(rec.linkedXml)))) return download(s, rec);
+      });
     }
 
     // 4. Servidor → local (lo que no teníamos y no está pendiente de borrar)
     const deleting = new Set(pendingDeletes());
     for (const s of scores) {
-      if (!localIds.has(s.id) && s.uploaded && !deleting.has(s.id)) await download(s);
+      if (!localIds.has(s.id) && s.uploaded && !deleting.has(s.id)) await attempt(() => download(s));
     }
 
+    if (failure) throw new Error(failure);
     setState({ busy: false, error: null, lastSync: new Date().toISOString() });
   } catch (e) {
     setState({ busy: false, error: e instanceof Error ? e.message : "No se pudo sincronizar" });
@@ -306,4 +327,9 @@ if (typeof window !== "undefined") {
     else void dropSyncedLocal();
   });
   window.addEventListener("online", () => void syncScores());
+  // an installed app on a tablet lives in the background for days: coming back
+  // to the foreground is when another device's changes should show up
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void syncScores();
+  });
 }

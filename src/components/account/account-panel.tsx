@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { deleteAccount, logout, useAuth } from "@/lib/auth";
 import { useProgress, useSyncState, summarize, dayStreak, syncProgress } from "@/lib/progress";
+import { syncScores, useScoresSync } from "@/lib/scores-sync";
 
 /** Página «Cuenta»: formulario si no hay sesión; datos, sincronización y cierre si la hay. */
 export function AccountPanel() {
@@ -42,6 +43,7 @@ function Anonymous() {
 function SignedIn() {
   const { user } = useAuth();
   const sync = useSyncState();
+  const scoresSync = useScoresSync();
   const progress = useProgress();
   const totals = summarize(progress);
   const streak = dayStreak(progress);
@@ -52,14 +54,18 @@ function SignedIn() {
 
   if (!user) return null;
 
-  const status = sync.busy
+  // progress and library sync separately; here they read as one
+  const syncing = sync.busy || scoresSync.busy;
+  const syncError = sync.error ?? (scoresSync.error ? `biblioteca: ${scoresSync.error}` : null);
+  const status = syncing
     ? "Sincronizando…"
-    : sync.error
-      ? `Sin sincronizar (${sync.error})${sync.pending ? ` · ${sync.pending} pendientes` : ""}`
+    : syncError
+      ? `Sin sincronizar (${syncError})${sync.pending ? ` · ${sync.pending} pendientes` : ""}`
       : sync.lastSync
         ? `Sincronizado el ${new Date(sync.lastSync).toLocaleString("es")}`
         : "Todavía no se ha sincronizado.";
-  const dot = sync.busy ? "bg-ink-3 animate-pulse" : sync.error ? "bg-bad" : sync.lastSync ? "bg-ok" : "bg-ink-3";
+  const dot = syncing ? "bg-ink-3 animate-pulse" : syncError ? "bg-bad" : sync.lastSync ? "bg-ok" : "bg-ink-3";
+  const syncNow = () => void Promise.all([syncProgress(), syncScores()]);
 
   const remove = async () => {
     setBusy(true);
@@ -105,7 +111,7 @@ function SignedIn() {
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} aria-hidden />
             <span className="truncate">{status}</span>
           </p>
-          <button type="button" onClick={() => void syncProgress()} disabled={sync.busy} className="btn-quiet h-9 px-3.5 text-xs">
+          <button type="button" onClick={syncNow} disabled={syncing} className="btn-quiet h-9 px-3.5 text-xs">
             <SyncIcon />
             Sincronizar ahora
           </button>

@@ -52,12 +52,57 @@ export interface ScoreRecord {
   xmlDirty?: boolean;
 }
 
+/**
+ * On disk the bytes go as an ArrayBuffer, not a Blob. Safari stores a Blob
+ * that came from a fetch as a reference to a temp file it later deletes:
+ * reading it back throws "The object can not be found here" and a score
+ * downloaded from the account never opens. Records written before this
+ * change still hold Blobs; they're read as they are and rewritten on the
+ * next save.
+ */
+interface StoredBytes {
+  bytes: ArrayBuffer;
+  type: string;
+}
+type StoredFile = Blob | StoredBytes;
+type StoredScore = Omit<ScoreRecord, "file" | "linkedXml"> & { file: StoredFile; linkedXml?: StoredFile };
+
 interface EtudeDB extends DBSchema {
   scores: {
     key: string;
-    value: ScoreRecord;
+    value: StoredScore;
     indexes: { addedAt: number };
   };
+}
+
+const isBytes = (f: StoredFile | undefined): f is StoredBytes => !!f && !(f instanceof Blob) && "bytes" in f;
+
+const toBlob = (f: StoredFile): Blob => (isBytes(f) ? new Blob([f.bytes], { type: f.type }) : f);
+
+/** A Blob Safari can no longer read stays a Blob: the sync layer re-downloads it. */
+async function toStoredFile(f: Blob): Promise<StoredFile> {
+  try {
+    return { bytes: await f.arrayBuffer(), type: f.type };
+  } catch {
+    return f;
+  }
+}
+
+function fromStored(s: StoredScore): ScoreRecord {
+  return { ...s, file: toBlob(s.file), linkedXml: s.linkedXml ? toBlob(s.linkedXml) : undefined };
+}
+
+/** Converts only the files present in `changes`, so a notes edit doesn't reread a 25 MB PDF. */
+async function toStoredPatch(changes: Partial<ScoreRecord>): Promise<Partial<StoredScore>> {
+  const { file, linkedXml, ...rest } = changes;
+  const out: Partial<StoredScore> = rest;
+  if (file) out.file = await toStoredFile(file);
+  if ("linkedXml" in changes) out.linkedXml = linkedXml ? await toStoredFile(linkedXml) : undefined;
+  return out;
+}
+
+async function toStored(rec: ScoreRecord): Promise<StoredScore> {
+  return { ...rec, file: await toStoredFile(rec.file), linkedXml: rec.linkedXml ? await toStoredFile(rec.linkedXml) : undefined };
 }
 
 let dbPromise: Promise<IDBPDatabase<EtudeDB>> | null = null;
@@ -93,7 +138,7 @@ export async function addScore(record: Omit<ScoreRecord, "id" | "addedAt">): Pro
   const db = await getDB();
   const now = Date.now();
   const full: ScoreRecord = { ...record, id: crypto.randomUUID(), addedAt: now, updatedAt: now };
-  await db.put("scores", full);
+  await db.put("scores", await toStored(full));
   emit({ type: "put", id: full.id, source: "local" });
   return full;
 }
@@ -101,19 +146,20 @@ export async function addScore(record: Omit<ScoreRecord, "id" | "addedAt">): Pro
 export async function listScores(): Promise<ScoreRecord[]> {
   const db = await getDB();
   const all = await db.getAllFromIndex("scores", "addedAt");
-  return all.reverse();
+  return all.reverse().map(fromStored);
 }
 
 export async function getScore(id: string): Promise<ScoreRecord | undefined> {
   const db = await getDB();
-  return db.get("scores", id);
+  const rec = await db.get("scores", id);
+  return rec && fromStored(rec);
 }
 
 async function patchLocal(id: string, changes: Partial<ScoreRecord>) {
   const db = await getDB();
   const rec = await db.get("scores", id);
   if (!rec) return;
-  await db.put("scores", { ...rec, ...changes, updatedAt: Date.now() });
+  await db.put("scores", { ...rec, ...(await toStoredPatch(changes)), updatedAt: Date.now() });
   emit({ type: "put", id, source: "local" });
 }
 
@@ -174,7 +220,7 @@ export async function clearScores(): Promise<void> {
 
 export async function putFromServer(record: ScoreRecord): Promise<void> {
   const db = await getDB();
-  await db.put("scores", record);
+  await db.put("scores", await toStored(record));
   emit({ type: "put", id: record.id, source: "remote" });
 }
 
@@ -182,7 +228,20 @@ export async function putFromServer(record: ScoreRecord): Promise<void> {
 export async function markSynced(id: string, patch: Partial<ScoreRecord> = {}): Promise<void> {
   const db = await getDB();
   const rec = await db.get("scores", id);
-  if (rec) await db.put("scores", { ...rec, ...patch, syncedAt: Date.now(), xmlDirty: false });
+  if (rec) await db.put("scores", { ...rec, ...(await toStoredPatch(patch)), syncedAt: Date.now(), xmlDirty: false });
+}
+
+/**
+ * Whether the bytes can still be read. Only a Blob can go bad (see
+ * `StoredBytes`); the first few bytes are enough to tell.
+ */
+export async function isReadable(file: Blob): Promise<boolean> {
+  try {
+    await file.slice(0, 16).arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function removeFromServer(id: string): Promise<void> {

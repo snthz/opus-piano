@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { dismissJob, onJobsChange, useJobs } from "@/lib/jobs";
 import { listScores, deleteScore, onScoresChange, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
-import { useScoresSync } from "@/lib/scores-sync";
+import { syncScores, useScoresSync } from "@/lib/scores-sync";
 import { useAuth } from "@/lib/auth";
 import { openAuthModal } from "@/lib/auth-modal";
 import { SignupNudge } from "@/components/account/signup-nudge";
@@ -41,7 +41,8 @@ export function ScoreLibrary() {
   const close = () => router.replace(LIBRARY_PATH, { scroll: false });
 
   const reload = () => listScores().then((s) => { setScores(s); setLoaded(true); });
-  useEffect(() => { void reload(); }, []);
+  // opening the library also asks the account what changed elsewhere; without one this is a no-op
+  useEffect(() => { void reload(); void syncScores(); }, []);
   // Lo que llega del servidor (otro dispositivo) aparece sin recargar la página.
   useEffect(() => onScoresChange((c) => { if (c.type !== "put" || c.source === "remote") void reload(); }), []);
 
