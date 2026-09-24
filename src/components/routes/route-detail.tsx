@@ -372,7 +372,7 @@ function GoalsSection({ route, onChange }: { route: StudyRoute; onChange: (r: St
                     <button type="button" onClick={() => toggle(goal.id)} className={`min-w-0 flex-1 py-0.5 text-left text-sm leading-snug ${goal.done ? "text-ink-3 line-through" : "text-ink-2"}`}>
                       {goal.title}
                     </button>
-                    <button type="button" onClick={() => remove(goal.id)} aria-label="Quitar el objetivo" className="shrink-0 rounded-md px-1 text-ink-3 opacity-100 hover:text-bad sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">
+                    <button type="button" onClick={() => remove(goal.id)} aria-label="Quitar el objetivo" className="shrink-0 rounded-md px-1 text-ink-3 opacity-100 hover:text-bad not-any-pointer-coarse:opacity-0 not-any-pointer-coarse:group-hover:opacity-100 not-any-pointer-coarse:focus-visible:opacity-100">
                       ×
                     </button>
                   </li>

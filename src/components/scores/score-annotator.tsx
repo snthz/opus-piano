@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MAX_CANVAS_PIXELS } from "@/lib/pdf-thumbnail";
 import type { Stroke } from "@/lib/scores-db";
 
 export type Tool = "pen" | "liner" | "highlighter" | "eraser" | "finger";
@@ -59,6 +60,20 @@ export const LINER_WIDTHS = [
 ];
 export const DEFAULT_LINER_WIDTH = LINER_WIDTHS[1].value;
 
+/**
+ * Densidad a la que se pinta el lienzo: la de la pantalla, salvo que la página
+ * sea tan grande —con mucho zoom lo es— que el lienzo se pase del tamaño que
+ * iOS dibuja. Pasado ese tamaño sale en blanco y sin dar error, que es por lo
+ * que lo escrito con mucho zoom no se veía y reaparecía al alejar. Se topa
+ * aquí, igual que hace el PDF de debajo, y CSS estira el resto: con mucho zoom
+ * el trazo se ve algo más blando, pero se ve.
+ */
+const density = (width: number, height: number) => {
+  const dpr = window.devicePixelRatio || 1;
+  const pixels = width * height * dpr * dpr;
+  return pixels > MAX_CANVAS_PIXELS ? dpr * Math.sqrt(MAX_CANVAS_PIXELS / pixels) : dpr;
+};
+
 interface Props {
   width: number;
   height: number;
@@ -112,8 +127,8 @@ export function ScoreAnnotator({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    const dpr = window.devicePixelRatio || 1;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const d = density(width, height);
+    ctx.setTransform(d, 0, 0, d, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -157,9 +172,9 @@ export function ScoreAnnotator({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
+    const d = density(width, height);
+    canvas.width = Math.round(width * d);
+    canvas.height = Math.round(height * d);
     paint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, strokes]);
@@ -238,6 +253,11 @@ export function ScoreAnnotator({
       }
     }
     e.preventDefault();
+    // Al arrastrar, Safari intenta seleccionar texto aunque el lienzo no sea
+    // seleccionable: la selección salta a lo primero que sí lo es —el título de
+    // la barra— y se queda resaltado mientras se escribe. Cortarla al empezar
+    // el trazo la quita venga de donde venga.
+    window.getSelection()?.removeAllRanges();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     owner.current = e.pointerId;
     const p = toPoint(e);

@@ -968,7 +968,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           }`}
           style={{ paddingTop: "var(--safe-t)" }}
         >
-          <div className="flex h-14 items-center gap-0.5 sm:gap-1 px-2 sm:px-3">
+          {/* `select-none`: el nombre es un rótulo, no texto para copiar, y al
+              escribir sobre la partitura la selección se iba a él y lo dejaba resaltado. */}
+          <div className="flex h-14 items-center gap-0.5 sm:gap-1 px-2 sm:px-3 select-none">
             <button type="button" onClick={onClose} className="btn-circle w-9 h-9 sm:w-10 sm:h-10 shrink-0" aria-label="Volver">
               <ChevronIcon dir="left" className="w-4 h-4" />
             </button>
@@ -1105,7 +1107,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           onPointerDown={() => wakeChrome()}
           aria-hidden={!chrome}
           inert={!chrome}
-          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 px-3 pointer-events-none transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 px-3 pointer-events-none select-none transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
             chrome ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
           }`}
           style={{ paddingBottom: "calc(0.75rem + var(--safe-b))" }}

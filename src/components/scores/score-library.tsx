@@ -348,7 +348,11 @@ function ScoreCard({
         </div>
       )}
 
-      {/* Menú ⋯: siempre visible en táctil, al pasar por encima en escritorio. */}
+      {/* Menú ⋯: siempre a la vista en una pantalla táctil, y solo al pasar por
+          encima donde hay ratón. La condición es el puntero, no el ancho: un
+          iPad es tan ancho como un portátil y no tiene hover, así que con `sm:`
+          el botón se quedaba invisible y no había forma de llegar al estado ni
+          a eliminar. */}
       <button
         type="button"
         onClick={(e) => {
@@ -358,8 +362,8 @@ function ScoreCard({
           setMenu((v) => !v);
           setConfirmDelete(false);
         }}
-        className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-surface/90 text-ink-2 shadow-sm ring-1 ring-line backdrop-blur transition hover:text-ink focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${
-          menu ? "text-ink sm:opacity-100" : ""
+        className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-surface/90 text-ink-2 shadow-sm ring-1 ring-line backdrop-blur transition hover:text-ink focus-visible:opacity-100 not-any-pointer-coarse:opacity-0 not-any-pointer-coarse:group-hover:opacity-100 not-any-pointer-coarse:group-focus-within:opacity-100 ${
+          menu ? "text-ink not-any-pointer-coarse:opacity-100" : ""
         }`}
         aria-label="Opciones"
         aria-haspopup="menu"
