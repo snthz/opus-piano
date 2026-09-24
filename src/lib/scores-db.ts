@@ -1,7 +1,9 @@
 "use client";
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import type { ScoreStatus } from "@/lib/score-status";
 import type { PlanState, SessionReview } from "@/lib/study-plan";
+import type { StudyRouteRecord } from "@/lib/study-route";
 
 /** A stroke drawn on a page, in coordinates relative (0-1) to the page size. */
 export interface Stroke {
@@ -40,6 +42,8 @@ export interface ScoreRecord {
   linkedXml?: Blob;
   /** AI-generated study plan; syncs like the notes. */
   plan?: PlanState;
+  /** Where it stands: waiting, in hand, or played through. Absent on older records (see `scoreStatus`). */
+  status?: ScoreStatus;
   /** Sharing: absent means private. Only the file, name, thumbnail and `description` are ever shared. */
   visibility?: Visibility;
   /** Public blurb shown next to a shared score. */
@@ -72,6 +76,12 @@ interface EtudeDB extends DBSchema {
     key: string;
     value: StoredScore;
     indexes: { addedAt: number };
+  };
+  /** Study routes (v2). Same database so one open handle serves both; see `routes-db.ts`. */
+  routes: {
+    key: string;
+    value: StudyRouteRecord;
+    indexes: { createdAt: number };
   };
 }
 
@@ -107,12 +117,18 @@ async function toStored(rec: ScoreRecord): Promise<StoredScore> {
 
 let dbPromise: Promise<IDBPDatabase<EtudeDB>> | null = null;
 
-function getDB() {
+/** The app's database. Exported for `routes-db.ts`; everything about scores stays in this file. */
+export function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<EtudeDB>("etude-scores", 1, {
+    dbPromise = openDB<EtudeDB>("etude-scores", 2, {
       upgrade(db) {
-        const store = db.createObjectStore("scores", { keyPath: "id" });
-        store.createIndex("addedAt", "addedAt");
+        // Guarded by name, not by version: a store that already exists must not be created twice.
+        if (!db.objectStoreNames.contains("scores")) {
+          db.createObjectStore("scores", { keyPath: "id" }).createIndex("addedAt", "addedAt");
+        }
+        if (!db.objectStoreNames.contains("routes")) {
+          db.createObjectStore("routes", { keyPath: "id" }).createIndex("createdAt", "createdAt");
+        }
       },
     });
   }
@@ -169,6 +185,7 @@ export const updateScoreName = (id: string, name: string) => patchLocal(id, { na
 /** La portada (JPEG en data URL). Se sincroniza como el resto de metadatos. */
 export const updateScoreThumbnail = (id: string, thumbnail: string) => patchLocal(id, { thumbnail });
 export const updateScorePlan = (id: string, plan: PlanState | undefined) => patchLocal(id, { plan });
+export const updateScoreStatus = (id: string, status: ScoreStatus) => patchLocal(id, { status });
 export const updateScoreLinkedXml = (id: string, linkedXml: Blob | undefined) => patchLocal(id, { linkedXml, xmlDirty: true });
 /** Syncs like the name: the server is what makes a share real, so this only takes effect with an account. */
 export const updateScoreSharing = (id: string, sharing: { visibility: Visibility; description: string }) => patchLocal(id, sharing);

@@ -25,7 +25,19 @@ export const PEN_COLORS = [
   { id: "blue", value: "#3b6fd6", label: "Azul" },
   { id: "green", value: "#2f9d68", label: "Verde" },
 ];
-export const HIGHLIGHTER_COLOR = "#ffd83d";
+
+/**
+ * Colores del subrayador. Se pintan al 35 % sobre la página, así que son tonos
+ * saturados: apagados quedarían en nada encima del blanco del papel.
+ */
+export const HIGHLIGHTER_COLORS = [
+  { id: "yellow", value: "#ffd83d", label: "Amarillo" },
+  { id: "green", value: "#4ade80", label: "Verde" },
+  { id: "pink", value: "#ff6fae", label: "Rosa" },
+  { id: "blue", value: "#4cb8ff", label: "Azul" },
+  { id: "orange", value: "#ff9542", label: "Naranja" },
+];
+export const DEFAULT_HIGHLIGHT_COLOR = HIGHLIGHTER_COLORS[0].value;
 
 /** Grosores del lápiz, relativos al ancho de la página (igual que `Stroke.width`). */
 export const PEN_WIDTHS = [
@@ -43,6 +55,8 @@ interface Props {
   /** null = solo se muestran los trazos y el puntero pasa a la página */
   tool: Tool | null;
   color: string;
+  /** Color del subrayador; va aparte del lápiz para que cada uno recuerde el suyo. */
+  highlightColor?: string;
   /** Grosor del lápiz relativo al ancho de la página; el subrayador tiene el suyo fijo. */
   penWidth?: number;
   /** Dedo que escribe la herramienta de digitación. */
@@ -55,7 +69,18 @@ interface Props {
  * Lienzo transparente sobre una página. Los trazos se guardan en coordenadas
  * relativas (0–1) para que sirvan a cualquier zoom, y se dibujan escalados.
  */
-export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, penWidth = DEFAULT_PEN_WIDTH, finger = "1", fingerSize = DEFAULT_FINGER_SIZE }: Props) {
+export function ScoreAnnotator({
+  width,
+  height,
+  strokes,
+  onChange,
+  tool,
+  color,
+  highlightColor = DEFAULT_HIGHLIGHT_COLOR,
+  penWidth = DEFAULT_PEN_WIDTH,
+  finger = "1",
+  fingerSize = DEFAULT_FINGER_SIZE,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<Stroke | null>(null);
 
@@ -140,7 +165,7 @@ export function ScoreAnnotator({ width, height, strokes, onChange, tool, color, 
       return;
     }
     drawing.current = {
-      color: tool === "highlighter" ? HIGHLIGHTER_COLOR : color,
+      color: tool === "highlighter" ? highlightColor : color,
       width: tool === "highlighter" ? 0.02 : penWidth,
       highlighter: tool === "highlighter",
       points: [p],

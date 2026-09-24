@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { toJsonSchema } from "@/lib/plan/schema";
+import { toJsonSchema, type SchemaNode } from "@/lib/plan/schema";
 import {
   askInstructions,
   planInstructions,
@@ -37,6 +37,9 @@ export const planLimit = () => ({ max: Number(process.env.PLANS_PER_DAY || 3), w
 
 /** Teacher questions per user per hour: cheap (no images), but not unlimited. */
 export const askLimit = () => ({ max: Number(process.env.PLAN_QUESTIONS_PER_HOUR || 40), windowMs: HOUR });
+
+/** Study routes imported from text per user per day: a few pages of text in, a few cents each. */
+export const routeImportLimit = () => ({ max: Number(process.env.ROUTE_IMPORTS_PER_DAY || 5), windowMs: 24 * HOUR });
 
 /**
  * Streamed because a plan takes a minute or two, and a silent HTTP request
@@ -84,23 +87,32 @@ function checkStop(stopReason: string | null | undefined, truncated: string) {
 /** Told what a finished call consumed, so the route can charge it to the budget. */
 export type UsageSink = (usage: Anthropic.Usage) => void;
 
-/** Requests the plan and returns raw JSON (the caller validates it with a zod schema). Pages go as base64 PNGs. */
-export async function generatePlan(req: PlanRequest, pages: string[], signal?: AbortSignal, onUsage?: UsageSink): Promise<string> {
-  const content: Anthropic.ContentBlockParam[] = [
-    { type: "text", text: planUserMessage(req) },
-    ...pages.map((data): Anthropic.ContentBlockParam => ({ type: "image", source: { type: "base64", media_type: "image/png", data } })),
-  ];
+export interface JsonRequest {
+  system: string;
+  content: Anthropic.ContentBlockParam[];
+  /** The shape the answer must have (`plan/schema.ts`). */
+  schema: SchemaNode;
+  /** Messages for the two ways a reply can come back unusable. */
+  truncated: string;
+  empty: string;
+}
 
+/**
+ * One structured answer from the model, as raw JSON text (the caller
+ * validates it with its zod schema). Streamed under the hood because these
+ * calls take a minute or two; the caller only sees the final message.
+ */
+export async function generateJson(req: JsonRequest, signal?: AbortSignal, onUsage?: UsageSink): Promise<string> {
   let message: Anthropic.Message;
   try {
     const stream = anthropic().messages.stream(
       {
         model: planModel(),
         max_tokens: PLAN_MAX_TOKENS,
-        system: planInstructions(req),
-        messages: [{ role: "user", content }],
+        system: req.system,
+        messages: [{ role: "user", content: req.content }],
         thinking: { type: "adaptive" },
-        output_config: { effort: "medium", format: { type: "json_schema", schema: toJsonSchema(STUDY_PLAN_SCHEMA) } },
+        output_config: { effort: "medium", format: { type: "json_schema", schema: toJsonSchema(req.schema) } },
       },
       { signal },
     );
@@ -109,16 +121,34 @@ export async function generatePlan(req: PlanRequest, pages: string[], signal?: A
     if (signal?.aborted) throw e; // cancelled by the student, not a real failure
     throw translate(e);
   }
-  // Reported before the checks below: a plan that came back truncated was paid for all the same.
+  // Reported before the checks below: a reply that came back truncated was paid for all the same.
   onUsage?.(message.usage);
 
-  checkStop(message.stop_reason, "El análisis se ha quedado sin espacio a mitad. Prueba con una partitura de menos páginas.");
+  checkStop(message.stop_reason, req.truncated);
   const text = message.content
     .filter((b) => b.type === "text")
     .map((b) => b.text)
     .join("");
-  if (!text.trim()) throw new PlanError("El profesor no ha devuelto ningún análisis. Vuelve a intentarlo.");
+  if (!text.trim()) throw new PlanError(req.empty);
   return text;
+}
+
+/** Requests the plan and returns raw JSON (the caller validates it with a zod schema). Pages go as base64 PNGs. */
+export function generatePlan(req: PlanRequest, pages: string[], signal?: AbortSignal, onUsage?: UsageSink): Promise<string> {
+  return generateJson(
+    {
+      system: planInstructions(req),
+      content: [
+        { type: "text", text: planUserMessage(req) },
+        ...pages.map((data): Anthropic.ContentBlockParam => ({ type: "image", source: { type: "base64", media_type: "image/png", data } })),
+      ],
+      schema: STUDY_PLAN_SCHEMA,
+      truncated: "El análisis se ha quedado sin espacio a mitad. Prueba con una partitura de menos páginas.",
+      empty: "El profesor no ha devuelto ningún análisis. Vuelve a intentarlo.",
+    },
+    signal,
+    onUsage,
+  );
 }
 
 /**

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContinueStudying } from "@/components/home/continue-studying";
 import { ProgressSummary } from "@/components/home/progress-summary";
 import { TodayRoutine } from "@/components/home/today-routine";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
@@ -49,6 +50,10 @@ export default function Home() {
           solos. Sin pagar y sin conexión.
         </p>
       </section>
+
+      {/* First thing after the title, so on a phone the scores in hand are one
+          tap away. Only shows up with something marked "en estudio" or a route. */}
+      <ContinueStudying />
 
       <ProgressSummary
         nextLesson={{ title: first.title, href: lessonPath(first.slug), minutes: first.minutes }}

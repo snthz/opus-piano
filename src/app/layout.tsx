@@ -133,8 +133,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       {/* Abajo deja sitio a la barra móvil —y al gesto del sistema—; en escritorio
-          la navegación va arriba. */}
-      <body className="min-h-full flex flex-col safe-nav md:pb-0">
+          (`lg`) la navegación va arriba. */}
+      <body className="min-h-full flex flex-col safe-nav lg:pb-0">
         {/* Antes de pintar nada: evita el destello claro con el tema oscuro. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <AppHeader />

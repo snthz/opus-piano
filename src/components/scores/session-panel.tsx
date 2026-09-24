@@ -6,14 +6,14 @@ import { SessionRunner } from "@/components/calendar/session-runner";
 import { dayKey, parseDay, scoreSession } from "@/lib/agenda";
 import { getScore, recordSessionReview, toggleStudyDay, type ScoreRecord } from "@/lib/scores-db";
 import type { Outcome, PlanState } from "@/lib/study-plan";
-import { PomodoroPanel } from "./pomodoro-panel";
 
 const longDay = (key: string) => parseDay(key).toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" });
 
 /**
  * The score's study session, beside the score (desktop) or in a sheet
- * (mobile): today's session with its timer, or the one still to do, and the
- * pomodoro underneath for breaks. Nothing of its own is stored — it derives
+ * (mobile): today's session with its timer, or the one still to do. The
+ * pomodoro is its own thing, next to this one, since it gets used with or
+ * without a scheduled session. Nothing of its own is stored — it derives
  * the session from the plan saved with the score, like the sessions page —
  * and the only write is the "studied" tick when the timer runs out, which
  * goes back to the reader through `onPlanChange` so the plan on screen
@@ -30,10 +30,7 @@ export function SessionPanel({
   onOpenAnalysis: () => void;
 }) {
   return (
-    <div className="space-y-4">
-      <Session record={record} onPlanChange={onPlanChange} onOpenAnalysis={onOpenAnalysis} />
-      <PomodoroPanel />
-    </div>
+    <Session record={record} onPlanChange={onPlanChange} onOpenAnalysis={onOpenAnalysis} />
   );
 }
 

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
 import { budgetExhausted, BUDGET_MESSAGE, overCallLimit, readUsage, recordCall } from "@/lib/server/ai-budget";
+import { ndjsonJob } from "@/lib/server/ndjson-job";
 import { generatePlan, planEnabled, planLimit, planModel, PlanError } from "@/lib/server/study-plan";
 import { dedupeGoalIds, MAX_PAGES, planRequestSchema, studyPlanSchema } from "@/lib/study-plan";
 
@@ -11,7 +12,7 @@ import { dedupeGoalIds, MAX_PAGES, planRequestSchema, studyPlanSchema } from "@/
  * here with what it knows about the piece; this server forwards it to Claude
  * with its own API key and returns the validated plan.
  *
- * The response streams NDJSON lines like `/api/omr`, since preparing a plan
+ * The response streams NDJSON lines (`ndjsonJob`), since preparing a plan
  * takes a minute or two and a silent request that long gets cut by some
  * proxy along the way. Errors before the stream starts (session, limit,
  * data) are normal responses with a status code.
@@ -20,9 +21,6 @@ import { dedupeGoalIds, MAX_PAGES, planRequestSchema, studyPlanSchema } from "@/
 /** A page rendered at 1568 px is ~300 KB as PNG; this leaves margin. */
 const MAX_PAGE_BYTES = 4 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
-
-/** How often a heartbeat is sent while the model works. */
-const HEARTBEAT_MS = 10_000;
 
 /**
  * So the app knows whether to offer the option and how many plans fit per day.
@@ -58,69 +56,20 @@ export async function POST(req: Request) {
   }
   const pages = await Promise.all(files.map(async (f) => Buffer.from(await f.arrayBuffer()).toString("base64")));
 
-  const started = Date.now();
-  const encoder = new TextEncoder();
-
-  // closing the tab mid-plan is normal (it takes minutes); once the client
-  // disconnects, stop sending and clear the heartbeat
-  let open = true;
-  let beat: ReturnType<typeof setInterval> | undefined;
-  const finish = () => {
-    open = false;
-    clearInterval(beat);
-  };
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const send = (line: object) => {
-        if (!open) return;
-        try {
-          controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
-        } catch {
-          finish();
-        }
-      };
-
-      beat = setInterval(() => send({ type: "working", seconds: Math.round((Date.now() - started) / 1000) }), HEARTBEAT_MS);
-      send({ type: "working", seconds: 0 });
-
-      // A plan is billed whether or not it parses, so the receipt is written
-      // from the callback rather than from a successful outcome.
-      const spent = { usage: null as ReturnType<typeof readUsage> | null };
-      generatePlan(parsed.data, pages, req.signal, (u) => (spent.usage = readUsage(u)))
-        .then((text) => send({ type: "done", plan: validate(text), model: planModel() }))
-        .catch((e: unknown) => {
-          if (req.signal.aborted) return;
-          if (e instanceof PlanError) send({ type: "error", message: e.message });
-          else {
-            console.error("study-plan: unexpected failure", e);
-            send({ type: "error", message: "No se ha podido analizar la partitura. Vuelve a intentarlo." });
-          }
-        })
-        .finally(async () => {
-          if (spent.usage) await recordCall({ userId: me.id, kind: "plan", model: planModel(), usage: spent.usage });
-          const wasOpen = open;
-          finish();
-          if (!wasOpen) return;
-          try {
-            controller.close();
-          } catch {
-            // already closed by the runtime when the browser left
-          }
-        });
+  // A plan is billed whether or not it parses, so the receipt is written
+  // from the callback rather than from a successful outcome.
+  const spent = { usage: null as ReturnType<typeof readUsage> | null };
+  return ndjsonJob({
+    signal: req.signal,
+    run: async (signal) => {
+      const text = await generatePlan(parsed.data, pages, signal, (u) => (spent.usage = readUsage(u)));
+      return { plan: validate(text), model: planModel() };
     },
-    // called by the runtime when the browser disconnects
-    cancel: finish,
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-      // stop any proxy from buffering lines and eating heartbeats
-      "X-Accel-Buffering": "no",
-      "Content-Encoding": "identity",
+    after: async () => {
+      if (spent.usage) await recordCall({ userId: me.id, kind: "plan", model: planModel(), usage: spent.usage });
     },
+    userFacing: (e): e is PlanError => e instanceof PlanError,
+    fallback: "No se ha podido analizar la partitura. Vuelve a intentarlo.",
   });
 }
 

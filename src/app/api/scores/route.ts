@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { sameOrigin, unauthorized, userFromRequest } from "@/lib/server/auth";
 import { quotaBytes } from "@/lib/server/score-files";
-import { scoreCreateSchema, sharedAtFor, toMeta, usedBytes } from "@/lib/server/scores-service";
+import { scoreCreateSchema, sharedAtFor, statusColumn, toMeta, usedBytes } from "@/lib/server/scores-service";
 import { readJson } from "@/lib/server/user-json";
 import { firstIssue } from "@/lib/validation";
 
@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     thumbnail: d.thumbnail,
     annotations: d.annotations ?? undefined,
     plan: d.plan ?? undefined,
+    status: statusColumn(d.status),
     visibility: d.visibility,
     description: d.description,
     sharedAt: sharedAtFor(d.visibility, existing),

@@ -21,6 +21,7 @@ model User {
   exercises      ExerciseProgress[]
   days           DailyActivity[]
   scores         Score[]
+  routes         StudyRoute[]
   aiCalls        AiCall[]
   transcriptions Transcription[]
 }
@@ -113,9 +114,28 @@ model Score {
   description String    @default("")
   /// Última vez que se compartió, para ordenar la lista de la comunidad.
   sharedAt    DateTime?
+  /// "pending" | "studying" | "learned"; vacío si el dispositivo nunca lo fijó (el cliente lo deduce).
+  status      String    @default("")
 
   @@index([userId, createdAt])
   @@index([visibility, sharedAt])
+}
+
+/// Ruta de estudio de un usuario: las piezas en orden, la rutina y los
+/// objetivos (esquema `studyRouteSchema`). Se guarda entera como JSON porque es
+/// pequeña y se sincroniza como una unidad; el id lo genera el dispositivo.
+model StudyRoute {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Copia del nombre, para listar y depurar sin abrir el JSON.
+  name      String
+  data      Json
+  createdAt DateTime @default(now())
+  /// Última modificación, la pone el dispositivo (ms desde época); gana la más reciente.
+  updatedAt BigInt
+
+  @@index([userId, createdAt])
 }
 
 /// Cada llamada al modelo que paga el servidor. Cubre dos cosas a la vez: los

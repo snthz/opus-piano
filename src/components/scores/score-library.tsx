@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { dismissJob, onJobsChange, useJobs } from "@/lib/jobs";
-import { listScores, deleteScore, onScoresChange, updateScoreName, type ScoreRecord } from "@/lib/scores-db";
+import { listScores, deleteScore, onScoresChange, updateScoreName, updateScoreStatus, type ScoreRecord } from "@/lib/scores-db";
 import { syncScores, useScoresSync } from "@/lib/scores-sync";
+import { unlinkScoreEverywhere } from "@/lib/routes-db";
+import { SCORE_STATUSES, scoreStatus, sortByStatus, type ScoreStatus } from "@/lib/score-status";
+import { StatusLabel, StatusOptions, StatusPills, type StatusFilter } from "./score-status";
 import { useAuth } from "@/lib/auth";
 import { openAuthModal } from "@/lib/auth-modal";
 import { SignupNudge } from "@/components/account/signup-nudge";
@@ -28,6 +31,7 @@ export function ScoreLibrary() {
   const params = useSearchParams();
   const [scores, setScores] = useState<ScoreRecord[]>([]);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<StatusFilter>("all");
   const [loaded, setLoaded] = useState(false);
   const [added, setAdded] = useState(false);
   const sync = useScoresSync();
@@ -58,7 +62,14 @@ export function ScoreLibrary() {
 
   const onDelete = async (id: string) => {
     await deleteScore(id);
+    // a route piece that pointed at it would otherwise offer to open nothing
+    await unlinkScoreEverywhere(id);
     setScores((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const setStatus = (id: string, status: ScoreStatus) => {
+    patch(id, { status });
+    void updateScoreStatus(id, status);
   };
 
   const patch = (id: string, changes: Partial<ScoreRecord>) => {
@@ -103,7 +114,10 @@ export function ScoreLibrary() {
     );
   }
 
-  const filtered = scores.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
+  // In hand first, then waiting, then finished: what you came to play is at the top.
+  const counts = Object.fromEntries(SCORE_STATUSES.map((s) => [s, 0])) as Record<ScoreStatus, number>;
+  for (const s of scores) counts[scoreStatus(s)]++;
+  const filtered = sortByStatus(scores).filter((s) => (filter === "all" || scoreStatus(s) === filter) && s.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-5">
@@ -155,20 +169,23 @@ export function ScoreLibrary() {
       </div>
 
       {scores.length > 0 && (
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar partitura…"
-              className="w-full rounded-2xl border border-line bg-surface py-2.5 pl-11 pr-4 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none"
-            />
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar partitura…"
+                className="w-full rounded-2xl border border-line bg-surface py-2.5 pl-11 pr-4 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none"
+              />
+            </div>
+            <span className="shrink-0 text-xs text-ink-3">
+              {scores.length} {scores.length === 1 ? "partitura" : "partituras"}
+            </span>
           </div>
-          <span className="shrink-0 text-xs text-ink-3">
-            {scores.length} {scores.length === 1 ? "partitura" : "partituras"}
-          </span>
+          <StatusPills value={filter} counts={counts} onChange={setFilter} />
         </div>
       )}
 
@@ -195,14 +212,15 @@ export function ScoreLibrary() {
               onOpen={() => open(s.id)}
               onDelete={() => void onDelete(s.id)}
               onRename={(name) => rename(s.id, name)}
+              onStatus={(status) => setStatus(s.id, status)}
               onPatch={(changes) => patch(s.id, changes)}
             />
           ))}
         </div>
       )}
 
-      {search && filtered.length === 0 && (
-        <p className="text-center text-sm text-ink-2">Sin resultados para «{search}».</p>
+      {scores.length > 0 && filtered.length === 0 && (
+        <p className="text-center text-sm text-ink-2">{search ? `Sin resultados para «${search}».` : "Ninguna partitura con ese estado."}</p>
       )}
     </div>
   );
@@ -217,12 +235,14 @@ function ScoreCard({
   onOpen,
   onDelete,
   onRename,
+  onStatus,
   onPatch,
 }: {
   record: ScoreRecord;
   onOpen: () => void;
   onDelete: () => void;
   onRename: (name: string) => void;
+  onStatus: (status: ScoreStatus) => void;
   onPatch: (changes: Partial<ScoreRecord>) => void;
 }) {
   const [menu, setMenu] = useState(false);
@@ -230,6 +250,8 @@ function ScoreCard({
   const [draft, setDraft] = useState(record.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // The menu is wider than a cover on a phone: it hangs to whichever side has room.
+  const [menuSide, setMenuSide] = useState<"left" | "right">("right");
   const cardRef = useRef<HTMLElement>(null);
   // Tarea larga de esta partitura (en marcha, lista o fallida): se ve desde la biblioteca.
   const job = useJobs().find((j) => j.scoreId === record.id);
@@ -314,6 +336,7 @@ function ScoreCard({
         <button type="button" onClick={onOpen} className="block w-full text-left focus:outline-none">
           <TileText
             title={record.name}
+            meta={<StatusLabel status={scoreStatus(record)} />}
             sub={`${isXml ? `${record.pageCount} ${record.pageCount === 1 ? "compás" : "compases"}` : `${record.pageCount} ${record.pageCount === 1 ? "página" : "páginas"}`} · ${formatDate(record.addedAt)}`}
           />
         </button>
@@ -328,7 +351,13 @@ function ScoreCard({
       {/* Menú ⋯: siempre visible en táctil, al pasar por encima en escritorio. */}
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); setMenu((v) => !v); setConfirmDelete(false); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          const box = cardRef.current?.getBoundingClientRect();
+          if (box) setMenuSide(box.left + box.width / 2 < window.innerWidth / 2 ? "left" : "right");
+          setMenu((v) => !v);
+          setConfirmDelete(false);
+        }}
         className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-surface/90 text-ink-2 shadow-sm ring-1 ring-line backdrop-blur transition hover:text-ink focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${
           menu ? "text-ink sm:opacity-100" : ""
         }`}
@@ -339,7 +368,10 @@ function ScoreCard({
         <DotsIcon className="h-4 w-4" />
       </button>
       {menu && (
-        <div className="absolute right-2 top-11 z-10 min-w-40 rounded-2xl border border-line bg-surface p-1.5 text-sm shadow-lg">
+        <div className={`absolute top-11 z-10 w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-surface p-1.5 text-sm shadow-lg ${menuSide === "left" ? "left-2" : "right-2"}`}>
+          <p className="px-3 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Estado</p>
+          <StatusOptions value={scoreStatus(record)} onChange={(s) => { setMenu(false); onStatus(s); }} />
+          <hr className="my-1.5 border-line" />
           <button
             type="button"
             onClick={() => { setMenu(false); setDraft(record.name); setEditing(true); }}

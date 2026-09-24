@@ -9,6 +9,7 @@ const PRECACHE = [
   "/practice",
   "/metronome",
   "/scores",
+  "/routes",
   "/glossary",
   "/settings",
   "/more",

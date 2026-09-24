@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 
-type Item = { href: string; label: string; icon: React.ReactNode };
+/** tint: icon color inside the active section's black pill. */
+type Item = { href: string; label: string; icon: React.ReactNode; tint?: string };
 
 const HomeIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -47,27 +48,44 @@ const CalendarIcon = (
   </svg>
 );
 
+const RoutesIcon = (
+  // Hitos unidos por un camino: piezas en orden, una detrás de otra.
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+    <circle cx="6" cy="6" r="2.5" />
+    <circle cx="18" cy="18" r="2.5" />
+    <path d="M8.5 6H14a3.5 3.5 0 0 1 0 7h-4a3.5 3.5 0 0 0 0 7h5.5" strokeLinecap="round" />
+  </svg>
+);
+
 /**
  * Las secciones del día a día, las mismas que las pestañas de escritorio
  * (AppHeader). Todo lo demás vive en la hoja de «Más»: con ocho iconos en fila
- * la barra se leía como una lista, no como una navegación.
+ * la barra se leía como una lista, no como una navegación. El metrónomo se
+ * fue a «Más» para dejar sitio a las rutas: se abre desde la sesión y desde
+ * el lector, que es donde hace falta.
+ * Cada sección lleva su pastel: es el único color de la barra, y solo aparece
+ * en el icono de la que está abierta, así que la fila sigue leyéndose en tinta.
  */
 const PRIMARY: Item[] = [
-  { href: "/", label: "Inicio", icon: HomeIcon },
-  { href: "/practice", label: "Práctica", icon: PracticeIcon },
-  { href: "/metronome", label: "Metrónomo", icon: MetronomeIcon },
-  { href: "/scores", label: "Partituras", icon: ScoresIcon },
-  { href: "/calendar", label: "Sesiones", icon: CalendarIcon },
+  { href: "/", label: "Inicio", icon: HomeIcon, tint: "text-yellow" },
+  { href: "/scores", label: "Partituras", icon: ScoresIcon, tint: "text-blue" },
+  { href: "/routes", label: "Rutas", icon: RoutesIcon, tint: "text-mint" },
+  { href: "/practice", label: "Práctica", icon: PracticeIcon, tint: "text-peach" },
+  { href: "/calendar", label: "Sesiones", icon: CalendarIcon, tint: "text-pink" },
 ];
 
 /** El resto de la app, agrupado por para qué sirve, dentro de la hoja de «Más». */
 const MORE_GROUPS: { title: string; items: Item[] }[] = [
   {
+    title: "Herramientas",
+    items: [{ href: "/metronome", label: "Metrónomo", icon: MetronomeIcon }],
+  },
+  {
     title: "Aprender",
     items: [
       {
         href: "/path",
-        label: "Ruta",
+        label: "Ruta del curso",
         icon: (
           // Una bandera al final de un camino: la ruta lleva a algún sitio.
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -180,13 +198,24 @@ export function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/** Short spring: the pill arrives, overshoots a touch and settles. */
+const SPRING = "cubic-bezier(0.34, 1.32, 0.5, 1)";
+
+/** Active icon hops; the rest sink when pressed. */
+const iconClass = (active: boolean, tint?: string) =>
+  active
+    ? `w-6 h-6 shrink-0 ${tint ?? ""} animate-[nav-pop_0.38s_cubic-bezier(0.34,1.32,0.5,1)]`
+    : "w-6 h-6 shrink-0 transition-transform duration-150 group-active:scale-90";
+
 /**
- * Barra inferior flotante, solo en móvil. En escritorio la navegación está en
- * AppHeader. `safe-bottom` la levanta por encima del gesto del sistema para que
- * la franja inferior del teléfono no se coma la fila de iconos.
+ * Barra inferior flotante, en móvil y tableta (hasta `lg`). En escritorio la
+ * navegación está en AppHeader. `safe-bottom` la levanta por encima del gesto
+ * del sistema para que la franja inferior del teléfono no se coma la fila de iconos.
  * Las secciones del día a día y un botón «Más» que abre una hoja con el resto:
  * así cada destino tiene sitio para respirar y el pulgar no falla el objetivo.
  * La pestaña activa se ensancha y muestra su nombre; las demás quedan en icono.
+ * Su fondo negro es una única píldora absoluta que se mide y se desliza: al
+ * cambiar de sección el negro viaja por la barra en vez de saltar.
  */
 export function AppNav() {
   const pathname = usePathname();
@@ -201,34 +230,84 @@ export function AppNav() {
     setMoreOpen(false);
   }
 
+  const listRef = useRef<HTMLUListElement>(null);
+  const activeRef = useRef<HTMLLIElement>(null);
+  // animate is false on the first measure: on load the pill is already in place.
+  const [pill, setPill] = useState<{ x: number; w: number; animate: boolean } | null>(null);
+
+  useLayoutEffect(() => {
+    const item = activeRef.current;
+    const list = listRef.current;
+    if (!item || !list) return;
+    const measure = () => {
+      const a = item.getBoundingClientRect();
+      const b = list.getBoundingClientRect();
+      // Hidden bar (reader open) measures 0; storing that would make the pill
+      // stretch from the edge when it comes back.
+      if (!a.width) return;
+      setPill((prev) => {
+        // clientLeft: `left` on the absolute pill counts from the padding box.
+        const x = a.left - b.left - list.clientLeft;
+        if (prev && prev.x === x && prev.w === a.width) return prev;
+        return { x, w: a.width, animate: prev !== null };
+      });
+    };
+    measure();
+    // Remeasure on rotation (the bar stretches) and when the label changes width.
+    const ro = new ResizeObserver(measure);
+    ro.observe(list);
+    ro.observe(item);
+    return () => ro.disconnect();
+  }, [pathname, moreActive]);
+
+  // Until the first measure (and in the server HTML) the active tab paints its
+  // own background, or its light text would be invisible over the glass.
+  const ownBg = pill === null;
+
   return (
     <>
       {/* data-app-nav: el lector de partituras la esconde mientras está abierto. */}
-      <nav data-app-nav aria-label="Navegación principal" className="fixed bottom-0 inset-x-0 z-40 md:hidden pointer-events-none safe-bottom px-3">
+      <nav data-app-nav aria-label="Navegación principal" className="fixed bottom-0 inset-x-0 z-40 lg:hidden pointer-events-none safe-bottom px-3">
         {/* gap-0.5: con seis huecos (cinco secciones y «Más») en un teléfono
             estrecho, cualquier separación mayor se come el ancho de la píldora
             activa y su nombre se parte. */}
-        <ul className="pointer-events-auto mx-auto max-w-md card flex items-center gap-0.5 px-1.5 py-1.5">
+        <ul ref={listRef} className="pointer-events-auto relative mx-auto max-w-md nav-glass rounded-[1.75rem] flex items-center gap-0.5 p-1.5">
+          <span
+            aria-hidden
+            className="absolute inset-y-1.5 left-0 rounded-[1.375rem] bg-ink will-change-transform"
+            style={{
+              width: pill?.w ?? 0,
+              opacity: pill ? 1 : 0,
+              transform: `translate3d(${pill?.x ?? 0}px, 0, 0)`,
+              // Short: while travelling the pill covers the icons it passes.
+              transition: pill?.animate ? `transform 0.36s ${SPRING}, width 0.36s ${SPRING}` : undefined,
+            }}
+          />
+
           {PRIMARY.map((it) => {
             const active = isActive(pathname, it.href);
             return (
-              <li key={it.href} className={active ? "shrink-0" : "flex-1 min-w-0"}>
+              <li key={it.href} ref={active ? activeRef : undefined} className={active ? "shrink-0" : "flex-1 min-w-0"}>
                 <Link
                   href={it.href}
                   aria-label={it.label}
                   aria-current={active ? "page" : undefined}
-                  className={`flex items-center justify-center gap-1.5 h-11 rounded-2xl transition-colors ${
-                    active ? "bg-ink text-bg px-3" : "text-ink-3 active:bg-surface-2"
+                  // relative: paint the links above the positioned pill.
+                  className={`group relative flex items-center justify-center gap-1.5 h-12 rounded-[1.375rem] transition-colors duration-200 ${
+                    active ? `text-bg px-3.5 ${ownBg ? "bg-ink" : ""}` : "text-ink-2 active:bg-surface-2"
                   }`}
                 >
-                  <span className="w-6 h-6 shrink-0">{it.icon}</span>
-                  {active && <span className="text-[13px] font-semibold whitespace-nowrap">{it.label}</span>}
+                  {/* key: remounting the span replays the hop. */}
+                  <span key={active ? "on" : "off"} className={iconClass(active, it.tint)}>
+                    {it.icon}
+                  </span>
+                  {active && <span className="text-[13px] font-semibold tracking-tight whitespace-nowrap animate-[nav-label_0.4s_ease-out]">{it.label}</span>}
                 </Link>
               </li>
             );
           })}
 
-          <li className={moreActive ? "shrink-0" : "flex-1 min-w-0"}>
+          <li ref={moreActive ? activeRef : undefined} className={moreActive ? "shrink-0" : "flex-1 min-w-0"}>
             <button
               type="button"
               aria-label="Más secciones"
@@ -236,18 +315,18 @@ export function AppNav() {
               aria-expanded={moreOpen}
               aria-current={moreActive ? "page" : undefined}
               onClick={() => setMoreOpen(true)}
-              className={`w-full flex items-center justify-center gap-1.5 h-11 rounded-2xl transition-colors ${
-                moreActive ? "bg-ink text-bg px-3" : "text-ink-3 active:bg-surface-2"
+              className={`group relative w-full flex items-center justify-center gap-1.5 h-12 rounded-[1.375rem] transition-colors duration-200 ${
+                moreActive ? `text-bg px-3.5 ${ownBg ? "bg-ink" : ""}` : "text-ink-2 active:bg-surface-2"
               }`}
             >
-              <span className="w-6 h-6 shrink-0">
+              <span key={moreActive ? "on" : "off"} className={iconClass(moreActive, "text-ash")}>
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <circle cx="5.5" cy="12" r="1.85" />
                   <circle cx="12" cy="12" r="1.85" />
                   <circle cx="18.5" cy="12" r="1.85" />
                 </svg>
               </span>
-              {moreActive && <span className="text-[13px] font-semibold whitespace-nowrap">Más</span>}
+              {moreActive && <span className="text-[13px] font-semibold tracking-tight whitespace-nowrap animate-[nav-label_0.4s_ease-out]">Más</span>}
             </button>
           </li>
         </ul>

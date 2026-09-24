@@ -2,7 +2,7 @@ import Link from "next/link";
 
 /** Pestaña de la fila de navegación: texto plano; la activa va en negrita con una línea gruesa debajo. */
 export const tabClass = (active: boolean) =>
-  `relative inline-flex items-center h-12 px-3.5 text-[15px] transition-colors ${
+  `relative inline-flex items-center h-12 px-3 xl:px-3.5 text-[15px] whitespace-nowrap transition-colors ${
     active ? "text-ink font-semibold" : "text-ink-2 font-medium hover:text-ink"
   }`;
 

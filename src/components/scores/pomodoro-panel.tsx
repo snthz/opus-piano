@@ -7,7 +7,8 @@ import { unlockAudio } from "@/lib/audio/synth";
 import { CONFIG_LIMITS, PHASE_LABELS, usePomodoro, type PomodoroConfig } from "@/lib/pomodoro";
 import { clock } from "@/lib/session-run";
 
-const TomatoIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+/** El pomodoro, allí donde se le llame: un tomate. */
+export const TomatoIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className} aria-hidden>
     <path d="M12 7.5c-4.4 0-7.5 2.6-7.5 6.4C4.5 17.8 7.9 20.5 12 20.5s7.5-2.7 7.5-6.6c0-3.8-3.1-6.4-7.5-6.4z" strokeLinejoin="round" />
     <path d="M12 7.5V4.5M12 7.5c1.2-1.4 2.8-2 4.5-1.8M12 7.5C10.8 6.1 9.2 5.5 7.5 5.7" strokeLinecap="round" strokeLinejoin="round" />

@@ -16,17 +16,23 @@ import { useSettings } from "@/lib/settings";
 import { THEMES } from "@/lib/theme";
 import { dayStreak, useProgress } from "@/lib/progress";
 
+/**
+ * Las mismas cinco secciones que la barra inferior (AppNav): lo que se toca a
+ * diario. Partituras justo tras Inicio porque es donde se entra a estudiar; el
+ * metrónomo se fue a «Más»: se abre desde la sesión y el lector, no desde aquí.
+ */
 const TABS = [
   { href: "/", label: "Inicio" },
-  { href: "/practice", label: "Práctica" },
-  { href: "/metronome", label: "Metrónomo" },
   { href: "/scores", label: "Partituras" },
+  { href: "/routes", label: "Rutas" },
+  { href: "/practice", label: "Práctica" },
   { href: "/calendar", label: "Sesiones" },
 ];
 
 /** Secciones que ya no van en la fila de pestañas: viven en «Más» del menú de usuario. */
 const MORE_LINKS = [
-  { href: "/path", label: "Ruta" },
+  { href: "/metronome", label: "Metrónomo" },
+  { href: "/path", label: "Ruta del curso" },
   { href: "/theory", label: "Teoría" },
   { href: "/teacher", label: "Profesor" },
   { href: "/glossary", label: "Glosario" },
@@ -43,7 +49,9 @@ const AUTH_PATHS = ["/login", "/register"];
  * sugeridas.
  * Teoría, Glosario y Ajustes no van como pestañas: están en el menú de usuario
  * (UserMenu), junto al cambio de tema y «Cerrar sesión».
- * En móvil solo se ve la fila de arriba: la navegación está abajo (AppNav).
+ * En móvil y tableta (hasta `lg`) solo se ve la fila de arriba: la navegación
+ * está abajo (AppNav). En un iPad en vertical la fila de pestañas no cabía y
+ * se desbordaba; la barra inferior, además, queda al alcance del pulgar.
  * En /login y /register la fila de pestañas se oculta para no distraer.
  * Su alto vive también en `--header-h` (globals.css): al cambiarlo aquí, hay
  * que ajustarlo allí para que el lector de partituras siga cuadrando.
@@ -89,11 +97,11 @@ export function AppHeader() {
       </div>
 
       {!authPage && (
-        <div className="hidden md:block border-t border-line">
+        <div className="hidden lg:block border-t border-line">
           <nav aria-label="Navegación principal" className="max-w-5xl mx-auto px-8 h-12 flex items-center">
             {/* key={pathname}: al navegar se desmonta y el desplegable se cierra solo. */}
             <ExploreMenu key={pathname} pathname={pathname} />
-            <span aria-hidden className="w-px h-6 bg-line mx-3" />
+            <span aria-hidden className="w-px h-6 bg-line mx-2 xl:mx-3" />
             {TABS.map((t) => (
               <Tab key={t.href} href={t.href} active={isActive(pathname, t.href)}>
                 {t.label}
@@ -164,7 +172,10 @@ function ExploreMenu({ pathname }: { pathname: string }) {
           <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v14H6.5A2.5 2.5 0 0 0 4 20.5z" strokeLinejoin="round" />
           <path d="M4 20.5V6.5M8 8.5h8M8 12h6" strokeLinecap="round" />
         </svg>
-        Explorar lecciones
+        {/* En la anchura justa de `lg` (un iPad apaisado) el nombre entero no deja sitio a las pestañas. */}
+        <span className="whitespace-nowrap">
+          Explorar<span className="hidden xl:inline"> lecciones</span>
+        </span>
         <Chevron open={open} />
       </button>
 

@@ -54,8 +54,14 @@
   --header-h: calc(4rem + 1px + var(--safe-t));
 }
 
-/* En escritorio la cabecera suma la fila de pestañas: 72 + 1 + 48 + 1. */
+/* Desde `md` la fila de marca crece a 72 px; la fila de pestañas solo llega en
+   escritorio (`lg`), y entonces la cabecera suma 72 + 1 + 48 + 1. */
 @media (min-width: 48rem) {
+  :root {
+    --header-h: calc(73px + var(--safe-t));
+  }
+}
+@media (min-width: 64rem) {
   :root {
     --header-h: calc(122px + var(--safe-t));
   }
@@ -94,12 +100,14 @@
 
 /* En una tableta (pantalla ancha pero táctil, como un iPad) la partitura se lee
    en el atril: la cabecera del sitio solo le roba alto. Con el lector abierto
-   se va, y quedan sus herramientas y el panel de estudio. */
+   se va —y la barra inferior con ella—, y quedan sus herramientas y el panel
+   de estudio. */
 @media (min-width: 48rem) and (any-pointer: coarse) {
   :root[data-reader] {
     --header-h: 0px;
   }
-  :root[data-reader] [data-app-header] {
+  :root[data-reader] [data-app-header],
+  :root[data-reader] [data-app-nav] {
     display: none;
   }
 }
@@ -229,6 +237,55 @@ body {
   color: var(--ink);
 }
 
+/* Frosted glass for the floating bottom bar (AppNav). */
+@utility nav-glass {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  /* Don't add -webkit-backdrop-filter by hand: writing both makes the CSS
+     compiler keep only the prefixed one and Chrome loses the blur. */
+  backdrop-filter: blur(22px) saturate(1.7);
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: 0 1px 1px rgb(17 17 20 / 0.04), 0 20px 44px -20px rgb(17 17 20 / 0.4);
+}
+/* In dark the surface barely differs from the background: lift it and the edge. */
+:root[data-theme="dark"] .nav-glass {
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+  border-color: color-mix(in srgb, var(--ink) 15%, transparent);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.4), 0 20px 44px -18px rgb(0 0 0 / 0.85);
+}
+
+/* !important: the pill's transition lives in its style attribute. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-glass,
+  .nav-glass * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* The label waits for the pill: otherwise it reads white on the light glass. */
+@keyframes nav-label {
+  0%,
+  55% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Hop of the icon on the tab that just became active, like a key released. */
+@keyframes nav-pop {
+  0% {
+    transform: scale(0.7);
+  }
+  55% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Botón circular negro con icono */
 @utility btn-circle {
   display: inline-flex;
@@ -335,7 +392,7 @@ body {
 }
 
 /* Hueco que deja el cuerpo para la barra inferior flotante: lo que ocupa
-   (3.5rem de alto + 0.75rem de aire) más el gesto del sistema. */
+   (3.75rem de alto + 0.75rem de aire) más el gesto del sistema. */
 @utility safe-nav {
   padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
 }

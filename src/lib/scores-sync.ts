@@ -13,6 +13,7 @@ import {
   type ScoreRecord,
   type Visibility,
 } from "@/lib/scores-db";
+import type { ScoreStatus } from "@/lib/score-status";
 import type { PlanState } from "@/lib/study-plan";
 
 /**
@@ -33,6 +34,8 @@ interface ServerScore {
   thumbnail: string;
   annotations?: Annotations;
   plan?: PlanState;
+  /** Null for scores saved before the field existed: the device then guesses (see `scoreStatus`). */
+  status: ScoreStatus | null;
   size: number;
   uploaded: boolean;
   hasXml: boolean;
@@ -111,6 +114,7 @@ async function upload(rec: ScoreRecord): Promise<void> {
     thumbnail: rec.thumbnail,
     annotations: rec.annotations,
     plan: rec.plan ?? null,
+    status: rec.status ?? null,
     visibility: rec.visibility ?? "private",
     description: rec.description ?? "",
     createdAt: rec.addedAt,
@@ -146,6 +150,7 @@ async function pushMeta(rec: ScoreRecord, server: ServerScore): Promise<void> {
     notes: rec.notes,
     annotations: rec.annotations ?? null,
     plan: rec.plan ?? null,
+    status: rec.status ?? null,
     visibility: rec.visibility ?? "private",
     description: rec.description ?? "",
     updatedAt: rec.updatedAt ?? rec.addedAt,
@@ -185,6 +190,7 @@ async function download(s: ServerScore, local?: ScoreRecord): Promise<void> {
     pageCount: s.pageCount,
     annotations: s.annotations,
     plan: s.plan,
+    status: s.status ?? undefined,
     visibility: s.visibility,
     description: s.description,
     linkedXml,

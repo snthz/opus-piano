@@ -39,6 +39,14 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 - **Partituras compartidas**: cada partitura de la biblioteca puede ser privada, visible por enlace o pública
   (`/scores/community`). Se comparten el archivo, el nombre, la portada y una presentación; las notas, los
   trazos y el análisis siguen siendo privados. Quien la ve puede guardarse una copia.
+- **Estado de cada partitura**: por empezar, en estudio o dominada. La biblioteca se filtra y se ordena por
+  él, y las que están en estudio salen las primeras en el inicio para empezar a tocar de un toque.
+- **Rutas de estudio** (`/routes`): el plan de repertorio del alumno (o de su profesor), con las piezas en
+  orden, la rutina diaria, los objetivos por plazo y las notas. Cada pieza se enlaza con una partitura de la
+  biblioteca (o del catálogo, o subida ahí mismo); terminar una pieza la marca como dominada y la siguiente
+  pasa a estar en estudio. Se empieza desde una plantilla, desde cero, o **pegando el texto o el PDF de un
+  plan** que la IA convierte en ruta. Se guarda en el dispositivo y se sincroniza con la cuenta como las
+  partituras (`StudyRoute`, gana el `updatedAt` más reciente).
 - **Ruta de aprendizaje** (`/path`) que ordena lecciones, ejercicios y piezas, y un **profesor general**
   (`/teacher`) que responde dudas de música citando las páginas de la app.
 - **Techo de gasto** para la IA: `AI_MONTHLY_BUDGET_USD` corta las llamadas al modelo cuando el mes llega al
@@ -51,7 +59,7 @@ de la partitura, con ejercicios de práctica y una biblioteca de partituras pers
 
 | Servicio | Qué es | Imagen |
 | --- | --- | --- |
-| `web` | Next.js 16 (salida *standalone*) + Prisma. Sirve la app y la API (`/api/auth/*`, `/api/progress`, `/api/scores`, `/api/health`). Los archivos de las partituras van al volumen `scores` (en streaming, sin cargarlos en memoria); cuota por usuario `SCORES_QUOTA_MB` (300 por defecto). | `ghcr.io/<usuario>/opus-piano-web` |
+| `web` | Next.js 16 (salida *standalone*) + Prisma. Sirve la app y la API (`/api/auth/*`, `/api/progress`, `/api/scores`, `/api/routes`, `/api/health`). Los archivos de las partituras van al volumen `scores` (en streaming, sin cargarlos en memoria); cuota por usuario `SCORES_QUOTA_MB` (300 por defecto). | `ghcr.io/<usuario>/opus-piano-web` |
 | `db` | PostgreSQL 16 (alpine), ajustado para poca RAM. Guarda usuarios, sesiones, progreso y los metadatos de las partituras (nombre, notas, trazos, miniatura). | `postgres:16-alpine` |
 | `omr` | **Fuera del VPS.** Reconocimiento óptico de partituras (oemer sobre FastAPI, ver [`omr-service/`](omr-service/)): recibe la imagen de una página y devuelve su MusicXML. Necesita 4 GB y la CPU entera durante minutos, así que va en Cloud Run, que lo apaga cuando nadie lo usa. Opcional: sin `OMR_URL`, la app no ofrece la opción. | se construye en `omr-service/` |
 
@@ -221,6 +229,12 @@ partitura e instrucciones), [`src/lib/plan/client.ts`](src/lib/plan/client.ts) e
   ido las sesiones y los últimos 12 turnos; la respuesta llega palabra a palabra. La conversación se guarda en
   el dispositivo (una por partitura, y otra para el profesor general), así que sigue donde se dejó; no se
   sincroniza con la cuenta.
+- **Leer un plan de estudio** (`/api/routes/import`): el texto de un plan (pegado, o sacado de un PDF en el
+  propio navegador con pdf.js) se convierte en una ruta de estudio con el mismo modelo, la misma clave y el
+  mismo techo de gasto; `ROUTE_IMPORTS_PER_DAY` planes por usuario y día (5 por defecto). Un plan de cinco
+  páginas ronda los 7 000 tokens de entrada y 6 000 de salida, unos 7 céntimos, y tarda menos de un minuto.
+  Las tres rutas largas (plan, importación y OMR) comparten el flujo NDJSON con latidos de
+  [`src/lib/server/ndjson-job.ts`](src/lib/server/ndjson-job.ts).
 
 ### Transcribir un PDF a MusicXML (OMR)
 

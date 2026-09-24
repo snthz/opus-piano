@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { isScoreId } from "@/lib/server/score-files";
+import { isScoreStatus, SCORE_STATUSES, type ScoreStatus } from "@/lib/score-status";
 import { planStateSchema } from "@/lib/study-plan";
 
 /** Lo que el cliente ve de cada partitura (sin archivos). */
@@ -15,6 +16,8 @@ export interface ScoreMeta {
   annotations: unknown;
   /** Plan de estudio (planStateSchema) o undefined */
   plan: unknown;
+  /** Null si el dispositivo nunca lo ha fijado (partituras anteriores al campo). */
+  status: ScoreStatus | null;
   size: number;
   uploaded: boolean;
   hasXml: boolean;
@@ -27,6 +30,8 @@ export interface ScoreMeta {
 export const VISIBILITIES = ["private", "link", "public"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 export const visibilitySchema = z.enum(VISIBILITIES);
+/** Null = el dispositivo no lo sabe; se guarda como cadena vacía y vuelve como null. */
+const statusSchema = z.enum(SCORE_STATUSES).nullable();
 /** Lo que acompaña a una partitura compartida; corto a propósito, es una presentación, no un ensayo. */
 export const DESCRIPTION_MAX = 600;
 
@@ -69,6 +74,7 @@ export const scoreCreateSchema = z.object({
   thumbnail: z.string().max(200_000).default(""),
   annotations: annotationsSchema.optional(),
   plan: planStateSchema.nullable().optional(),
+  status: statusSchema.optional(),
   visibility: visibilitySchema.optional(),
   description: z.string().trim().max(DESCRIPTION_MAX).optional(),
   createdAt: z.number().int().positive().optional(),
@@ -80,6 +86,7 @@ export const scorePatchSchema = z.object({
   notes: z.string().max(20_000).optional(),
   annotations: annotationsSchema.nullable().optional(),
   plan: planStateSchema.nullable().optional(),
+  status: statusSchema.optional(),
   visibility: visibilitySchema.optional(),
   description: z.string().trim().max(DESCRIPTION_MAX).optional(),
   updatedAt: z.number().int().positive(),
@@ -104,6 +111,7 @@ export function toMeta(r: Row): ScoreMeta {
     thumbnail: r.thumbnail,
     annotations: r.annotations ?? undefined,
     plan: r.plan ?? undefined,
+    status: isScoreStatus(r.status) ? r.status : null,
     size: r.size,
     uploaded: r.uploaded,
     hasXml: r.xmlSize > 0,
@@ -113,6 +121,9 @@ export function toMeta(r: Row): ScoreMeta {
     updatedAt: Number(r.updatedAt),
   };
 }
+
+/** Columna `status`: cadena vacía cuando el dispositivo no lo sabe; undefined = no tocar. */
+export const statusColumn = (s: ScoreStatus | null | undefined): string | undefined => (s === undefined ? undefined : (s ?? ""));
 
 const asVisibility = (v: string): Visibility => (VISIBILITIES.includes(v as Visibility) ? (v as Visibility) : "private");
 

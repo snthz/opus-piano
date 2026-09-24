@@ -18,6 +18,7 @@ export const metadata = pageMetadata({
 });
 
 const links = [
+  { href: "/routes", title: "Rutas de estudio", text: "Tu plan de repertorio: las piezas en orden, la rutina diaria y los objetivos, con cada partitura enlazada." },
   { href: "/theory", title: "Teoría", text: "Las lecciones, en orden: del pentagrama y las notas al ritmo, las escalas y los acordes." },
   { href: "/guide", title: "Guía para leer partituras", text: "El recorrido completo, del pentagrama a los símbolos, en una sola página." },
   { href: "/symbols", title: "Diccionario de símbolos", text: "Todos los signos de la partitura, por familias, con su significado." },
