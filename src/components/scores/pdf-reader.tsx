@@ -168,6 +168,20 @@ function NavButton({
   );
 }
 
+/**
+ * Safari entrega el Apple Pencil como un toque más de la lista, marcado como
+ * `stylus`. Sin separarlo, la mano apoyada más el lápiz son dos toques y el
+ * lector los tomaba por un pellizco: la página se movía sola mientras se
+ * escribía. Para los gestos solo cuentan los dedos.
+ */
+// Lo justo que hace falta de un toque, y no `TouchList`: React trae su propia
+// lista y estos se usan con el evento de React y con el del navegador.
+// `touchType` es de Safari y no está en los tipos del DOM.
+type TouchLike = { clientX: number; clientY: number; touchType?: string };
+const isStylus = (t: TouchLike) => t.touchType === "stylus";
+const fingersOf = (list: ArrayLike<TouchLike>) => Array.from(list).filter((t) => !isStylus(t));
+const hasStylus = (list: ArrayLike<TouchLike>) => Array.from(list).some(isStylus);
+
 type Pair = ArrayLike<{ clientX: number; clientY: number }>;
 const touchMid = (t: Pair) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
 const touchGap = (t: Pair) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
@@ -543,19 +557,26 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     // keeps them from tucking away mid-gesture
     nudgeChrome();
     dragged.current = false;
-    touchStart.current = e.touches[0] ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    const fingers = fingersOf(e.touches);
+    touchStart.current = fingers[0] ? { x: fingers[0].clientX, y: fingers[0].clientY } : null;
     const el = areaRef.current;
     if (!el || settling.current) return;
     if (gesture.current?.kind === "pinch") return;
-    if (e.touches.length === 2) {
+    // Con una herramienta en la mano y el lápiz en la hoja, lo que pasa ahí es
+    // escribir: la mano apoyada al lado no mueve ni amplía la partitura.
+    if (tool && hasStylus(e.touches)) {
+      gesture.current = null;
+      return;
+    }
+    if (fingers.length === 2) {
       const pg = pageEl(el);
       if (!pg) return;
       const r = el.getBoundingClientRect();
-      const m = touchMid(e.touches);
+      const m = touchMid(fingers);
       gesture.current = {
         kind: "pinch",
         el: pg,
-        gap: touchGap(e.touches),
+        gap: touchGap(fingers),
         zoom: zoomRef.current,
         ratio: 1,
         k: 1,
@@ -564,8 +585,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         ...anchorAt(el, pg, m.x - r.left, m.y - r.top),
       };
       setPinching(true);
-    } else if (e.touches.length === 1 && zoomRef.current > 1 && !tool) {
-      gesture.current = { kind: "pan", x: e.touches[0].clientX, y: e.touches[0].clientY, left: el.scrollLeft, top: el.scrollTop };
+    } else if (fingers.length === 1 && zoomRef.current > 1 && !tool) {
+      gesture.current = { kind: "pan", x: fingers[0].clientX, y: fingers[0].clientY, left: el.scrollLeft, top: el.scrollTop };
     } else {
       gesture.current = null;
     }
@@ -586,22 +607,24 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       // a swipe between pages is the browser's own scroll — there's no gesture of
       // ours to look at, so the finger's travel is what tells a swipe from a tap
       const s = touchStart.current;
-      const t = e.touches[0];
+      const fingers = fingersOf(e.touches);
+      const t = fingers[0];
       if (s && t && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 10) dragged.current = true;
       if (!g || !el) return;
       if (g.kind === "pan") {
+        if (!t) return;
         e.preventDefault();
-        el.scrollLeft = g.left - (e.touches[0].clientX - g.x);
-        el.scrollTop = g.top - (e.touches[0].clientY - g.y);
+        el.scrollLeft = g.left - (t.clientX - g.x);
+        el.scrollTop = g.top - (t.clientY - g.y);
         return;
       }
-      if (e.touches.length < 2) return;
+      if (fingers.length < 2) return;
       e.preventDefault();
       const r = el.getBoundingClientRect();
-      const m = touchMid(e.touches);
+      const m = touchMid(fingers);
       g.fx = m.x - r.left;
       g.fy = m.y - r.top;
-      g.ratio = touchGap(e.touches) / g.gap;
+      g.ratio = touchGap(fingers) / g.gap;
       const raw = g.zoom * g.ratio;
       // outside the range, scale gives only a little, like a rubber band, and snaps back on release
       const z = raw < 1 ? 1 - (1 - raw) * 0.3 : raw > MAX_ZOOM ? MAX_ZOOM + (raw - MAX_ZOOM) * 0.3 : raw;
@@ -613,9 +636,10 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     const onEnd = (e: TouchEvent) => {
       const g = gesture.current;
       if (!g) return;
+      const fingers = fingersOf(e.touches);
       if (g.kind === "pinch") {
-        if (e.touches.length < 2) finishPinch(g);
-      } else if (e.touches.length === 0) {
+        if (fingers.length < 2) finishPinch(g);
+      } else if (fingers.length === 0) {
         gesture.current = null;
       }
     };
@@ -864,6 +888,10 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             ref={areaRef}
             onScroll={onPagerScroll}
             onTouchStart={onTouchStart}
+            // El menú «Copiar / Buscar en la web» de iOS sale de aquí: un toque
+            // largo —la mano apoyada lo es— dispara `contextmenu` sobre la hoja
+            // y Safari se ofrece a copiar el trozo de partitura que hay debajo.
+            onContextMenu={(e) => e.preventDefault()}
             // a tap on the page brings the bars up or tucks them away; a swipe
             // or a pan ends in a click too, and that one isn't a tap
             onClick={() => {

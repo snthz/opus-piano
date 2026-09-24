@@ -61,6 +61,15 @@ export const LINER_WIDTHS = [
 export const DEFAULT_LINER_WIDTH = LINER_WIDTHS[1].value;
 
 /**
+ * Un lápiz ha escrito aquí alguna vez. A partir de ahí los dedos dejan de
+ * dibujar: en un iPad con Pencil, un dedo sobre la hoja es la mano apoyada, y
+ * dibujaba donde se posaba. En un móvil sin lápiz esto nunca se enciende, así
+ * que ahí se sigue escribiendo con el dedo. Va fuera del componente porque no
+ * es de una página, es de cómo se está usando la app.
+ */
+let penSeen = false;
+
+/**
  * Densidad a la que se pinta el lienzo: la de la pantalla, salvo que la página
  * sea tan grande —con mucho zoom lo es— que el lienzo se pase del tamaño que
  * iOS dibuja. Pasado ese tamaño sale en blanco y sin dar error, que es por lo
@@ -242,11 +251,13 @@ export function ScoreAnnotator({
       // palma: se tira y escribe el lápiz.
       cancelStroke();
       penId.current = e.pointerId;
+      penSeen = true;
     } else {
-      // Con el lápiz apoyado, un dedo es la mano descansando en la hoja.
-      if (penId.current !== null) return;
-      // Y sin lápiz, un segundo dedo no es otro trazo: es un pellizco para
-      // hacer zoom, así que lo que el primero llevaba escrito tampoco vale.
+      // Con un lápiz apoyado —o en cuanto se ha usado uno— un dedo sobre la
+      // hoja es la mano descansando: ni escribe ni borra lo que hay.
+      if (penId.current !== null || penSeen) return;
+      // Sin lápiz de por medio, un segundo dedo no es otro trazo: es un
+      // pellizco para hacer zoom, así que lo que el primero llevaba tampoco vale.
       if (fingersDown() > 1) {
         cancelStroke();
         return;
@@ -323,6 +334,7 @@ export function ScoreAnnotator({
         WebkitTouchCallout: "none",
       }}
       className={`absolute inset-0 ${tool === "eraser" ? "cursor-cell" : tool ? "cursor-crosshair" : ""}`}
+      onContextMenu={(e) => e.preventDefault()}
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
