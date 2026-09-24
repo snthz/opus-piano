@@ -98,8 +98,12 @@ export function ScoreAnnotator({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<Stroke | null>(null);
-  /** Dedos (o punteros) apoyados ahora mismo: más de uno es un pellizco, no un trazo. */
-  const down = useRef(new Set<number>());
+  /** Punteros apoyados ahora mismo y de qué son: dedo, lápiz o ratón. */
+  const down = useRef(new Map<number, string>());
+  /** Lápiz apoyado. Mientras lo haya, los dedos son la mano posada y se ignoran. */
+  const penId = useRef<number | null>(null);
+  /** Puntero dueño del trazo en curso: solo ese lo alarga y lo cierra. */
+  const owner = useRef<number | null>(null);
 
   /** Una digitación centrada justo donde se apunta. */
   const labelAt = (p: [number, number]): Stroke => ({ color, width: fingerSize, label: finger, points: [p] });
@@ -134,10 +138,17 @@ export function ScoreAnnotator({
       ctx.globalAlpha = s.highlighter ? 0.35 : 1;
       ctx.lineWidth = s.width * width;
       ctx.beginPath();
-      const [x0, y0] = s.points[0];
-      ctx.moveTo(x0 * width, y0 * height);
-      if (s.points.length === 1) ctx.lineTo(x0 * width + 0.01, y0 * height);
-      for (const [x, y] of s.points.slice(1)) ctx.lineTo(x * width, y * height);
+      // Curva que pasa por los puntos medios y usa cada muestra como tirador:
+      // así la línea se dobla en lugar de quebrarse en cada punto, que es lo
+      // que se veía como escalones —sobre todo con el delineador, donde el
+      // trazo es tan fino que la esquina de cada segmento canta—.
+      const px = (i: number) => s.points[i][0] * width;
+      const py = (i: number) => s.points[i][1] * height;
+      const last = s.points.length - 1;
+      ctx.moveTo(px(0), py(0));
+      if (last === 0) ctx.lineTo(px(0) + 0.01, py(0));
+      for (let i = 1; i < last; i++) ctx.quadraticCurveTo(px(i), py(i), (px(i) + px(i + 1)) / 2, (py(i) + py(i + 1)) / 2);
+      if (last > 0) ctx.lineTo(px(last), py(last));
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -153,11 +164,14 @@ export function ScoreAnnotator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, strokes]);
 
-  // Un dedo del pellizco puede levantarse fuera del lienzo y su `pointerup` no
-  // llegaría aquí: sin esto se quedaría apuntado para siempre y ya no se podría
-  // volver a escribir. En la ventana llega siempre, venga de donde venga.
+  // Un dedo puede levantarse fuera del lienzo y su `pointerup` no llegaría
+  // aquí: sin esto se quedaría apuntado para siempre y ya no se podría volver
+  // a escribir. En la ventana llega siempre, venga de donde venga.
   useEffect(() => {
-    const release = (e: PointerEvent) => down.current.delete(e.pointerId);
+    const release = (e: PointerEvent) => {
+      down.current.delete(e.pointerId);
+      if (penId.current === e.pointerId) penId.current = null;
+    };
     window.addEventListener("pointerup", release);
     window.addEventListener("pointercancel", release);
     return () => {
@@ -166,9 +180,34 @@ export function ScoreAnnotator({
     };
   }, []);
 
-  const toPoint = (e: React.PointerEvent): [number, number] => {
+  const toPoint = (e: { clientX: number; clientY: number }): [number, number] => {
     const r = canvasRef.current!.getBoundingClientRect();
     return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+  };
+
+  /**
+   * Todos los puntos de un movimiento, no solo el último. Un lápiz muestrea
+   * mucho más rápido de lo que el navegador entrega eventos y guarda los de
+   * en medio aquí: cogerlos es lo que separa una curva de una línea quebrada.
+   */
+  const pointsOf = (e: React.PointerEvent): [number, number][] => {
+    const native = e.nativeEvent;
+    const coalesced = typeof native.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [];
+    return (coalesced.length ? coalesced : [native]).map(toPoint);
+  };
+
+  /** Cuántos dedos (o el ratón) hay apoyados; el lápiz va aparte. */
+  const fingersDown = () => {
+    let n = 0;
+    for (const kind of down.current.values()) if (kind !== "pen") n++;
+    return n;
+  };
+
+  const cancelStroke = () => {
+    if (!drawing.current) return;
+    drawing.current = null;
+    owner.current = null;
+    paint();
   };
 
   const erase = (p: [number, number]) => {
@@ -182,19 +221,25 @@ export function ScoreAnnotator({
 
   const onDown = (e: React.PointerEvent) => {
     if (!tool) return;
-    down.current.add(e.pointerId);
-    // Un segundo dedo no es otro trazo: es un pellizco para hacer zoom. Lo que
-    // el primero llevaba escrito se tira —era el arranque del gesto, no una
-    // marca— y no se escribe nada más hasta que se levanten los dos.
-    if (down.current.size > 1) {
-      if (drawing.current) {
-        drawing.current = null;
-        paint();
+    down.current.set(e.pointerId, e.pointerType);
+    if (e.pointerType === "pen") {
+      // Manda el lápiz. Si la mano se posó antes y empezó un trazo, era la
+      // palma: se tira y escribe el lápiz.
+      cancelStroke();
+      penId.current = e.pointerId;
+    } else {
+      // Con el lápiz apoyado, un dedo es la mano descansando en la hoja.
+      if (penId.current !== null) return;
+      // Y sin lápiz, un segundo dedo no es otro trazo: es un pellizco para
+      // hacer zoom, así que lo que el primero llevaba escrito tampoco vale.
+      if (fingersDown() > 1) {
+        cancelStroke();
+        return;
       }
-      return;
     }
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    owner.current = e.pointerId;
     const p = toPoint(e);
     if (tool === "eraser") {
       erase(p);
@@ -215,7 +260,8 @@ export function ScoreAnnotator({
   };
 
   const onMove = (e: React.PointerEvent) => {
-    if (!tool || down.current.size > 1) return;
+    // solo sigue el puntero que empezó el trazo: la mano posada al lado no cuenta
+    if (!tool || e.pointerId !== owner.current) return;
     if (tool === "eraser") {
       if (e.buttons) erase(toPoint(e));
       return;
@@ -225,13 +271,17 @@ export function ScoreAnnotator({
       // se puede arrastrar para afinar dónde queda antes de soltar
       drawing.current = labelAt(toPoint(e));
     } else {
-      drawing.current.points.push(toPoint(e));
+      drawing.current.points.push(...pointsOf(e));
     }
     paint(drawing.current);
   };
 
   const onUp = (e: React.PointerEvent) => {
     down.current.delete(e.pointerId);
+    if (penId.current === e.pointerId) penId.current = null;
+    // el trazo lo cierra quien lo empezó; levantar la mano no lo termina
+    if (e.pointerId !== owner.current) return;
+    owner.current = null;
     if (!drawing.current) return;
     const s = drawing.current;
     drawing.current = null;
@@ -241,7 +291,17 @@ export function ScoreAnnotator({
   return (
     <canvas
       ref={canvasRef}
-      style={{ width, height, touchAction: tool ? "none" : "auto", pointerEvents: tool ? "auto" : "none" }}
+      // sin selección ni menú de iOS: apoyar la mano para escribir no debe
+      // seleccionar la página ni sacar el «Copiar» encima de la partitura
+      style={{
+        width,
+        height,
+        touchAction: tool ? "none" : "auto",
+        pointerEvents: tool ? "auto" : "none",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+      }}
       className={`absolute inset-0 ${tool === "eraser" ? "cursor-cell" : tool ? "cursor-crosshair" : ""}`}
       onPointerDown={onDown}
       onPointerMove={onMove}

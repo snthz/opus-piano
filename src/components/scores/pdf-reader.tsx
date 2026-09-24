@@ -873,7 +873,9 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             // pantalla, y lo que sobra a los lados se ve como una franja oscura
             // alrededor de la partitura. En blanco no se ve nada: la hoja llega
             // de borde a borde.
-            className={`bg-white ${
+            // `select-none` y sin menú de iOS: apoyar la mano sobre la hoja no
+            // debe seleccionarla ni sacar el «Copiar» encima de la partitura
+            className={`bg-white select-none [-webkit-touch-callout:none] ${
               pager
                 ? "flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]"
                 : "flex-1 overflow-auto [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent]"
