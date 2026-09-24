@@ -14,6 +14,7 @@ import {
   ScoreAnnotator,
   DEFAULT_FINGER_SIZE,
   DEFAULT_HIGHLIGHT_COLOR,
+  DEFAULT_LINER_WIDTH,
   DEFAULT_PEN_WIDTH,
   PEN_COLORS,
   type Finger,
@@ -65,6 +66,7 @@ export function MusicXmlViewer({ file, annotations }: Props) {
   const [color, setColor] = useState(PEN_COLORS[0].value);
   const [highlightColor, setHighlightColor] = useState(DEFAULT_HIGHLIGHT_COLOR);
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH);
+  const [linerWidth, setLinerWidth] = useState(DEFAULT_LINER_WIDTH);
   const [finger, setFinger] = useState<Finger>("1");
   const [fingerSize, setFingerSize] = useState(DEFAULT_FINGER_SIZE);
   const [page, setPage] = useState(1);
@@ -81,6 +83,8 @@ export function MusicXmlViewer({ file, annotations }: Props) {
     onHighlightColor: setHighlightColor,
     penWidth,
     onPenWidth: setPenWidth,
+    linerWidth,
+    onLinerWidth: setLinerWidth,
     finger,
     onFinger: setFinger,
     fingerSize,
@@ -120,6 +124,7 @@ export function MusicXmlViewer({ file, annotations }: Props) {
                     color={color}
                     highlightColor={highlightColor}
                     penWidth={penWidth}
+                    linerWidth={linerWidth}
                     finger={finger}
                     fingerSize={fingerSize}
                   />

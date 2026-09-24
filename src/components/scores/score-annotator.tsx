@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Stroke } from "@/lib/scores-db";
 
-export type Tool = "pen" | "highlighter" | "eraser" | "finger";
+export type Tool = "pen" | "liner" | "highlighter" | "eraser" | "finger";
 
 /** Dedos que se pueden escribir como digitación. */
 export const FINGERS = ["1", "2", "3", "4", "5"] as const;
@@ -47,6 +47,18 @@ export const PEN_WIDTHS = [
 ];
 export const DEFAULT_PEN_WIDTH = PEN_WIDTHS[1].value;
 
+/**
+ * Grosores del delineador: por debajo de lo que da el lápiz, para escribir
+ * encima del pentagrama sin comerse las líneas. El medio deja poco más de un
+ * píxel en una página a tamaño completo, como un rotulador calibrado de 0,3.
+ */
+export const LINER_WIDTHS = [
+  { id: "fine", value: 0.0009, label: "Fino" },
+  { id: "medium", value: 0.0014, label: "Medio" },
+  { id: "thick", value: 0.0021, label: "Grueso" },
+];
+export const DEFAULT_LINER_WIDTH = LINER_WIDTHS[1].value;
+
 interface Props {
   width: number;
   height: number;
@@ -59,6 +71,8 @@ interface Props {
   highlightColor?: string;
   /** Grosor del lápiz relativo al ancho de la página; el subrayador tiene el suyo fijo. */
   penWidth?: number;
+  /** Grosor del delineador, con su propio juego de medidas más finas. */
+  linerWidth?: number;
   /** Dedo que escribe la herramienta de digitación. */
   finger?: Finger;
   /** Tamaño del número, relativo al ancho de la página. */
@@ -78,11 +92,14 @@ export function ScoreAnnotator({
   color,
   highlightColor = DEFAULT_HIGHLIGHT_COLOR,
   penWidth = DEFAULT_PEN_WIDTH,
+  linerWidth = DEFAULT_LINER_WIDTH,
   finger = "1",
   fingerSize = DEFAULT_FINGER_SIZE,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<Stroke | null>(null);
+  /** Dedos (o punteros) apoyados ahora mismo: más de uno es un pellizco, no un trazo. */
+  const down = useRef(new Set<number>());
 
   /** Una digitación centrada justo donde se apunta. */
   const labelAt = (p: [number, number]): Stroke => ({ color, width: fingerSize, label: finger, points: [p] });
@@ -136,6 +153,19 @@ export function ScoreAnnotator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, strokes]);
 
+  // Un dedo del pellizco puede levantarse fuera del lienzo y su `pointerup` no
+  // llegaría aquí: sin esto se quedaría apuntado para siempre y ya no se podría
+  // volver a escribir. En la ventana llega siempre, venga de donde venga.
+  useEffect(() => {
+    const release = (e: PointerEvent) => down.current.delete(e.pointerId);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, []);
+
   const toPoint = (e: React.PointerEvent): [number, number] => {
     const r = canvasRef.current!.getBoundingClientRect();
     return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
@@ -152,6 +182,17 @@ export function ScoreAnnotator({
 
   const onDown = (e: React.PointerEvent) => {
     if (!tool) return;
+    down.current.add(e.pointerId);
+    // Un segundo dedo no es otro trazo: es un pellizco para hacer zoom. Lo que
+    // el primero llevaba escrito se tira —era el arranque del gesto, no una
+    // marca— y no se escribe nada más hasta que se levanten los dos.
+    if (down.current.size > 1) {
+      if (drawing.current) {
+        drawing.current = null;
+        paint();
+      }
+      return;
+    }
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const p = toPoint(e);
@@ -166,7 +207,7 @@ export function ScoreAnnotator({
     }
     drawing.current = {
       color: tool === "highlighter" ? highlightColor : color,
-      width: tool === "highlighter" ? 0.02 : penWidth,
+      width: tool === "highlighter" ? 0.02 : tool === "liner" ? linerWidth : penWidth,
       highlighter: tool === "highlighter",
       points: [p],
     };
@@ -174,7 +215,7 @@ export function ScoreAnnotator({
   };
 
   const onMove = (e: React.PointerEvent) => {
-    if (!tool) return;
+    if (!tool || down.current.size > 1) return;
     if (tool === "eraser") {
       if (e.buttons) erase(toPoint(e));
       return;
@@ -189,7 +230,8 @@ export function ScoreAnnotator({
     paint(drawing.current);
   };
 
-  const onUp = () => {
+  const onUp = (e: React.PointerEvent) => {
+    down.current.delete(e.pointerId);
     if (!drawing.current) return;
     const s = drawing.current;
     drawing.current = null;

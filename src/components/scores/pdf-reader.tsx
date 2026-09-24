@@ -36,6 +36,7 @@ import { AnnotationOptions, AnnotationTools, Group, ToolButton, type AnnotationS
 import {
   DEFAULT_FINGER_SIZE,
   DEFAULT_HIGHLIGHT_COLOR,
+  DEFAULT_LINER_WIDTH,
   DEFAULT_PEN_WIDTH,
   PEN_COLORS,
   type Finger,
@@ -56,18 +57,19 @@ interface Props {
 }
 
 /**
- * Space the chrome takes on a mouse-driven screen, where it stays put and the
- * page has to fit between the bars. On a touchscreen the bars float over the
- * page instead — see `EDGE`.
+ * Sitio que se reserva para los mandos en una pantalla de ratón, donde se
+ * quedan puestos y la página tiene que caber entre ellos. En táctil se esconden
+ * solos y flotan sobre la partitura, así que allí no se reserva nada.
  */
 const TOP_BAR = 72;
 const BOTTOM_BAR = 88;
 /**
- * Breathing room around the page when the chrome floats over it. It never
- * changes with the chrome coming and going, so the page keeps its size — and
- * the zoom stays where it was — while the bars tuck themselves away.
+ * Margen alrededor de la página con ratón, donde además hay que dejarle sitio
+ * a las barras porque nunca se esconden. En táctil no hay ninguno: la partitura
+ * va de borde a borde y los mandos flotan encima, así que nada de esto cambia
+ * al aparecer o retirarse —la página mantiene su tamaño y el zoom no salta—.
  */
-const EDGE = 12;
+const SIDE = 12;
 const MAX_ZOOM = 4;
 /** How long the chrome stays up after the last thing touched, like a video player's controls. */
 const CHROME_LINGER = 3500;
@@ -223,6 +225,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [color, setColor] = useState(PEN_COLORS[0].value);
   const [highlightColor, setHighlightColor] = useState(DEFAULT_HIGHLIGHT_COLOR);
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH);
+  const [linerWidth, setLinerWidth] = useState(DEFAULT_LINER_WIDTH);
   const [finger, setFinger] = useState<Finger>("1");
   const [fingerSize, setFingerSize] = useState(DEFAULT_FINGER_SIZE);
   const [annotations, setAnnotations] = useState<Annotations>(record.annotations ?? {});
@@ -246,7 +249,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
    * page keeps the whole height and its zoom never jumps when they tuck away —
    * and with a mouse they always have their room, since there they never hide.
    */
-  const inset = touch ? { top: EDGE, bottom: EDGE } : { top: TOP_BAR, bottom: BOTTOM_BAR };
+  const inset = touch ? { top: 0, bottom: 0, side: 0 } : { top: TOP_BAR, bottom: BOTTOM_BAR, side: SIDE };
   const [panelOpen, setPanelOpen] = useState(() => isWide() && !!record.plan);
   const [panelTab, setPanelTab] = useState<PanelTab>(() => (record.plan?.schedule ? "sesion" : "analisis"));
   const [notes, setNotes] = useState(record.notes);
@@ -272,7 +275,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const viewRef = useRef(view);
   const chromeRef = useRef(chrome);
   /** Space the page leaves for the chrome, for gestures that live outside the render. */
-  const insetRef = useRef({ top: EDGE, bottom: EDGE });
+  const insetRef = useRef({ top: 0, bottom: 0, side: 0 });
   /** A gesture that moved: the click it ends with is a swipe or a pan, not a tap on the page. */
   const dragged = useRef(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -374,12 +377,14 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     };
   }, [record.file]);
 
-  const fit = { w: Math.max(0, area.w - 16), h: Math.max(0, area.h - inset.top - inset.bottom) };
+  const fit = { w: Math.max(0, area.w - inset.side * 2), h: Math.max(0, area.h - inset.top - inset.bottom) };
   /** Page width at 100%: on wide screens, height is the limiting factor. */
   const pageW = ratio ? Math.min(fit.w, fit.h * ratio) : fit.w;
   /** Carousel cell. On desktop, barely wider than the page so neighbors peek in on
    *  the sides with just one centered; on mobile the page already fills the screen. */
-  const cell = Math.max(1, Math.min(area.w, pageW + PAGE_GAP));
+  // En táctil cada página ocupa una pantalla entera: así no asoman trozos de la
+  // vecina por los lados y la partitura se queda con todo el sitio que hay.
+  const cell = touch ? Math.max(1, area.w) : Math.max(1, Math.min(area.w, pageW + PAGE_GAP));
   /** Padding so the first and last pages can also center. */
   const side = Math.max(0, (area.w - cell) / 2);
   /** Pages visible on each side, and thus needing to be drawn. */
@@ -471,12 +476,12 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     const h = a.baseH * z;
     const cw = el.clientWidth;
     const ch = el.clientHeight;
-    const { top, bottom } = insetRef.current;
+    const { top, bottom, side } = insetRef.current;
     if (z === 1) {
       return { sx: (pageRef.current - 1) * cellRef.current, sy: 0, left: (cw - w) / 2, top: top + (ch - top - bottom - h) / 2 };
     }
-    const x = Math.max(0, (cw - w - 24) / 2) + 12;
-    const sx = clamp(x + a.u * w - a.fx, 0, Math.max(0, w + 24 - cw));
+    const x = Math.max(0, (cw - w - side * 2) / 2) + side;
+    const sx = clamp(x + a.u * w - a.fx, 0, Math.max(0, w + side * 2 - cw));
     const sy = clamp(top + a.v * h - a.fy, 0, Math.max(0, top + h + bottom - ch));
     return { sx, sy, left: x - sx, top: top - sy };
   };
@@ -782,6 +787,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     onHighlightColor: setHighlightColor,
     penWidth,
     onPenWidth: setPenWidth,
+    linerWidth,
+    onLinerWidth: setLinerWidth,
     finger,
     onFinger: setFinger,
     fingerSize,
@@ -862,7 +869,15 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
             onClick={() => {
               if (!tool && !dragged.current) toggleChrome();
             }}
-            className={pager ? "flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]" : "flex-1 overflow-auto [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent]"}
+            // Fondo blanco, el del papel: una página no tiene la forma de una
+            // pantalla, y lo que sobra a los lados se ve como una franja oscura
+            // alrededor de la partitura. En blanco no se ve nada: la hoja llega
+            // de borde a borde.
+            className={`bg-white ${
+              pager
+                ? "flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none]"
+                : "flex-1 overflow-auto [scrollbar-width:thin] [scrollbar-color:var(--surface-3)_transparent]"
+            }`}
             style={{ touchAction: pager && !tool && !pinching ? "pan-x" : "none" }}
           >
             {pager && side > 0 && <div aria-hidden className="shrink-0 h-full" style={{ width: side }} />}
@@ -873,7 +888,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                   className={
                     pager
                       ? `snap-center shrink-0 h-full flex items-center justify-center transition-opacity duration-200 ${p !== page ? "cursor-pointer" : ""}`
-                      : "w-fit mx-auto p-3"
+                      : "w-fit mx-auto"
                   }
                   // tapping a neighbor centers it; it mustn't also count as a tap on the page
                   onClick={
@@ -910,6 +925,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
                         color={color}
                         highlightColor={highlightColor}
                         penWidth={penWidth}
+                        linerWidth={linerWidth}
                         finger={finger}
                         fingerSize={fingerSize}
                         guide={guideFor(p)}

@@ -19,6 +19,7 @@ interface Props {
   color: string;
   highlightColor?: string;
   penWidth?: number;
+  linerWidth?: number;
   finger?: Finger;
   fingerSize?: number;
   /** Compás que suena y fracción recorrida, para la guía */
@@ -31,7 +32,7 @@ const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * Una página del PDF ajustada a una caja, con la capa de anotaciones y la guía
  * de reproducción encima. Se dibuja con la densidad de la pantalla.
  */
-export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color, highlightColor, penWidth, finger, fingerSize, guide }: Props) {
+export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color, highlightColor, penWidth, linerWidth, finger, fingerSize, guide }: Props) {
   const [dims, setDims] = useState<{ page: number; width: number; height: number } | null>(null);
   const [holder, setHolder] = useState<HTMLDivElement | null>(null);
   // a failure says what went wrong on the page itself, instead of a gray box
@@ -137,6 +138,7 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
         color={color}
         highlightColor={highlightColor}
         penWidth={penWidth}
+        linerWidth={linerWidth}
         finger={finger}
         fingerSize={fingerSize}
       />

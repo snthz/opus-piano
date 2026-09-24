@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { EraserIcon, FingerIcon, MarkerIcon, PenIcon, UndoIcon } from "./reader-icons";
+import { EraserIcon, FingerIcon, LinerIcon, MarkerIcon, PenIcon, UndoIcon } from "./reader-icons";
 import {
   FINGERS,
   FINGER_SIZES,
   HIGHLIGHTER_COLORS,
+  LINER_WIDTHS,
   PEN_COLORS,
   PEN_WIDTHS,
   type Finger,
@@ -67,6 +68,9 @@ export interface AnnotationState {
   onHighlightColor: (color: string) => void;
   penWidth: number;
   onPenWidth: (width: number) => void;
+  /** El delineador tiene su propio grosor, por debajo de los del lápiz. */
+  linerWidth: number;
+  onLinerWidth: (width: number) => void;
   finger: Finger;
   onFinger: (finger: Finger) => void;
   fingerSize: number;
@@ -88,6 +92,9 @@ export function AnnotationTools({
     <Group>
       <ToolButton label="Lápiz" active={tool === "pen"} onClick={() => onTool("pen")}>
         <PenIcon />
+      </ToolButton>
+      <ToolButton label="Delineador: línea fina para escribir sobre la partitura" active={tool === "liner"} onClick={() => onTool("liner")}>
+        <LinerIcon />
       </ToolButton>
       <ToolButton label="Subrayador" active={tool === "highlighter"} onClick={() => onTool("highlighter")}>
         <MarkerIcon />
@@ -178,8 +185,13 @@ function ColorRow({
 
 /** Color, grosor y dedo: solo se enseña lo que la herramienta puesta usa. */
 export function AnnotationOptions({ state }: { state: AnnotationState }) {
-  const { tool, color, onColor, highlightColor, onHighlightColor, penWidth, onPenWidth, finger, onFinger, fingerSize, onFingerSize } = state;
-  if (tool !== "pen" && tool !== "finger" && tool !== "highlighter") return null;
+  const { tool, color, onColor, highlightColor, onHighlightColor, penWidth, onPenWidth, linerWidth, onLinerWidth, finger, onFinger, fingerSize, onFingerSize } = state;
+  // la goma no tiene nada que elegir, y sin herramienta no hay nada que enseñar
+  if (!tool || tool === "eraser") return null;
+  // el lápiz y el delineador comparten tinta; cada uno recuerda su propio grosor
+  const widths = tool === "liner" ? LINER_WIDTHS : PEN_WIDTHS;
+  const width = tool === "liner" ? linerWidth : penWidth;
+  const onWidth = tool === "liner" ? onLinerWidth : onPenWidth;
 
   return (
     <div className="card flex max-w-full items-center gap-1 overflow-x-auto p-1.5 shadow-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -231,22 +243,26 @@ export function AnnotationOptions({ state }: { state: AnnotationState }) {
         </>
       )}
 
-      {tool === "pen" && (
+      {(tool === "pen" || tool === "liner") && (
         <>
           <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line" />
-          {PEN_WIDTHS.map((w, i) => (
+          {widths.map((w, i) => (
             <button
               key={w.id}
               type="button"
-              onClick={() => onPenWidth(w.value)}
+              onClick={() => onWidth(w.value)}
               title={w.label}
               aria-label={`Grosor ${w.label.toLowerCase()}`}
-              aria-pressed={penWidth === w.value}
+              aria-pressed={width === w.value}
               className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition-colors ${
-                penWidth === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+                width === w.value ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
               }`}
             >
-              <span className="rounded-full bg-current" style={{ width: 6 + i * 4, height: 6 + i * 4 }} />
+              {/* los puntos del delineador van más juntos: es lo que lo separa del lápiz */}
+              <span
+                className="rounded-full bg-current"
+                style={tool === "liner" ? { width: 3 + i * 2, height: 3 + i * 2 } : { width: 6 + i * 4, height: 6 + i * 4 }}
+              />
             </button>
           ))}
         </>

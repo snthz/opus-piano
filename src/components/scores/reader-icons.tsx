@@ -32,6 +32,19 @@ export const PenIcon = ({ className }: Props) => (
   </StrokeIcon>
 );
 
+/**
+ * Delineador: la misma punta que el lápiz, más corta, y debajo la raya que
+ * deja. Los tres van en familia y se distinguen por ella: el lápiz no lleva
+ * ninguna, el delineador un hilo y el subrayador una banda.
+ */
+export const LinerIcon = ({ className }: Props) => (
+  <StrokeIcon className={className}>
+    <path d="M6.4 16.9h2.4l8.1-8.1a1.7 1.7 0 0 0-2.4-2.4l-8.1 8.1z" />
+    <path d="m13.3 7.6 2.4 2.4" />
+    <path d="M4 20.5h16" strokeWidth={1} />
+  </StrokeIcon>
+);
+
 export const MarkerIcon = ({ className }: Props) => (
   <StrokeIcon className={className}>
     <path d="m13 3.8 7.2 7.2-5.6 5.6H9.2L5.8 13.2z" />
