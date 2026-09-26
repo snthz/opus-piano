@@ -58,6 +58,46 @@ export function addMinutes(time: string, minutes: number): string {
 
 /* ---------- The schedule saved with the plan ---------- */
 
+/**
+ * What the session clock saw on a day, in seconds: how long it ran with the
+ * app on screen, how long the microphone listened, and how much of that the
+ * piano was sounding. `target` is the session's length, to judge it by.
+ * Ticking a day by hand leaves no log, so it moves the plan but not the streak.
+ */
+export const practiceLogSchema = z.object({
+  clock: z.number().int().min(0),
+  heard: z.number().int().min(0),
+  playing: z.number().int().min(0),
+  target: z.number().int().min(0),
+});
+export type PracticeLog = z.infer<typeof practiceLogSchema>;
+
+/** Share of the session the clock has to run for the day to count. */
+export const CLOCK_SHARE = 0.7;
+/** …or this much, whichever is less: a long session cut short is still a day of study. */
+export const CLOCK_ENOUGH = 15 * 60;
+/**
+ * Share of the listened time that has to have sound. Low on purpose: reading
+ * the score, working a passage out in your head, stretching the hands — all
+ * of that is studying, and none of it sounds.
+ */
+export const PLAYING_SHARE = 0.35;
+/** Less listening than this says nothing either way: the mic was barely on. */
+export const HEARD_ENOUGH = 5 * 60;
+
+/** Clock seconds the day needs to count. */
+export const clockNeeded = (log: Pick<PracticeLog, "target">) => Math.min(log.target * CLOCK_SHARE, CLOCK_ENOUGH);
+
+/**
+ * The session really happened: the clock ran long enough, and if the
+ * microphone listened, the piano was heard for a fair part of it.
+ */
+export function practiceCounts(log: PracticeLog): boolean {
+  if (log.clock <= 0 || log.clock < clockNeeded(log)) return false;
+  if (log.heard < HEARD_ENOUGH) return true;
+  return log.playing >= log.heard * PLAYING_SHARE;
+}
+
 export const scheduleSchema = z.object({
   /** Weekdays with a session (0 = Sunday). */
   weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
@@ -77,6 +117,8 @@ export const scheduleSchema = z.object({
    * instead of dragging the delay.
    */
   skip: z.array(z.string().max(20)).max(30),
+  /** What the clock saw each day: { "2026-09-10": { clock, heard, playing, target } } */
+  practiced: z.record(z.string().max(10), practiceLogSchema).optional(),
 });
 export type Schedule = z.infer<typeof scheduleSchema>;
 

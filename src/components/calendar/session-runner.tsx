@@ -7,7 +7,10 @@ import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { planKey, sessionSteps, STEP_LABELS, type AgendaEntry, type SessionStep } from "@/lib/agenda";
 import { Metronome, playChime, unlockAudio } from "@/lib/audio/synth";
+import { clockNeeded, type PracticeLog } from "@/lib/agenda";
 import { parseBpm } from "@/lib/music/fingering";
+import { usePracticeTracker, type PracticeTracker } from "@/lib/practice-log";
+import { pomodoro } from "@/lib/pomodoro";
 import { TIME_SIGNATURE_BY_ID } from "@/lib/music/meter";
 import { clock, useSessionRun } from "@/lib/session-run";
 import { useSettings } from "@/lib/settings";
@@ -60,6 +63,9 @@ export function SessionRunner({
     },
   });
   const { step, running, state } = run;
+  const total = steps.reduce((n, s) => n + s.minutes, 0);
+  // what the clock really saw: this, not the tick, is what feeds the streak
+  const practice = usePracticeTracker(score.id, session.day, total, running);
 
   useWakeLock(running);
 
@@ -68,6 +74,8 @@ export function SessionRunner({
     else {
       // from a user gesture: iOS won't play the chime later otherwise
       await unlockAudio();
+      // one clock at a time: the session takes over from a running pomodoro
+      pomodoro.pause();
       run.start();
     }
   }, [running, run]);
@@ -84,11 +92,13 @@ export function SessionRunner({
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle]);
 
-  const total = steps.reduce((n, s) => n + s.minutes, 0);
   // La respuesta se guarda con la partitura; aquí solo hace falta para dejar
   // de preguntar y decir qué pasa con el plan.
   const [reviewed, setReviewed] = useState<Outcome | null>(null);
   const chips = goalChips(session.goal);
+  // Beside the score (sheet or side panel) the blocks are flat, on the panel's
+  // own surface: a card's shadow there only drew edges around each one.
+  const box = (pad: string) => (compact ? "" : `card ${pad}`);
 
   return (
     <div className={compact ? "space-y-4" : "space-y-4 lg:grid lg:grid-cols-[22rem_1fr] lg:gap-6 lg:space-y-0 lg:items-start"}>
@@ -110,12 +120,14 @@ export function SessionRunner({
           </div>
         </header>
 
-        <section className={compact ? "card p-4 space-y-4" : "card p-5 space-y-5"}>
+        <section className={compact ? "space-y-4" : "card p-5 space-y-5"}>
           <StepStrip steps={steps} current={state.finished ? steps.length : state.index} onPick={run.goTo} />
 
           {state.finished ? (
             <Finished
               minutes={total}
+              practice={practice.log}
+              counts={practice.counts}
               onRepeat={run.reset}
               onExit={onExit}
               onReview={onReview && ((outcome) => { setReviewed(outcome); onReview(outcome); })}
@@ -173,6 +185,8 @@ export function SessionRunner({
                   {Math.floor(run.minutesDone)} de {total} min de sesión
                   {!running && state.index === 0 && run.elapsed === 0 ? " · pulsa ▶ para empezar" : running ? "" : " · en pausa"}
                 </p>
+
+                <PracticeBar practice={practice} />
               </>
             )
           )}
@@ -188,7 +202,7 @@ export function SessionRunner({
           </section>
 
           {step.kind === "calentamiento" && (
-            <section className="card p-4 md:p-5 space-y-4">
+            <section className={`${box("p-4 md:p-5")} space-y-4`}>
               {key ? (
                 <ScaleCard keyInfo={key} hands={session.goal.hands} />
               ) : (
@@ -212,10 +226,10 @@ export function SessionRunner({
             </section>
           )}
 
-          {step.kind === "objetivo" && <GoalPanel entry={entry} chips={chips} step={step} />}
+          {step.kind === "objetivo" && <GoalPanel entry={entry} chips={chips} step={step} flat={compact} />}
 
           {step.kind === "repaso" && (
-            <section className="card p-4 md:p-5 space-y-3">
+            <section className={`${box("p-4 md:p-5")} space-y-3`}>
               <div className="flex flex-wrap gap-1.5">
                 {chips.map((c) => (
                   <Chip key={c}>{c}</Chip>
@@ -242,7 +256,7 @@ export function SessionRunner({
 }
 
 /** The goal step: the measures and hands, the fingering, the tips, and a metronome set to the target tempo. */
-function GoalPanel({ entry, chips, step }: { entry: AgendaEntry; chips: string[]; step: SessionStep }) {
+function GoalPanel({ entry, chips, step, flat }: { entry: AgendaEntry; chips: string[]; step: SessionStep; flat?: boolean }) {
   const { score, plan, session } = entry;
   const goal = session.goal;
   const bpm = parseBpm(goal.targetTempo) ?? parseBpm(plan.analysis.tempo) ?? 60;
@@ -250,7 +264,7 @@ function GoalPanel({ entry, chips, step }: { entry: AgendaEntry; chips: string[]
   const beats = meter?.beats ?? (Number(plan.analysis.timeSignature.split("/")[0]) || 4);
 
   return (
-    <section className="card p-4 md:p-5 space-y-4">
+    <section className={flat ? "space-y-4" : "card p-4 md:p-5 space-y-4"}>
       <div className="flex flex-wrap gap-1.5">
         {chips.map((c) => (
           <Chip key={c}>{c}</Chip>
@@ -388,14 +402,81 @@ const REVIEW_EFFECT: Record<Outcome, string> = {
   cuesta: "Le añadimos una sesión más; las siguientes se corren un día.",
 };
 
+const mins = (sec: number) => Math.floor(sec / 60);
+
+/**
+ * Under the clock: whether the piano is being listened to, and how much of
+ * the session has really counted so far. The microphone is a choice — without
+ * it the clock alone decides — so it's a switch here, off until asked for.
+ */
+function PracticeBar({ practice }: { practice: PracticeTracker }) {
+  const { log, counts, mic, setMic, listening, micError, micAvailable } = practice;
+  const heard = log.heard >= 60;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+        {micAvailable && (
+          <button
+            type="button"
+            onClick={() => setMic(!mic)}
+            aria-pressed={mic}
+            title={mic ? "Dejar de escuchar" : "Escuchar el piano mientras corre el reloj: nada se graba"}
+            className={`pill py-1.5 inline-flex items-center gap-1.5 ${mic ? "pill-active" : ""}`}
+          >
+            <MicIcon className="w-3.5 h-3.5" />
+            {mic ? (listening ? "Escuchando" : "Micrófono activado") : "Escuchar el piano"}
+            {listening && <span className="w-1.5 h-1.5 rounded-full bg-bad animate-pulse" aria-hidden />}
+          </button>
+        )}
+        <span className="text-ink-3 tabular-nums">
+          {mins(log.clock)} min contados{heard && ` · ${mins(log.playing)} tocando`}
+        </span>
+        {counts && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-ok-soft text-ok px-2 py-0.5 font-medium">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3" aria-hidden>
+              <path d="m5 12 5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Suma a la racha
+          </span>
+        )}
+      </div>
+      {micError && <p className="text-center text-xs text-bad">{micError}</p>}
+    </div>
+  );
+}
+
+const MicIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={className} aria-hidden>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" strokeLinecap="round" />
+  </svg>
+);
+
+/**
+ * Said plainly, and without scolding: the day counts, or what it would have
+ * taken. A day ticked here still counts for the plan either way.
+ */
+function streakNote(practice: PracticeLog, counts: boolean): string {
+  if (counts) return "Suma a tu racha.";
+  const need = Math.ceil(clockNeeded(practice) / 60);
+  if (practice.clock < clockNeeded(practice)) {
+    return `Para la racha hacen falta ${need} min con el reloj en marcha; llevas ${mins(practice.clock)}.`;
+  }
+  return "Para la racha, el micrófono tiene que oír el piano en al menos un tercio del tiempo.";
+}
+
 function Finished({
   minutes,
+  practice,
+  counts,
   onRepeat,
   onExit,
   onReview,
   reviewed,
 }: {
   minutes: number;
+  practice: PracticeLog;
+  counts: boolean;
   onRepeat: () => void;
   onExit?: () => void;
   onReview?: (outcome: Outcome) => void;
@@ -411,6 +492,15 @@ function Finished({
       <div>
         <p className="text-xl font-bold">Sesión completada</p>
         <p className="text-sm text-ink-2">{minutes} minutos de estudio. Queda marcada como hecha.</p>
+      </div>
+
+      {/* Lo que el reloj vio de verdad: saltar pasos marca la sesión, pero no suma racha. */}
+      <div className={`rounded-2xl px-4 py-3 text-sm ${counts ? "bg-ok-soft" : "bg-surface-2"}`}>
+        <p className="font-medium tabular-nums">
+          {mins(practice.clock)} min con el reloj en marcha
+          {practice.heard >= 60 && ` · ${mins(practice.playing)} tocando`}
+        </p>
+        <p className={`mt-0.5 text-xs ${counts ? "text-ok" : "text-ink-2"}`}>{streakNote(practice, counts)}</p>
       </div>
 
       {/* El cronómetro dice cuánto has estado, no cómo ha ido. Eso solo lo

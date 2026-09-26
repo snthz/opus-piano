@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { deleteRoute, listRoutes, onRoutesChange, saveRoute } from "@/lib/routes-db";
 import { syncRoutes } from "@/lib/routes-sync";
 import { getScore, listScores, onScoresChange, updateScoreStatus, type ScoreRecord } from "@/lib/scores-db";
@@ -25,6 +25,8 @@ export function StudyRoutes() {
   const params = useSearchParams();
   const [routes, setRoutes] = useState<StudyRouteRecord[] | null>(null);
   const [scores, setScores] = useState<ScoreRecord[]>([]);
+  /** A route being created: saving and navigating take a moment, and every tap meanwhile made another copy. */
+  const creating = useRef(false);
 
   const reload = () => listRoutes().then(setRoutes);
   useEffect(() => {
@@ -57,10 +59,26 @@ export function StudyRoutes() {
     if (before) void followStatuses(before, saved);
   };
 
+  /**
+   * Starts a route — or opens the one already started from the same plan:
+   * pressing a template again means "take me to it", not a second copy of
+   * the same pieces.
+   */
   const create = async (route: StudyRoute) => {
-    const saved = await saveRoute(route);
-    setRoutes((prev) => [saved, ...(prev ?? [])]);
-    router.push(routePath(saved.id), { scroll: false });
+    if (creating.current) return;
+    const twin = routes?.find((r) => !r.archived && sameRoute(r, route));
+    if (twin) {
+      router.push(routePath(twin.id), { scroll: false });
+      return;
+    }
+    creating.current = true;
+    try {
+      const saved = await saveRoute(route);
+      setRoutes((prev) => [saved, ...(prev ?? [])]);
+      router.push(routePath(saved.id), { scroll: false });
+    } finally {
+      creating.current = false;
+    }
   };
 
   const remove = async (id: string) => {
@@ -86,6 +104,12 @@ export function StudyRoutes() {
 
   return <RouteList routes={routes} onCreate={(r) => void create(r)} onOpen={(id) => router.push(routePath(id), { scroll: false })} />;
 }
+
+/** Same name and the same pieces in the same order: the same plan, started twice. */
+const sameRoute = (a: StudyRoute, b: StudyRoute) =>
+  a.name.trim() === b.name.trim() &&
+  a.pieces.length === b.pieces.length &&
+  a.pieces.every((p, i) => p.title === b.pieces[i].title);
 
 /**
  * Keeps the scores' statuses in step with the route: a piece ticked done

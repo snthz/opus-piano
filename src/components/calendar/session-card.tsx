@@ -60,7 +60,7 @@ export function SessionCard({
 
       <StepStrip steps={steps} />
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-stretch gap-2">
         {startHref ? (
           <Link href={startHref} className={startClass}>
             <PlayIcon />
@@ -72,7 +72,7 @@ export function SessionCard({
             {label}
           </button>
         )}
-        <Link href={`/scores?score=${encodeURIComponent(score.id)}`} className="pill text-xs py-1.5 bg-surface">
+        <Link href={`/scores?score=${encodeURIComponent(score.id)}`} className="btn-secondary text-sm flex-1 sm:flex-none">
           Abrir la partitura
         </Link>
       </div>

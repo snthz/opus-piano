@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   addMinutes,
+  practiceCounts,
   adjustedPlan,
   agendaByDay,
   dayKey,
@@ -386,5 +387,32 @@ describe("adjustedPlan", () => {
     // g2 pasa del segundo día de estudio al tercero
     expect(before.find((s) => s.goal.id === "g2")!.day).toBe("2026-09-09");
     expect(sessions.find((s) => s.goal.id === "g2")!.day).toBe("2026-09-11");
+  });
+});
+
+describe("practiceCounts", () => {
+  const log = (clock: number, heard = 0, playing = 0, target = 40 * 60) => ({ clock, heard, playing, target });
+
+  test("sin reloj no hay racha, aunque la sesión esté marcada", () => {
+    expect(practiceCounts(log(0))).toBe(false);
+  });
+
+  test("basta el 70 % de una sesión corta", () => {
+    expect(practiceCounts(log(14 * 60, 0, 0, 20 * 60))).toBe(true);
+    expect(practiceCounts(log(13 * 60, 0, 0, 20 * 60))).toBe(false);
+  });
+
+  test("en una sesión larga bastan 15 minutos", () => {
+    expect(practiceCounts(log(15 * 60))).toBe(true);
+    expect(practiceCounts(log(10 * 60))).toBe(false);
+  });
+
+  test("con micrófono, leer y estirarse caben: basta un tercio con sonido", () => {
+    expect(practiceCounts(log(20 * 60, 20 * 60, 7 * 60 + 1))).toBe(true);
+    expect(practiceCounts(log(20 * 60, 20 * 60, 3 * 60))).toBe(false);
+  });
+
+  test("un micrófono que apenas escuchó no decide", () => {
+    expect(practiceCounts(log(20 * 60, 2 * 60, 0))).toBe(true);
   });
 });

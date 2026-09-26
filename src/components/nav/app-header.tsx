@@ -14,6 +14,7 @@ import { ProgressMenu } from "./progress-menu";
 import { logout, useAuth } from "@/lib/auth";
 import { useSettings } from "@/lib/settings";
 import { THEMES } from "@/lib/theme";
+import { useStudyDays } from "@/lib/practice-log";
 import { dayStreak, useProgress } from "@/lib/progress";
 
 /**
@@ -121,7 +122,7 @@ export function AppHeader() {
 
 /** Racha de días seguidos con práctica, al estilo del saldo de la cabecera de Preply. */
 function StreakPill() {
-  const streak = dayStreak(useProgress());
+  const streak = dayStreak(useProgress(), useStudyDays());
   return (
     <Link
       href="/account"

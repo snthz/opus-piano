@@ -5,6 +5,7 @@ import { useState } from "react";
 import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { EXERCISES } from "@/data/exercises";
+import { useStudyDays } from "@/lib/practice-log";
 import { DAILY_GOAL, dayStreak, summarize, summarizeToday, useProgress } from "@/lib/progress";
 import { exercisePath } from "@/lib/routes";
 import { suggestExercises } from "@/lib/suggestions";
@@ -20,7 +21,7 @@ export function ProgressMenu() {
   const [open, setOpen] = useState(false);
   const progress = useProgress();
   const totals = summarize(progress);
-  const streak = dayStreak(progress);
+  const streak = dayStreak(progress, useStudyDays());
   const { attempts: todayAttempts, accuracy: todayAccuracy } = summarizeToday(progress);
   const suggestions = suggestExercises(progress, EXERCISES);
 

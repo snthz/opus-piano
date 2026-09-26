@@ -35,7 +35,7 @@ export function RouteList({ routes, onCreate, onOpen }: { routes: StudyRouteReco
       />
 
       {active.length > 0 && (
-        <ul className="mb-8 grid gap-3 sm:grid-cols-2">
+        <ul className="mb-10 grid gap-4 sm:grid-cols-2">
           {active.map((r) => (
             <li key={r.id}>
               <RouteCard route={r} onOpen={() => onOpen(r.id)} />
@@ -45,42 +45,45 @@ export function RouteList({ routes, onCreate, onOpen }: { routes: StudyRouteReco
       )}
 
       <section>
-        <h2 className="mb-3 px-1 text-xl font-semibold tracking-tight">{active.length ? "Otra ruta" : "Empieza una ruta"}</h2>
-        <div className="grid gap-3 md:grid-cols-3">
+        <h2 className="mb-4 px-1 text-xl font-semibold tracking-tight">{active.length ? "Otra ruta" : "Empieza una ruta"}</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ROUTE_TEMPLATES.map((t) => (
-            <button key={t.id} type="button" onClick={() => onCreate(newRoute(t.draft))} className="card group flex flex-col justify-between p-4 text-left">
+            <button key={t.id} type="button" onClick={() => onCreate(newRoute(t.draft))} className="card group flex flex-col justify-between p-5 text-left sm:p-6">
               <span>
                 <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink-3">Plantilla</span>
-                <span className="mt-1 block font-semibold leading-tight tracking-tight">{t.draft.name}</span>
-                <span className="mt-1.5 block text-sm leading-snug text-ink-2">{t.audience}</span>
+                <span className="mt-2 block text-lg font-semibold leading-snug tracking-tight">{t.draft.name}</span>
+                <span className="mt-2 block text-sm leading-relaxed text-ink-2">{t.audience}</span>
               </span>
-              <span className="mt-4 flex items-center justify-between text-xs text-ink-3">
-                {t.draft.pieces?.length ?? 0} piezas · {t.draft.level}
-                <span className="btn-circle h-9 w-9 group-hover:-translate-y-0.5">
+              <span className="mt-6 flex items-end justify-between gap-4">
+                <span className="min-w-0 text-xs leading-relaxed text-ink-3">
+                  <span className="block font-medium text-ink-2">{t.draft.pieces?.length ?? 0} piezas</span>
+                  {t.draft.level && <span className="block">{t.draft.level}</span>}
+                </span>
+                <span className="btn-circle h-10 w-10 shrink-0 group-hover:-translate-y-0.5">
                   <ArrowIcon className="h-4 w-4" />
                 </span>
               </span>
             </button>
           ))}
 
-          <button type="button" onClick={() => setImporting(true)} className="card-pastel bg-mint group flex flex-col justify-between p-4 text-left">
+          <button type="button" onClick={() => setImporting(true)} className="card-pastel bg-mint group flex flex-col justify-between p-5 text-left sm:p-6">
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink-2">Con IA</span>
-              <span className="mt-1 block font-semibold leading-tight tracking-tight">Leer un plan que ya tienes</span>
-              <span className="mt-1.5 block text-sm leading-snug text-ink-2">Pega el texto o sube el PDF de un plan de estudio y la app lo convierte en una ruta con sus piezas, rutina y objetivos.</span>
+              <span className="mt-2 block text-lg font-semibold leading-snug tracking-tight">Leer un plan que ya tienes</span>
+              <span className="mt-2 block text-sm leading-relaxed text-ink-2">Pega el texto o sube el PDF de un plan de estudio y la app lo convierte en una ruta con sus piezas, rutina y objetivos.</span>
             </span>
-            <span className="mt-4 flex justify-end">
-              <span className="btn-circle h-9 w-9 group-hover:-translate-y-0.5">
+            <span className="mt-6 flex justify-end">
+              <span className="btn-circle h-10 w-10 shrink-0 group-hover:-translate-y-0.5">
                 <ArrowIcon className="h-4 w-4" />
               </span>
             </span>
           </button>
 
-          <div className="card flex flex-col justify-between p-4">
+          <div className="card flex flex-col justify-between p-5 sm:p-6">
             <div>
               <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink-3">Desde cero</span>
-              <span className="mt-1 block font-semibold leading-tight tracking-tight">Tu propia ruta</span>
-              <span className="mt-1.5 block text-sm leading-snug text-ink-2">Ponle nombre y añade las piezas una a una.</span>
+              <span className="mt-2 block text-lg font-semibold leading-snug tracking-tight">Tu propia ruta</span>
+              <span className="mt-2 block text-sm leading-relaxed text-ink-2">Ponle nombre y añade las piezas una a una.</span>
             </div>
             {naming ? (
               <form
@@ -88,7 +91,7 @@ export function RouteList({ routes, onCreate, onOpen }: { routes: StudyRouteReco
                   e.preventDefault();
                   createBlank();
                 }}
-                className="mt-4 flex gap-2"
+                className="mt-6 flex gap-2"
               >
                 <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de la ruta" aria-label="Nombre de la ruta" className="field h-11 min-w-0 flex-1 text-sm" />
                 <button type="submit" disabled={!name.trim()} className="btn-circle h-11 w-11 shrink-0 disabled:opacity-40" aria-label="Crear la ruta">
@@ -96,7 +99,7 @@ export function RouteList({ routes, onCreate, onOpen }: { routes: StudyRouteReco
                 </button>
               </form>
             ) : (
-              <button type="button" onClick={() => setNaming(true)} className="btn-secondary mt-4 w-full text-sm">
+              <button type="button" onClick={() => setNaming(true)} className="btn-secondary mt-6 w-full text-sm">
                 Crear una ruta vacía
               </button>
             )}
@@ -107,7 +110,7 @@ export function RouteList({ routes, onCreate, onOpen }: { routes: StudyRouteReco
       {archived.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-3 px-1 text-sm font-semibold uppercase tracking-wider text-ink-3">Archivadas</h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2">
             {archived.map((r) => (
               <li key={r.id}>
                 <RouteCard route={r} onOpen={() => onOpen(r.id)} />
@@ -126,11 +129,11 @@ function RouteCard({ route, onOpen }: { route: StudyRouteRecord; onOpen: () => v
   const piece = currentPiece(route);
   const { done, total } = routeProgress(route);
   return (
-    <button type="button" onClick={onOpen} className={`card-pastel ${route.archived ? "bg-ash opacity-80" : pastelOf(route.id)} group flex w-full flex-col justify-between p-5 text-left`}>
+    <button type="button" onClick={onOpen} className={`card-pastel ${route.archived ? "bg-ash opacity-80" : pastelOf(route.id)} group flex h-full w-full flex-col justify-between p-5 text-left sm:p-6`}>
       <span className="min-w-0">
         {route.level && <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink-2">{route.level}</span>}
-        <span className="mt-0.5 block text-lg font-semibold leading-tight tracking-tight">{route.name}</span>
-        <span className="mt-2 block text-sm leading-snug text-ink-2">
+        <span className="mt-2 block text-lg font-semibold leading-snug tracking-tight">{route.name}</span>
+        <span className="mt-2 block text-sm leading-relaxed text-ink-2">
           {piece ? (
             <>
               Ahora: <span className="font-medium text-ink">{piece.title}</span>
@@ -143,14 +146,14 @@ function RouteCard({ route, onOpen }: { route: StudyRouteRecord; onOpen: () => v
           )}
         </span>
       </span>
-      <span className="mt-4 flex items-center gap-3">
+      <span className="mt-6 flex items-center gap-3">
         <span className="h-2 flex-1 overflow-hidden rounded-full bg-ink/10">
           <span className="block h-full rounded-full bg-ink transition-[width]" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
         </span>
-        <span className="text-xs tabular-nums text-ink-2">
+        <span className="shrink-0 text-xs tabular-nums text-ink-2">
           {done} de {total}
         </span>
-        <span className="btn-circle h-9 w-9 group-hover:-translate-y-0.5">
+        <span className="btn-circle h-10 w-10 shrink-0 group-hover:-translate-y-0.5">
           <ArrowIcon className="h-4 w-4" />
         </span>
       </span>

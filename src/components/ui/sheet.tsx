@@ -19,6 +19,7 @@ export function Sheet({
   subtitle,
   actions,
   maxHeight,
+  keepMounted = false,
   children,
 }: {
   open: boolean;
@@ -32,6 +33,11 @@ export function Sheet({
    * list it helps to keep it lower so what triggered it stays visible.
    */
   maxHeight?: string;
+  /**
+   * Keeps the content mounted while closed (a closed `<dialog>` isn't shown),
+   * for content that has to keep working out of sight — a running clock.
+   */
+  keepMounted?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -87,7 +93,7 @@ export function Sheet({
       className="sheet"
     >
       {/* single column child: fixed header, scrolling content */}
-      {open && (
+      {(open || keepMounted) && (
         <div>
           <header
             onPointerDown={onPointerDown}

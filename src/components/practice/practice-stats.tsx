@@ -1,11 +1,12 @@
 "use client";
 
+import { useStudyDays } from "@/lib/practice-log";
 import { useProgress, summarize, dayStreak } from "@/lib/progress";
 
 export function PracticeStats() {
   const progress = useProgress();
   const s = summarize(progress);
-  const streak = dayStreak(progress);
+  const streak = dayStreak(progress, useStudyDays());
   return (
     <div className="card p-4 grid grid-cols-4 text-center">
       <div>

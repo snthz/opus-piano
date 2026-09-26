@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { SessionStep } from "@/lib/agenda";
 
 /**
@@ -69,6 +69,49 @@ export interface SessionRun {
 
 const TICK_MS = 250;
 
+/* ---------- The clock on show ----------
+   The runner that's mounted publishes where its clock is, so the reader can
+   float it over the score and the pomodoro can pause it without either one
+   reaching into the runner. One at a time: whoever published last. */
+
+export interface SessionClock {
+  scoreId: string;
+  day: string;
+  /** Index of the step on, with the step itself. */
+  index: number;
+  step: SessionStep | undefined;
+  running: boolean;
+  /** Started and not finished: worth showing even while paused. */
+  active: boolean;
+  remaining: number;
+  fraction: number;
+  pause: () => void;
+}
+
+let shown: SessionClock | null = null;
+const clockListeners = new Set<() => void>();
+const publish = (next: SessionClock | null) => {
+  shown = next;
+  clockListeners.forEach((l) => l());
+};
+const subscribeClock = (l: () => void) => {
+  clockListeners.add(l);
+  return () => {
+    clockListeners.delete(l);
+  };
+};
+
+/** The session clock on show, if any runner is mounted. */
+export const useSessionClock = () =>
+  useSyncExternalStore(
+    subscribeClock,
+    () => shown,
+    () => null,
+  );
+
+/** Pauses the session on show: two clocks running at once would count the same minutes twice. */
+export const pauseSessionClock = () => shown?.pause();
+
 export function useSessionRun(
   scoreId: string,
   day: string,
@@ -102,7 +145,12 @@ export function useSessionRun(
         const current = steps[s.index];
         if (!current || done < current.minutes * 60_000) return s;
         const last = s.index >= steps.length - 1;
-        handlers.current.onStepEnd?.(current, last);
+        // a chime that fails (no audio, a browser quirk) must not stop the clock
+        try {
+          handlers.current.onStepEnd?.(current, last);
+        } catch (e) {
+          console.warn("session step chime:", e);
+        }
         if (last) {
           handlers.current.onFinish?.();
           return { ...s, elapsed: current.minutes * 60_000, startedAt: null, finished: true };
@@ -140,13 +188,35 @@ export function useSessionRun(
   const prev = useCallback(() => goTo(state.index - 1), [goTo, state.index]);
   const reset = useCallback(() => setState({ index: 0, elapsed: 0, startedAt: null, finished: false }), []);
 
+  const remaining = Math.max(0, stepMs - elapsed);
+  const fraction = stepMs ? elapsed / stepMs : 0;
+  const active = runInProgress(state);
+  useEffect(() => {
+    // only when something visible changes: the ticks come every 250 ms, the clock reads in seconds
+    const same =
+      shown &&
+      shown.scoreId === scoreId &&
+      shown.day === day &&
+      shown.index === state.index &&
+      shown.running === running &&
+      shown.active === active &&
+      Math.ceil(shown.remaining / 1000) === Math.ceil(remaining / 1000);
+    if (!same) publish({ scoreId, day, index: state.index, step, running, active, remaining, fraction, pause });
+  });
+  useEffect(
+    () => () => {
+      if (shown?.scoreId === scoreId && shown.day === day) publish(null);
+    },
+    [scoreId, day],
+  );
+
   const before = steps.slice(0, state.index).reduce((n, s) => n + s.minutes, 0);
   return {
     state,
     step,
     elapsed,
-    remaining: Math.max(0, stepMs - elapsed),
-    fraction: stepMs ? elapsed / stepMs : 0,
+    remaining,
+    fraction,
     minutesDone: state.finished ? steps.reduce((n, s) => n + s.minutes, 0) : before + elapsed / 60_000,
     running,
     start,

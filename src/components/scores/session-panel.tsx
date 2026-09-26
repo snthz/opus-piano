@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { SessionRunner } from "@/components/calendar/session-runner";
-import { dayKey, parseDay, scoreSession } from "@/lib/agenda";
+import { StepIcon } from "@/components/calendar/session-card";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { dayKey, parseDay, scoreSession, STEP_LABELS } from "@/lib/agenda";
+import { usePomodoro } from "@/lib/pomodoro";
+import { clock, useSessionClock } from "@/lib/session-run";
 import { getScore, recordSessionReview, toggleStudyDay, type ScoreRecord } from "@/lib/scores-db";
 import type { Outcome, PlanState } from "@/lib/study-plan";
+import { PomodoroFloatingButton } from "./pomodoro-panel";
 
 const longDay = (key: string) => parseDay(key).toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" });
 
@@ -116,4 +121,45 @@ function Empty({ title, text, children }: { title: string; text: string; childre
       {children}
     </section>
   );
+}
+
+/**
+ * The clock floating over the score: the session's while it's under way, the
+ * pomodoro's otherwise. Never both — they don't run at once (starting one
+ * pauses the other), and two rings over the page would say the same thing
+ * twice. With both paused, the session wins: it's the one tied to this piece.
+ */
+export function FloatingStudyClock({
+  scoreId,
+  onOpenSession,
+  onOpenPomodoro,
+}: {
+  scoreId: string;
+  onOpenSession: () => void;
+  onOpenPomodoro: () => void;
+}) {
+  const shown = useSessionClock();
+  const pomo = usePomodoro();
+  const session = shown && shown.scoreId === scoreId && shown.active && shown.step ? shown : null;
+  if (session && (session.running || !pomo.running)) {
+    const { step } = session;
+    return (
+      <button
+        type="button"
+        onClick={onOpenSession}
+        title={`Sesión · ${step ? STEP_LABELS[step.kind] : ""} · ${session.running ? "en marcha" : "en pausa"}`}
+        aria-label={`Sesión de estudio: ${step ? STEP_LABELS[step.kind] : ""}, quedan ${clock(session.remaining)}`}
+        className={`relative grid place-items-center w-14 h-14 rounded-full shadow-lg shrink-0 bg-blue text-ink transition-opacity ${
+          !session.running ? "opacity-70" : ""
+        }`}
+      >
+        <ProgressRing progress={session.fraction} stroke={2.5} className="absolute inset-0 w-14 h-14" />
+        <span className="relative flex flex-col items-center gap-0.5">
+          {step && <StepIcon kind={step.kind} className="w-3 h-3 text-ink-2" />}
+          <span className="text-[13px] font-bold tabular-nums leading-none">{clock(session.remaining)}</span>
+        </span>
+      </button>
+    );
+  }
+  return <PomodoroFloatingButton onOpen={onOpenPomodoro} />;
 }

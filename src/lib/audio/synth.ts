@@ -57,6 +57,10 @@ export function playNote(midi: number, opts: NoteOptions = {}): () => void {
   const when = opts.when ?? c.currentTime;
   const duration = opts.duration ?? 1;
   const velocity = opts.velocity ?? 0.8;
+  // Silent (volume at 0 in Settings): nothing to play. The exponential ramps
+  // below can't aim at 0 — the browser throws — and a throw here used to take
+  // the session clock down with it when a step ended.
+  if (!(velocity > 0.0005)) return () => {};
   const freq = midiToFrequency(midi);
 
   const env = c.createGain();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { getPageSize, renderPage } from "@/lib/pdf-thumbnail";
+import { getPageSize, releaseCanvas, renderPage } from "@/lib/pdf-thumbnail";
 import type { Stroke } from "@/lib/scores-db";
 import type { MeasureBox } from "@/lib/score-layout";
 import { ScoreAnnotator, type Finger, type Tool } from "./score-annotator";
@@ -74,23 +74,36 @@ export function PdfPage({ file, page, fit, zoom, strokes, onStrokes, tool, color
     const key = `${page}:${Math.round(cssW * dpr)}`;
     const cur = drawn.current;
     if (cur && cur.key === key && cur.canvas.parentNode === holder) return;
-    let cancelled = false;
+    // a render that's been overtaken by another scale is stopped, not left to
+    // finish: at a high zoom each one is a canvas of tens of megabytes
+    const abort = new AbortController();
     const draw = () =>
-      renderPage(file, page, (cssW / dims.width) * dpr)
+      renderPage(file, page, (cssW / dims.width) * dpr, abort.signal)
         .then((canvas) => {
-          if (cancelled) return;
+          if (abort.signal.aborted) return releaseCanvas(canvas);
           canvas.style.width = `${cssW}px`;
           canvas.style.height = `${cssH}px`;
+          const old = drawn.current?.canvas;
           holder.replaceChildren(canvas);
+          if (old && old !== canvas) releaseCanvas(old);
           drawn.current = { canvas, key };
         })
-        .catch((e) => !cancelled && setFailure({ file, page, message: describe(e) }));
+        .catch((e) => !abort.signal.aborted && setFailure({ file, page, message: describe(e) }));
     const timer = setTimeout(draw, cur ? 160 : 0);
     return () => {
-      cancelled = true;
+      abort.abort();
       clearTimeout(timer);
     };
   }, [ready, holder, file, page, cssW, cssH, dims]);
+
+  // leaving the screen, the page gives its pixels back at once instead of whenever the GC gets to it
+  useEffect(
+    () => () => {
+      if (drawn.current) releaseCanvas(drawn.current.canvas);
+      drawn.current = null;
+    },
+    [],
+  );
 
   if (error) {
     return (

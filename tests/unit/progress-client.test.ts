@@ -29,4 +29,10 @@ describe("resumen del progreso en el cliente", () => {
     const broken: ProgressMap = { notas: { attempts: 1, correct: 1, bestStreak: 1, lastPlayed: "", days: { [key(3)]: { attempts: 1, correct: 1 } } } };
     expect(dayStreak(broken)).toBe(0);
   });
+
+  test("dayStreak suma los días de estudio comprobado a los de ejercicios", () => {
+    const exercises: ProgressMap = { notas: { attempts: 1, correct: 1, bestStreak: 1, lastPlayed: "", days: { [key(0)]: { attempts: 1, correct: 1 } } } };
+    expect(dayStreak(exercises, [key(1), key(2)])).toBe(3);
+    expect(dayStreak({}, [key(0), key(1)])).toBe(2);
+  });
 });

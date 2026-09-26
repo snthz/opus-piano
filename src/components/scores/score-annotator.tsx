@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MAX_CANVAS_PIXELS } from "@/lib/pdf-thumbnail";
+import { MAX_CANVAS_PIXELS, releaseCanvas } from "@/lib/pdf-thumbnail";
 import type { Stroke } from "@/lib/scores-db";
 
 export type Tool = "pen" | "liner" | "highlighter" | "eraser" | "finger";
@@ -70,17 +70,26 @@ export const DEFAULT_LINER_WIDTH = LINER_WIDTHS[1].value;
 let penSeen = false;
 
 /**
+ * Tope de píxeles del lienzo de anotaciones: la mitad del que se da al PDF.
+ * Los dos lienzos de una página cuentan juntos contra la memoria que iOS deja
+ * para lienzos, y con los dos al máximo una página ampliada ocupaba 128 MB;
+ * al alejar se sumaban las vecinas y Safari se trababa. Un trazo a mano se ve
+ * igual de bien con algo menos de densidad.
+ */
+const MAX_INK_PIXELS = MAX_CANVAS_PIXELS / 2;
+
+/**
  * Densidad a la que se pinta el lienzo: la de la pantalla, salvo que la página
  * sea tan grande —con mucho zoom lo es— que el lienzo se pase del tamaño que
  * iOS dibuja. Pasado ese tamaño sale en blanco y sin dar error, que es por lo
  * que lo escrito con mucho zoom no se veía y reaparecía al alejar. Se topa
- * aquí, igual que hace el PDF de debajo, y CSS estira el resto: con mucho zoom
- * el trazo se ve algo más blando, pero se ve.
+ * aquí y CSS estira el resto: con mucho zoom el trazo se ve algo más blando,
+ * pero se ve.
  */
 const density = (width: number, height: number) => {
   const dpr = window.devicePixelRatio || 1;
   const pixels = width * height * dpr * dpr;
-  return pixels > MAX_CANVAS_PIXELS ? dpr * Math.sqrt(MAX_CANVAS_PIXELS / pixels) : dpr;
+  return pixels > MAX_INK_PIXELS ? dpr * Math.sqrt(MAX_INK_PIXELS / pixels) : dpr;
 };
 
 interface Props {
@@ -128,6 +137,10 @@ export function ScoreAnnotator({
   const penId = useRef<number | null>(null);
   /** Puntero dueño del trazo en curso: solo ese lo alarga y lo cierra. */
   const owner = useRef<number | null>(null);
+  /** Repintado pendiente para el próximo fotograma. */
+  const frame = useRef(0);
+  /** Hasta qué punto del trazo en curso está ya en el lienzo. */
+  const inked = useRef(0);
 
   /** Una digitación centrada justo donde se apunta. */
   const labelAt = (p: [number, number]): Stroke => ({ color, width: fingerSize, label: finger, points: [p] });
@@ -178,15 +191,103 @@ export function ScoreAnnotator({
     ctx.globalAlpha = 1;
   };
 
+  /**
+   * Alarga en el lienzo el trazo en curso con los tramos que le faltan, sin
+   * borrar nada. Repintar la página entera en cada movimiento —con mucho zoom,
+   * millones de píxeles, y un Pencil manda 240 por segundo— era lo que hacía
+   * que escribir ampliado fuera a tirones. Los tramos son los mismos de
+   * `paint`, así que al soltar y repintarlo todo no cambia nada.
+   */
+  const inkTail = (s: Stroke) => {
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const d = density(width, height);
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    const px = (i: number) => s.points[i][0] * width;
+    const py = (i: number) => s.points[i][1] * height;
+    const mx = (i: number) => (px(i) + px(i + 1)) / 2;
+    const my = (i: number) => (py(i) + py(i + 1)) / 2;
+    // el último tramo que se puede cerrar acaba a medio camino del último punto
+    const upTo = s.points.length - 2;
+    if (upTo <= inked.current) return;
+    ctx.strokeStyle = s.color;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = s.width * width;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    const k = inked.current;
+    if (k === 0) ctx.moveTo(px(0), py(0));
+    else ctx.moveTo(mx(k), my(k));
+    for (let i = k + 1; i <= upTo; i++) ctx.quadraticCurveTo(px(i), py(i), mx(i), my(i));
+    ctx.stroke();
+    inked.current = upTo;
+  };
+
+  /**
+   * Lo que se está escribiendo sale una vez por fotograma, no una por evento.
+   * El trazo opaco se alarga sin más; el subrayador (translúcido, se oscurece
+   * donde se solapa) y la digitación (se mueve al arrastrar) repintan.
+   */
+  const schedule = () => {
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      const s = drawing.current;
+      if (!s) return;
+      if (s.label || s.highlighter) paint(s);
+      else inkTail(s);
+    });
+  };
+  const unschedule = () => {
+    cancelAnimationFrame(frame.current);
+    frame.current = 0;
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const d = density(width, height);
-    canvas.width = Math.round(width * d);
-    canvas.height = Math.round(height * d);
-    paint();
+    const w = Math.round(width * d);
+    const h = Math.round(height * d);
+    // cambiar el tamaño, aunque sea al mismo, vuelve a reservar toda la
+    // memoria del lienzo: solo cuando de verdad cambia, no con cada trazo
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    paint(drawing.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, strokes]);
+
+  // al irse, la memoria del lienzo se devuelve ya y no cuando pase el recolector
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    return () => {
+      cancelAnimationFrame(frame.current);
+      if (canvas) releaseCanvas(canvas);
+    };
+  }, []);
+
+  // Con una herramienta en la mano, el toque no es del navegador. Safari hace
+  // caso a `touch-action` para desplazar, pero no para seleccionar: un toque
+  // largo —la mano apoyada, el Pencil que se queda quieto un instante— sacaba
+  // la lupa y seleccionaba lo que hubiera cerca. Cortar el `touchstart` lo
+  // evita; los eventos de puntero, con los que se dibuja, llegan igual, y el
+  // pellizco del lector también, que escucha más arriba.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !tool) return;
+    const stop = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    canvas.addEventListener("touchstart", stop, { passive: false });
+    canvas.addEventListener("touchmove", stop, { passive: false });
+    return () => {
+      canvas.removeEventListener("touchstart", stop);
+      canvas.removeEventListener("touchmove", stop);
+    };
+  }, [tool]);
 
   // Un dedo puede levantarse fuera del lienzo y su `pointerup` no llegaría
   // aquí: sin esto se quedaría apuntado para siempre y ya no se podría volver
@@ -229,6 +330,7 @@ export function ScoreAnnotator({
 
   const cancelStroke = () => {
     if (!drawing.current) return;
+    unschedule();
     drawing.current = null;
     owner.current = null;
     paint();
@@ -276,6 +378,8 @@ export function ScoreAnnotator({
       erase(p);
       return;
     }
+    unschedule();
+    inked.current = 0;
     if (tool === "finger") {
       drawing.current = labelAt(p);
       paint(drawing.current);
@@ -287,6 +391,7 @@ export function ScoreAnnotator({
       highlighter: tool === "highlighter",
       points: [p],
     };
+    // el punto de partida: un toque sin arrastrar también deja su marca
     paint(drawing.current);
   };
 
@@ -304,7 +409,7 @@ export function ScoreAnnotator({
     } else {
       drawing.current.points.push(...pointsOf(e));
     }
-    paint(drawing.current);
+    schedule();
   };
 
   const onUp = (e: React.PointerEvent) => {
@@ -314,8 +419,10 @@ export function ScoreAnnotator({
     if (e.pointerId !== owner.current) return;
     owner.current = null;
     if (!drawing.current) return;
+    unschedule();
     const s = drawing.current;
     drawing.current = null;
+    // el trazo entero, con su último tramo, sale al repintar con los trazos nuevos
     onChange([...strokes, s]);
   };
 

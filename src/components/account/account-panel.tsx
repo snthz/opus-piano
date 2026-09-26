@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { deleteAccount, logout, useAuth } from "@/lib/auth";
+import { useStudyDays } from "@/lib/practice-log";
 import { useProgress, useSyncState, summarize, dayStreak, syncProgress } from "@/lib/progress";
 import { syncScores, useScoresSync } from "@/lib/scores-sync";
 
@@ -46,7 +47,7 @@ function SignedIn() {
   const scoresSync = useScoresSync();
   const progress = useProgress();
   const totals = summarize(progress);
-  const streak = dayStreak(progress);
+  const streak = dayStreak(progress, useStudyDays());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

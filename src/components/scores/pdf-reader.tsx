@@ -21,7 +21,7 @@ import { ChevronIcon } from "@/components/ui/arrow-icon";
 import { Sheet } from "@/components/ui/sheet";
 import { JobIndicator, jobLabel } from "./job-indicator";
 import { PdfPage } from "./pdf-page";
-import { PomodoroFloatingButton, PomodoroPanel, TomatoIcon } from "./pomodoro-panel";
+import { PomodoroPanel, TomatoIcon } from "./pomodoro-panel";
 import {
   GuideIcon,
   MinusIcon,
@@ -43,7 +43,7 @@ import {
   type Tool,
 } from "./score-annotator";
 import { ScoreSheet } from "./score-sheet";
-import { SessionPanel } from "./session-panel";
+import { FloatingStudyClock, SessionPanel } from "./session-panel";
 import { StudyPlanPanel, TeacherChat } from "./study-plan";
 import { useParsedXml, useScorePlayer } from "./use-score-player";
 
@@ -107,6 +107,14 @@ const PANEL_TABS = [
   { id: "pomodoro", label: "Pomodoro" },
   { id: "analisis", label: "Análisis" },
 ] as const;
+/**
+ * A page with nothing written on it. One array for all of them: a fresh `[]`
+ * each render made every blank page's canvas reallocate and repaint on every
+ * frame the playback guide moved.
+ */
+const NO_STROKES: Stroke[] = [];
+/** Quiet time after the last wheel event before a trackpad zoom commits. */
+const WHEEL_SETTLE = 140;
 /** Gap between carousel pages: nearly touching, so neighbors peek in without stealing space from the centered one. */
 const PAGE_GAP = 24;
 
@@ -248,7 +256,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [notesOpen, setNotesOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [pomodoroOpen, setPomodoroOpen] = useState(false);
+  /** Pestaña de la hoja de estudio en pantallas estrechas: la sesión o el pomodoro. */
+  const [studyTab, setStudyTab] = useState<"sesion" | "pomodoro">("sesion");
   // on a wide screen the session and the analysis sit in a panel beside the
   // score, open from the start when the piece has a plan; the session tab first
   // when it's scheduled, since that's what's studied today
@@ -284,6 +293,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   const [ratio, setRatio] = useState(0);
   const [pinching, setPinching] = useState(false);
   const areaRef = useRef<HTMLDivElement>(null);
+  /** The score with its floating controls: nothing in it is text to select. */
+  const columnRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(page);
   const zoomRef = useRef(zoom);
   const viewRef = useRef(view);
@@ -296,7 +307,8 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
   /** Carousel cell width, for gestures that live outside the render. */
   const cellRef = useRef(1);
   const gesture = useRef<
-    | ({ kind: "pinch"; el: HTMLElement; gap: number; zoom: number; ratio: number } & Anchor & Live)
+    // a trackpad pinch (or Ctrl+wheel) is a pinch too, carried by wheel events instead of fingers
+    | ({ kind: "pinch"; el: HTMLElement; gap: number; zoom: number; ratio: number; wheel?: ReturnType<typeof setTimeout> } & Anchor & Live)
     | { kind: "pan"; x: number; y: number; left: number; top: number }
     | null
   >(null);
@@ -323,7 +335,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     insetRef.current = inset;
     // a tool in hand is reason enough for the bars to stay: its colours and
     // sizes live down there, and they're wanted between one stroke and the next
-    busyRef.current = !!tool || notesOpen || tempoOpen || planOpen || sessionOpen || pomodoroOpen || askXml;
+    busyRef.current = !!tool || notesOpen || tempoOpen || planOpen || sessionOpen || askXml;
   });
 
   const stopHideTimer = () => {
@@ -601,6 +613,19 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       if (!el) return clearLive(g.el);
       settle(el, g.el, g, g.zoom * g.ratio, g, true);
     };
+    /**
+     * Shows the pinch at `g.zoom * g.ratio` around (fx, fy) with the transform
+     * alone. Outside the range the scale gives only a little, like a rubber
+     * band, and snaps back on release.
+     */
+    const track = (g: NonNullable<typeof gesture.current> & { kind: "pinch" }, el: HTMLElement) => {
+      const raw = g.zoom * g.ratio;
+      const z = raw < 1 ? 1 - (1 - raw) * 0.3 : raw > MAX_ZOOM ? MAX_ZOOM + (raw - MAX_ZOOM) * 0.3 : raw;
+      g.k = z / g.zoom;
+      g.tx = g.fx - (g.px - el.scrollLeft) - g.u * g.baseW * z;
+      g.ty = g.fy - (g.py - el.scrollTop) - g.v * g.baseH * z;
+      setLive(g.el, g);
+    };
     const onMove = (e: TouchEvent) => {
       const g = gesture.current;
       const el = areaRef.current;
@@ -625,17 +650,12 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       g.fx = m.x - r.left;
       g.fy = m.y - r.top;
       g.ratio = touchGap(fingers) / g.gap;
-      const raw = g.zoom * g.ratio;
-      // outside the range, scale gives only a little, like a rubber band, and snaps back on release
-      const z = raw < 1 ? 1 - (1 - raw) * 0.3 : raw > MAX_ZOOM ? MAX_ZOOM + (raw - MAX_ZOOM) * 0.3 : raw;
-      g.k = z / g.zoom;
-      g.tx = g.fx - (g.px - el.scrollLeft) - g.u * g.baseW * z;
-      g.ty = g.fy - (g.py - el.scrollTop) - g.v * g.baseH * z;
-      setLive(g.el, g);
+      track(g, el);
     };
     const onEnd = (e: TouchEvent) => {
       const g = gesture.current;
-      if (!g) return;
+      // a trackpad zoom ends on its own timer, not with a finger
+      if (!g || (g.kind === "pinch" && g.wheel)) return;
       const fingers = fingersOf(e.touches);
       if (g.kind === "pinch") {
         if (fingers.length < 2) finishPinch(g);
@@ -643,16 +663,39 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
         gesture.current = null;
       }
     };
-    // trackpad pinch or Ctrl+wheel zooms the same as touch
+    // Trackpad pinch or Ctrl+wheel zooms the same as touch: the transform
+    // follows each event and the real scale commits once the wheel goes quiet.
+    // Committing on every event re-laid the page, reallocated its canvases and
+    // queued a pdf.js render dozens of times a second — at a high zoom that
+    // stalled the app for seconds on the way back out.
     const onWheel = (e: WheelEvent) => {
       const el = areaRef.current;
       if (!el || viewRef.current !== "pdf" || !(e.ctrlKey || e.metaKey) || !el.contains(e.target as Node)) return;
       e.preventDefault();
-      const pg = pageEl(el);
-      if (!pg || settling.current || gesture.current) return;
+      if (settling.current) return;
       const r = el.getBoundingClientRect();
-      const a = anchorAt(el, pg, e.clientX - r.left, e.clientY - r.top);
-      settle(el, pg, a, zoomRef.current * Math.exp(-e.deltaY / 240), { k: 1, tx: 0, ty: 0 }, false);
+      const fx = e.clientX - r.left;
+      const fy = e.clientY - r.top;
+      let g = gesture.current;
+      if (g && !(g.kind === "pinch" && g.wheel)) return;
+      if (!g) {
+        const pg = pageEl(el);
+        if (!pg) return;
+        g = { kind: "pinch", el: pg, gap: 1, zoom: zoomRef.current, ratio: 1, k: 1, tx: 0, ty: 0, ...anchorAt(el, pg, fx, fy) };
+        gesture.current = g;
+      }
+      // a mouse wheel counts in lines, a trackpad in pixels
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      // no rubber band here: nothing lets go to snap it back
+      g.ratio = clamp(g.zoom * g.ratio * Math.exp(-dy / 240), 1, MAX_ZOOM) / g.zoom;
+      g.fx = fx;
+      g.fy = fy;
+      track(g, el);
+      clearTimeout(g.wheel);
+      const cur = g;
+      cur.wheel = setTimeout(() => {
+        if (gesture.current === cur) finishPinch(cur);
+      }, WHEEL_SETTLE);
     };
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onEnd);
@@ -674,6 +717,24 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     root.setAttribute("data-reader", "");
     return () => root.removeAttribute("data-reader");
   }, []);
+
+  // Nothing over the score is text to select, and with a tool in hand nothing
+  // anywhere is: the hand resting beside the pencil — on the page, a toolbar or
+  // the analysis — started selections that lit up a title, a symbol, a line of
+  // the plan. `select-none` alone doesn't hold on iPad, where Safari still
+  // selects from a long press, so the selection is refused where it starts.
+  useEffect(() => {
+    if (tool) window.getSelection()?.removeAllRanges();
+    const refuse = (e: Event) => {
+      const t = e.target;
+      const el = t instanceof Element ? t : t instanceof Node ? t.parentElement : null;
+      // what's typed stays selectable: the name, the notes, the teacher chat
+      if (el?.closest("input, textarea, [contenteditable='true']")) return;
+      if (tool || (el && columnRef.current?.contains(el))) e.preventDefault();
+    };
+    document.addEventListener("selectstart", refuse);
+    return () => document.removeEventListener("selectstart", refuse);
+  }, [tool]);
 
   // hiding the controls also hides the site header (globals.css), so on
   // desktop the reader then takes up the full screen
@@ -743,7 +804,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
 
   /* ---------- Persistence ---------- */
 
-  const strokesOf = (p: number) => annotations[p] ?? [];
+  const strokesOf = (p: number) => annotations[p] ?? NO_STROKES;
   const setStrokes = (p: number, next: Stroke[]) => {
     const all = { ...annotations, [p]: next };
     setAnnotations(all);
@@ -832,22 +893,22 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
     player.stop();
     setPlanOpen(true);
   };
-  const openSession = () => {
+  /**
+   * Estudio: la sesión y el pomodoro van juntos, cada uno en su pestaña. El
+   * pomodoro se usa con o sin sesión puesta, pero es la misma cosa —el reloj
+   * con que se estudia— y en la barra era un botón más para lo mismo.
+   */
+  const openStudy = (tab: "sesion" | "pomodoro") => {
     if (wide) {
-      showPanel("sesion");
+      showPanel(tab);
       return;
     }
-    player.stop();
+    if (tab === "sesion") player.stop();
+    setStudyTab(tab);
     setSessionOpen(true);
   };
-  /** The pomodoro is its own thing: it gets used with or without a session scheduled. */
-  const openPomodoro = () => {
-    if (wide) {
-      showPanel("pomodoro");
-      return;
-    }
-    setPomodoroOpen(true);
-  };
+  const openSession = () => openStudy("sesion");
+  const openPomodoro = () => openStudy("pomodoro");
   const planShown = planOpen || (wide && panelOpen && panelTab === "analisis");
 
 
@@ -877,7 +938,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
       style={{ "--safe-t": "env(safe-area-inset-top, 0px)", "--safe-b": "env(safe-area-inset-bottom, 0px)" } as React.CSSProperties}
     >
       {/* ---- The score with its floating controls; on a wide screen the side panel takes the rest ---- */}
-      <div className="relative flex-1 min-w-0 flex flex-col">
+      <div ref={columnRef} className="relative flex-1 min-w-0 flex flex-col select-none [-webkit-touch-callout:none] [&_input]:select-text [&_textarea]:select-text">
         {/* ---- Content ---- */}
         {view === "pdf" ? (
           // a single container for both the carousel and the zoomed view: the
@@ -997,8 +1058,14 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           {/* `select-none`: el nombre es un rótulo, no texto para copiar, y al
               escribir sobre la partitura la selección se iba a él y lo dejaba resaltado. */}
           <div className="flex h-14 items-center gap-0.5 sm:gap-1 px-2 sm:px-3 select-none">
-            <button type="button" onClick={onClose} className="btn-circle w-9 h-9 sm:w-10 sm:h-10 shrink-0" aria-label="Volver">
-              <ChevronIcon dir="left" className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={onClose}
+              title="Volver"
+              aria-label="Volver"
+              className="grid h-9 w-8 sm:h-10 shrink-0 place-items-center rounded-full text-ink hover:text-ink-2 transition-colors"
+            >
+              <ChevronIcon dir="left" className="w-5 h-5" />
             </button>
             <div className="min-w-0 flex-1 px-1.5">
               <p className="font-semibold text-sm truncate leading-tight">{name}</p>
@@ -1014,14 +1081,10 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
               <span className="text-base leading-none">✎</span>
             </NavButton>
 
-            {/* La sesión y el pomodoro van por separado: el reloj se usa igual
-                cuando no hay ninguna sesión puesta para hoy. */}
-            <NavButton label="Sesión de estudio de hoy" onClick={openSession}>
+            {/* La sesión y el pomodoro, juntos: se abre en la sesión y el
+                pomodoro está en la pestaña de al lado. */}
+            <NavButton label="Estudio: sesión de hoy y pomodoro" onClick={openSession}>
               <SessionIcon className="w-5 h-5" />
-            </NavButton>
-
-            <NavButton label="Pomodoro: estudio y descansos" onClick={openPomodoro}>
-              <TomatoIcon className="w-5 h-5" />
             </NavButton>
 
             <NavButton
@@ -1045,7 +1108,7 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           </div>
         </div>
 
-        {/* ---- Pomodoro ----
+        {/* ---- Reloj: la sesión en marcha o el pomodoro, nunca los dos ----
              Sigue a la vista con los mandos retirados —para eso está—, así que
              va suelto sobre la esquina y solo baja para no quedar tapado por la
              barra cuando esta aparece. */}
@@ -1054,7 +1117,11 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           style={{ top: chrome ? "calc(4.25rem + var(--safe-t))" : "calc(0.75rem + var(--safe-t))" }}
         >
           <div className="pointer-events-auto">
-            <PomodoroFloatingButton onOpen={() => { setNotesOpen(false); openPomodoro(); }} />
+            <FloatingStudyClock
+              scoreId={record.id}
+              onOpenSession={() => { setNotesOpen(false); openSession(); }}
+              onOpenPomodoro={() => { setNotesOpen(false); openPomodoro(); }}
+            />
           </div>
         </div>
 
@@ -1369,18 +1436,51 @@ export function PdfReader({ record, onClose, onDelete, onNotesChange, onRename, 
           <Sheet open={planOpen} onClose={() => setPlanOpen(false)} title="Análisis de la partitura" subtitle={name}>
             <StudyPlanPanel record={record} xml={linkedXml} pdf={record.file} onPlanChange={onPlanChange} />
           </Sheet>
-          <Sheet open={pomodoroOpen} onClose={() => setPomodoroOpen(false)} title="Pomodoro" subtitle="Estudio y descansos">
-            <PomodoroPanel />
-          </Sheet>
-          <Sheet open={sessionOpen} onClose={() => setSessionOpen(false)} title="Sesión de estudio" subtitle={name}>
-            <SessionPanel
-              record={record}
-              onPlanChange={onPlanChange}
-              onOpenAnalysis={() => {
-                setSessionOpen(false);
-                setPlanOpen(true);
-              }}
-            />
+          {/* Montada aunque esté cerrada: el cronómetro de la sesión vive
+              ahí, y sin él se paraba el paso a paso y el reloj de la esquina
+              desaparecía de la partitura. */}
+          <Sheet
+            open={sessionOpen}
+            onClose={() => setSessionOpen(false)}
+            title="Estudio"
+            subtitle={name}
+            keepMounted
+            actions={
+              <div role="tablist" aria-label="Sesión o pomodoro" className="flex rounded-full bg-surface-2 p-1">
+                {PANEL_TABS.filter((t) => t.id !== "analisis").map(({ id, label }) => {
+                  const Icon = id === "sesion" ? SessionIcon : TomatoIcon;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={studyTab === id}
+                      onClick={() => setStudyTab(id as "sesion" | "pomodoro")}
+                      className={`h-8 px-3 rounded-full text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
+                        studyTab === id ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            }
+          >
+            <div role="tabpanel" hidden={studyTab !== "sesion"}>
+              <SessionPanel
+                record={record}
+                onPlanChange={onPlanChange}
+                onOpenAnalysis={() => {
+                  setSessionOpen(false);
+                  setPlanOpen(true);
+                }}
+              />
+            </div>
+            <div role="tabpanel" hidden={studyTab !== "pomodoro"}>
+              <PomodoroPanel />
+            </div>
           </Sheet>
         </>
       )}

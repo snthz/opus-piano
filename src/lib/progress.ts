@@ -241,9 +241,13 @@ export function summarize(p: ProgressMap) {
   return { attempts, correct, days: days.size, accuracy: attempts ? Math.round((correct / attempts) * 100) : 0 };
 }
 
-/** Streak of consecutive days (including today or yesterday). */
-export function dayStreak(p: ProgressMap): number {
-  const days = new Set<string>();
+/**
+ * Streak of consecutive days (including today or yesterday). A day counts
+ * with exercises answered or, via `studyDays` (`useStudyDays`), with a study
+ * session that really happened.
+ */
+export function dayStreak(p: ProgressMap, studyDays: Iterable<string> = []): number {
+  const days = new Set<string>(studyDays);
   for (const ex of Object.values(p)) for (const d of Object.keys(ex.days)) days.add(d);
   let streak = 0;
   const cursor = new Date();

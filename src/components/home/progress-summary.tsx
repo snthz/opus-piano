@@ -5,6 +5,7 @@ import { GlyphIcon } from "@/components/notation/glyph-icon";
 import { ArrowIcon } from "@/components/ui/arrow-icon";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { EXERCISES } from "@/data/exercises";
+import { useStudyDays } from "@/lib/practice-log";
 import { DAILY_GOAL, dayStreak, summarize, summarizeToday, useProgress } from "@/lib/progress";
 import { exercisePath } from "@/lib/routes";
 import { suggestExercises } from "@/lib/suggestions";
@@ -30,7 +31,7 @@ export function ProgressSummary({ nextLesson }: { nextLesson: NextLesson }) {
   const progress = useProgress();
   const today = summarizeToday(progress);
   const totals = summarize(progress);
-  const streak = dayStreak(progress);
+  const streak = dayStreak(progress, useStudyDays());
   const started = totals.attempts > 0;
   const suggestion = suggestExercises(progress, EXERCISES, 1)[0];
 

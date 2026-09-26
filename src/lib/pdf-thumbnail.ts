@@ -68,9 +68,22 @@ export async function getPageSize(blob: Blob, pageNum: number): Promise<{ width:
   return { width: v.width, height: v.height };
 }
 
-export async function renderPage(blob: Blob, pageNum: number, scale: number): Promise<HTMLCanvasElement> {
+/**
+ * Hands a canvas's pixels back right away. iOS counts every canvas against a
+ * fixed memory budget until it's garbage-collected, and a page drawn at a high
+ * zoom is ~64 MB: zooming back out made new ones before the old were gone, and
+ * past the budget Safari stalled or painted them blank.
+ */
+export function releaseCanvas(canvas: HTMLCanvasElement) {
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+/** Draws a page. With `signal`, aborting stops pdf.js mid-render and frees the canvas. */
+export async function renderPage(blob: Blob, pageNum: number, scale: number, signal?: AbortSignal): Promise<HTMLCanvasElement> {
   const pdf = await getDocumentCached(blob);
   const page = await pdf.getPage(pageNum);
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   let viewport = page.getViewport({ scale });
   const pixels = viewport.width * viewport.height;
   if (pixels > MAX_CANVAS_PIXELS) viewport = page.getViewport({ scale: scale * Math.sqrt(MAX_CANVAS_PIXELS / pixels) });
@@ -79,7 +92,17 @@ export async function renderPage(blob: Blob, pageNum: number, scale: number): Pr
   canvas.width = Math.round(viewport.width);
   canvas.height = Math.round(viewport.height);
   const ctx = canvas.getContext("2d")!;
-  await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+  const task = page.render({ canvas, canvasContext: ctx, viewport });
+  const abort = () => task.cancel();
+  signal?.addEventListener("abort", abort);
+  try {
+    await task.promise;
+  } catch (e) {
+    releaseCanvas(canvas);
+    throw e;
+  } finally {
+    signal?.removeEventListener("abort", abort);
+  }
   return canvas;
 }
 

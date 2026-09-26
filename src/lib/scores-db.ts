@@ -1,6 +1,7 @@
 "use client";
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import type { PracticeLog } from "@/lib/agenda";
 import type { ScoreStatus } from "@/lib/score-status";
 import type { PlanState, SessionReview } from "@/lib/study-plan";
 import type { StudyRouteRecord } from "@/lib/study-route";
@@ -204,6 +205,19 @@ export async function toggleStudyDay(scoreId: string, day: string): Promise<void
   if (done[day]) delete done[day];
   else done[day] = true;
   await updateScorePlan(scoreId, { ...state, schedule: { ...state.schedule, done } });
+}
+
+/**
+ * Saves what the session clock saw on a day (see `practiceLogSchema`). The
+ * tracker carries the day's running total, so this replaces the day's log;
+ * re-read first, like the tick, so nothing else in the plan is lost.
+ */
+export async function recordPractice(scoreId: string, day: string, log: PracticeLog): Promise<void> {
+  const rec = await getScore(scoreId);
+  const state = rec?.plan;
+  if (!state?.schedule) return;
+  const practiced = { ...state.schedule.practiced, [day]: log };
+  await updateScorePlan(scoreId, { ...state, schedule: { ...state.schedule, practiced } });
 }
 
 /**

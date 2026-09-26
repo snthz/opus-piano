@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { playChime } from "@/lib/audio/synth";
+import { pauseSessionClock } from "@/lib/session-run";
 import { getSettings } from "@/lib/settings";
 
 /**
@@ -181,9 +182,11 @@ export const pomodoro = {
   /** Current state and times, for code outside React (and tests). */
   state: () => read().state,
   config: () => read().config,
+  /** Pauses the study session if one is running: only one clock counts at a time. */
   start() {
     const { state: s } = read();
     if (s.startedAt !== null) return;
+    pauseSessionClock();
     commit({ ...s, startedAt: Date.now() });
   },
   pause() {
