@@ -59,6 +59,12 @@ export function SettingsPanel() {
             onChange={(v) => update({ naming: v as typeof settings.naming })}
           />
         </Row>
+        <Row
+          label="Enseñar los dos sistemas"
+          hint="Añade el otro nombre en pequeño («do (C)») en los ejercicios de lectura. Los acordes y casi todo el material que hay fuera vienen en cifrado americano."
+        >
+          <Toggle checked={settings.dualNames} onChange={(v) => update({ dualNames: v })} label="Enseñar los dos sistemas" />
+        </Row>
         <Row label="Nombres en el teclado" hint="Etiquetas sobre las teclas del piano virtual.">
           <Toggle checked={settings.keyLabels} onChange={(v) => update({ keyLabels: v })} label="Nombres en el teclado" />
         </Row>

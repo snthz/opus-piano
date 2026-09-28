@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { getUser, onAuthChange } from "@/lib/auth";
 import { clearItemStats } from "@/lib/practice/item-stats";
+import { clearLevelProgress } from "@/lib/practice/level-progress";
 
 /**
  * Exercise progress.
@@ -179,9 +180,10 @@ export async function syncProgress(): Promise<void> {
 export function clearLocalProgress() {
   writeJson(QUEUE_KEY, []);
   write({});
-  // the per-item record never leaves the device, so nothing restores it: it
-  // goes with the progress it belongs to
+  // the per-item record and the level map never leave the device, so nothing
+  // restores them: they go with the progress they belong to
   clearItemStats();
+  clearLevelProgress();
   setSync({ lastSync: null, pending: 0, error: null, busy: false, account: !!getUser() });
 }
 
@@ -189,6 +191,7 @@ export async function resetProgress() {
   writeJson(QUEUE_KEY, []);
   write({});
   clearItemStats();
+  clearLevelProgress();
   setSync({ pending: 0 });
   if (getUser()) await fetch("/api/progress", { method: "DELETE" }).catch(() => {});
 }

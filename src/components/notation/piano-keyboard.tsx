@@ -18,6 +18,8 @@ export interface PianoKeyboardProps {
   held?: number[];
   /** Etiquetas: todas, solo los do, o ninguna. Si se omite, usa el ajuste del usuario. */
   labels?: "all" | "c" | "none";
+  /** Atajo del teclado del ordenador que toca cada nota, escrito arriba de la tecla. */
+  hints?: Record<number, string>;
   /** Reproduce la nota al pulsar */
   sound?: boolean;
   onPress?: (midi: number) => void;
@@ -42,6 +44,7 @@ export function PianoKeyboard({
   highlightAlt = [],
   held = [],
   labels,
+  hints,
   sound = true,
   onPress,
   markMiddleC = true,
@@ -133,6 +136,19 @@ export function PianoKeyboard({
           {markMiddleC && k.midi === 60 && (
             <circle cx={k.x + WHITE_W / 2} cy={height - 16} r={2} fill="#57534e" />
           )}
+          {hints?.[k.midi] && (
+            <text
+              x={k.x + WHITE_W / 2}
+              y={blackH + 9}
+              textAnchor="middle"
+              fontSize={5.5}
+              fontWeight={600}
+              fill="#a8a29e"
+              fontFamily="var(--font-mono)"
+            >
+              {hints[k.midi]}
+            </text>
+          )}
         </g>
       ))}
       {blacks.map((k) => (
@@ -147,6 +163,19 @@ export function PianoKeyboard({
             stroke="#0f0d0c"
             strokeWidth={0.6}
           />
+          {hints?.[k.midi] && (
+            <text
+              x={k.x + BLACK_W / 2}
+              y={11}
+              textAnchor="middle"
+              fontSize={4.5}
+              fontWeight={600}
+              fill="#a8a29e"
+              fontFamily="var(--font-mono)"
+            >
+              {hints[k.midi]}
+            </text>
+          )}
           {labelMode === "all" && (
             <text
               x={k.x + BLACK_W / 2}

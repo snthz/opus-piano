@@ -75,6 +75,8 @@ export interface ScoreProps {
   showTime?: boolean;
   /** Colors by note index (e.g. exercise results). */
   noteStyles?: Record<number, string>;
+  /** Same, for the bottom staff of a grand staff. */
+  bassNoteStyles?: Record<number, string>;
   /** Final barline. */
   endBar?: "single" | "double" | "end" | "repeat" | "none";
   /** Per measure: opening/closing repeat barlines and ending ("1.", "2.") with its bracket segment. */
@@ -113,6 +115,7 @@ export function Score({
   highlightColor,
   highlightBand = false,
   noteStyles,
+  bassNoteStyles,
   bassTies,
   showTime = true,
   endBar = "none",
@@ -131,7 +134,7 @@ export function Score({
   const grand = !!bassMeasures;
   const computedHeight = height ?? (render ? 160 : grand ? STAVE_HEIGHT * 2 + 40 : STAVE_HEIGHT + 30);
   const measuresKey = JSON.stringify([measures, bassMeasures]);
-  const labelsKey = JSON.stringify([labels, bassLabels, ties, bassTies, slurs, tuplets, bassTuplets, noteStyles, repeats]);
+  const labelsKey = JSON.stringify([labels, bassLabels, ties, bassTies, slurs, tuplets, bassTuplets, noteStyles, bassNoteStyles, repeats]);
   const highlightKey = JSON.stringify([highlight, bassHighlight]);
 
   useEffect(() => {
@@ -172,6 +175,7 @@ export function Score({
               highlightColor: highlightColor ?? getAccentColor(el),
               highlightBand,
               noteStyles,
+              bassNoteStyles,
               bassTies,
               showTime,
               endBar,
@@ -263,6 +267,7 @@ interface DrawOptions {
   highlightColor: string;
   highlightBand: boolean;
   noteStyles?: Record<number, string>;
+  bassNoteStyles?: Record<number, string>;
   bassTies?: Tie[];
   showTime: boolean;
   endBar: NonNullable<ScoreProps["endBar"]>;
@@ -387,12 +392,19 @@ function drawMeasures(vf: VexFlowModule, o: DrawOptions) {
     x += w;
   }
 
-  if (o.noteStyles) {
-    for (const [idx, color] of Object.entries(o.noteStyles)) {
-      const n = allTreble[Number(idx)];
-      if (n) n.setStyle({ fillStyle: color, strokeStyle: color });
+  const applyStyles = (list: StemmableNote[], styles?: Record<number, string>) => {
+    if (!styles) return;
+    for (const [idx, color] of Object.entries(styles)) {
+      const n = list[Number(idx)];
+      if (!n) continue;
+      n.setStyle({ fillStyle: color, strokeStyle: color });
+      if ("setLedgerLineStyle" in n) {
+        (n as { setLedgerLineStyle: (s: { strokeStyle: string }) => void }).setLedgerLineStyle({ strokeStyle: color });
+      }
     }
-  }
+  };
+  applyStyles(allTreble, o.noteStyles);
+  applyStyles(allBass, o.bassNoteStyles);
   const paint = (list: StemmableNote[], which?: number | number[]) => {
     if (which === undefined) return;
     for (const i of Array.isArray(which) ? which : [which]) {

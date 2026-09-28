@@ -42,6 +42,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     links: [
       { href: "/metronome", label: "Metrónomo" },
       { href: "/practice/notes", label: "Leer notas" },
+      { href: "/practice/sight-reading", label: "Primera vista" },
       { href: "/practice/keyboard", label: "Notas en el teclado" },
       { href: "/practice/rhythm", label: "Ritmo" },
       { href: "/practice/solfege", label: "Solfeo" },

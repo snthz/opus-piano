@@ -10,7 +10,7 @@ import { symbolById } from "@/data/symbols";
  * change of note naming; the name is built here, when it's read. Each
  * exercise decides the shape of its own ids:
  *
- * - `notas`, `teclado`: "<clave>|<nota EasyScore>" — "bass|F3"
+ * - `notas`, `teclado`, `primera-vista`: "<clave>|<nota EasyScore>" — "bass|F3"
  * - `armaduras`: the key in VexFlow notation — "Eb"
  * - `simbolos`: the symbol id — "calderon"
  * - `oido`: "<semitonos>|<movimiento>" — "7|asc"
@@ -23,6 +23,7 @@ export function itemLabel(exerciseId: string, itemId: string, naming: NamingSyst
   try {
     switch (exerciseId) {
       case "notas":
+      case "primera-vista":
       case "teclado": {
         const [clef, note] = itemId.split("|");
         return `${fullName(parsePitch(note), naming)} en ${CLEF_NAMES[clef] ?? clef}`;

@@ -50,6 +50,42 @@ export interface Feedback {
   message: React.ReactNode;
 }
 
+/**
+ * Cabecera común: volver a Práctica, el título y lo que cada ejercicio quiera
+ * poner a la derecha. La usa `ExerciseShell`, y también las pantallas que no
+ * caben en el molde (el mapa de niveles de «Leer notas»).
+ */
+export function ExerciseHeader({ title, right }: { title: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Link href="/practice" aria-label="Volver a Práctica" className="card w-11 h-11 flex items-center justify-center hover:bg-surface-2 shrink-0">
+        <ChevronIcon dir="left" />
+      </Link>
+      <h1 className="text-lg font-semibold tracking-tight text-center">{title}</h1>
+      {right ?? <span className="w-11 shrink-0" />}
+    </div>
+  );
+}
+
+/** Botón de los ajustes del ejercicio (el de los deslizadores). */
+export function SettingsToggle({ open, onClick }: { open: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label="Opciones del ejercicio"
+      className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${open ? "bg-ink text-bg" : "card hover:bg-surface-2"}`}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="w-5 h-5" aria-hidden="true">
+        <path d="M4 7h10M18 7h2M4 17h4M12 17h8" strokeLinecap="round" />
+        <circle cx="15" cy="7" r="2.5" />
+        <circle cx="9" cy="17" r="2.5" />
+      </svg>
+    </button>
+  );
+}
+
 export function ExerciseShell({
   title,
   stats,
@@ -58,6 +94,7 @@ export function ExerciseShell({
   feedback,
   onNext,
   color = "bg-mint",
+  topbar,
 }: {
   title: string;
   stats: SessionStats;
@@ -67,6 +104,8 @@ export function ExerciseShell({
   feedback: Feedback | null;
   onNext: () => void;
   color?: string;
+  /** Fila propia del ejercicio entre la cabecera y las estadísticas (p. ej. el cambio de modo). */
+  topbar?: React.ReactNode;
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const accuracy = stats.total ? Math.round((stats.correct / stats.total) * 100) : 0;
@@ -77,29 +116,12 @@ export function ExerciseShell({
         title="¿Guardamos tu progreso?"
         text="Vas bien. Con una cuenta, tus respuestas, rachas y estadísticas se guardan y te siguen en cualquier dispositivo."
       />
-      <div className="flex items-center justify-between">
-        <Link href="/practice" aria-label="Volver a Práctica" className="card w-11 h-11 flex items-center justify-center hover:bg-surface-2">
-          <ChevronIcon dir="left" />
-        </Link>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        {settings ? (
-          <button
-            type="button"
-            onClick={() => setShowSettings((v) => !v)}
-            aria-expanded={showSettings}
-            aria-label="Opciones del ejercicio"
-            className={`w-11 h-11 rounded-full flex items-center justify-center ${showSettings ? "bg-ink text-bg" : "card hover:bg-surface-2"}`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="w-5 h-5" aria-hidden="true">
-              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" strokeLinecap="round" />
-              <circle cx="15" cy="7" r="2.5" />
-              <circle cx="9" cy="17" r="2.5" />
-            </svg>
-          </button>
-        ) : (
-          <span className="w-11" />
-        )}
-      </div>
+      <ExerciseHeader
+        title={title}
+        right={settings ? <SettingsToggle open={showSettings} onClick={() => setShowSettings((v) => !v)} /> : undefined}
+      />
+
+      {topbar}
 
       {showSettings && settings && <div className="card p-4 space-y-3 text-sm">{settings}</div>}
 

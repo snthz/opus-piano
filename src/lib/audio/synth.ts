@@ -123,8 +123,12 @@ export function playChord(midis: number[], opts: NoteOptions = {}) {
   return () => stops.forEach((s) => s());
 }
 
-/** Metronome click. `accent` = first beat of the bar. */
-export function playClick(when: number, accent = false) {
+/**
+ * Metronome click. `accent` = first beat of the bar. Returns a function that
+ * silences it: a whole exercise is scheduled up front, and stopping it has to
+ * take the clicks that haven't sounded yet with it.
+ */
+export function playClick(when: number, accent = false): () => void {
   const c = getAudioContext();
   const osc = c.createOscillator();
   const g = c.createGain();
@@ -136,6 +140,16 @@ export function playClick(when: number, accent = false) {
   osc.connect(g).connect(master!);
   osc.start(when);
   osc.stop(when + 0.06);
+  return () => {
+    const now = c.currentTime;
+    g.gain.cancelScheduledValues(now);
+    g.gain.setValueAtTime(0, now);
+    try {
+      osc.stop(now);
+    } catch {
+      /* already stopped */
+    }
+  };
 }
 
 export interface MetronomeOptions {

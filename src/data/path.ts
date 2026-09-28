@@ -63,6 +63,7 @@ export const PATH: PathStage[] = [
       { kind: "piece", ref: "cumpleanos-feliz-facil", why: "Empieza antes del compás: la anacrusa se entiende tocándola. Y la izquierda ya lleva bajo y acordes." },
       { kind: "piece", ref: "greensleeves-facil", why: "Puntillos en la derecha y un bajo que dibuja el acorde: las dos manos hacen cosas distintas a la vez." },
       { kind: "exercise", ref: "solfeo", why: "Cantar lo que lees fija la altura mucho antes que los dedos." },
+      { kind: "exercise", ref: "primera-vista", why: "Leer sin parar el reloj: el compás sigue aunque la nota no salga, que es lo que pasa de verdad al tocar." },
       { kind: "piece", ref: "minueto-sol-petzold", why: "Tu primera obra original: el minueto del Cuaderno de Ana Magdalena, con las dos manos de verdad independientes." },
     ],
   },

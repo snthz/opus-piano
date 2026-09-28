@@ -12,7 +12,7 @@ import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 export const metadata = pageMetadata({
   title: "Ejercicios de solfeo y lectura musical",
   description:
-    "Siete ejercicios interactivos que corrigen solos: lectura de notas, teclado, símbolos, armaduras, ritmo, solfeo y reconocimiento de intervalos de oído.",
+    "Ocho ejercicios interactivos que corrigen solos: lectura de notas por niveles, primera vista con metrónomo, teclado, símbolos, armaduras, ritmo, solfeo y reconocimiento de intervalos de oído.",
   path: "/practice",
   keywords: ["ejercicios de solfeo", "practicar lectura musical", "ejercicios de teoría musical", "entrenamiento auditivo"],
 });

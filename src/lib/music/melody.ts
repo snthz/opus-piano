@@ -40,9 +40,15 @@ export function generateMelody(
   ts: TimeSignature,
   measures: number,
   level: RhythmLevel,
+  opts: {
+    /** Acota el registro; por defecto, el habitual de la clave. */
+    range?: [Pitch, Pitch];
+    /** Fuerza la presencia o ausencia de silencios (por defecto, según el nivel). */
+    noRests?: boolean;
+  } = {},
 ): Melody {
-  const [lo, hi] = RANGES[clef];
-  const rhythm = generateRhythm(ts, level, measures, { noRests: level < 3 });
+  const [lo, hi] = opts.range ? [diatonicIndex(opts.range[0]), diatonicIndex(opts.range[1])] : RANGES[clef];
+  const rhythm = generateRhythm(ts, level, measures, { noRests: opts.noRests ?? level < 3 });
   // Último compás: una nota larga en la tónica.
   const totalBeats = rhythm[0].reduce((s, n) => s + n.beats, 0);
   rhythm[rhythm.length - 1] = [{ beats: totalBeats, rest: false, vex: totalBeats >= 4 ? "w" : totalBeats >= 3 ? "h." : totalBeats >= 2 ? "h" : totalBeats >= 1.5 ? "q." : "q" }];
@@ -58,14 +64,20 @@ export function generateMelody(
     m.map((n, ni) => {
       const isLast = mi === rhythm.length - 1 && ni === m.length - 1;
       if (isLast) {
-        // Tónica más cercana a la nota actual.
-        current = tonics.reduce((best, t) => (Math.abs(t - current) < Math.abs(best - current) ? t : best), tonics[0]);
+        // Tónica más cercana a la nota actual (si el registro tiene alguna).
+        if (tonics.length) {
+          current = tonics.reduce((best, t) => (Math.abs(t - current) < Math.abs(best - current) ? t : best), tonics[0]);
+        }
       } else if (!(mi === 0 && ni === 0)) {
         const r = Math.random();
-        let step = r < 0.65 ? (Math.random() < 0.5 ? 1 : -1) : r < 0.9 ? (Math.random() < 0.5 ? 2 : -2) : Math.random() < 0.5 ? 4 : -4;
-        if (current + step > hi) step = -Math.abs(step);
-        if (current + step < lo) step = Math.abs(step);
-        current += step;
+        const size = r < 0.65 ? 1 : r < 0.9 ? 2 : 4;
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        // El salto se da la vuelta si no cabe, y se encoge si tampoco cabe al
+        // revés: en un registro de cinco notas no entra una sexta en ninguna
+        // de las dos direcciones, y dar la vuelta sin más se salía por el otro
+        // extremo.
+        const tries = [size * dir, -size * dir, dir, -dir];
+        current = tries.map((s) => current + s).find((i) => i >= lo && i <= hi) ?? current;
       }
       return { ...n, pitch: pitchAt(current, key) };
     }),

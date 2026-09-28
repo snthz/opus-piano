@@ -8,6 +8,12 @@ import type { Theme } from "@/lib/theme";
 export interface Settings {
   /** Sistema de nombres de notas */
   naming: NamingSystem;
+  /**
+   * Mostrar también el otro sistema en pequeño ("do (C)"). Los acordes y casi
+   * todo el material que hay fuera vienen en cifrado americano, y así se
+   * aprende sin dejar de leer con los nombres de siempre.
+   */
+  dualNames: boolean;
   /** Sonido activado */
   sound: boolean;
   /** Volumen 0–1 */
@@ -31,10 +37,18 @@ export interface Settings {
    * izquierda practica en fa, y no tiene por qué cambiarlo en cada ejercicio.
    */
   defaultClef: "treble" | "bass" | "both";
+  /**
+   * Manual correction, in milliseconds, on top of the latency the browser
+   * reports for the rhythm exercise. Positive = the taps are counted earlier.
+   * Headphones, Bluetooth and the microphone each add a delay nobody can
+   * measure from here; the exercise offers to set it after a round.
+   */
+  rhythmOffset: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   naming: "latino",
+  dualNames: true,
   sound: true,
   volume: 0.7,
   keyLabels: true,
@@ -43,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   midiDevice: null,
   level: "principiante",
   defaultClef: "treble",
+  rhythmOffset: 0,
 };
 
 const STORAGE_KEY = "etude:settings";
