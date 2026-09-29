@@ -7,6 +7,9 @@ const PRECACHE = [
   "/",
   "/theory",
   "/practice",
+  // El cuaderno de lectura se usa sentado al piano, que es justo donde peor
+  // llega la wifi: se descarga con la app, no en la primera visita.
+  "/practice/sight-reading-grades",
   "/metronome",
   "/scores",
   "/routes",

@@ -1,5 +1,5 @@
 import type { Letter, Pitch } from "./pitch";
-import { LATIN_NAMES, ACCIDENTAL_SYMBOL } from "./pitch";
+import { LATIN_NAMES, ACCIDENTAL_SYMBOL, ACCIDENTAL_VEX } from "./pitch";
 
 /**
  * Armaduras y tonalidades.
@@ -107,6 +107,22 @@ export function keyAccidentals(k: KeyInfo): { letters: Letter[]; accidental: 1 |
 export function applyKey(k: KeyInfo, letter: Letter, octave: number): Pitch {
   const { letters, accidental } = keyAccidentals(k);
   return { letter, octave, accidental: letters.includes(letter) ? accidental : 0 };
+}
+
+/**
+ * La nota en EasyScore, sin la alteración que ya lleva la armadura: en fa
+ * mayor, el si bemol se escribe «B3», no «Bb3».
+ *
+ * VexFlow dibuja delante de la nota todas las alteraciones que le escribes, y
+ * la armadura ya las ha puesto una vez al principio del pentagrama. Repetirlas
+ * en cada nota es una partitura llena de bemoles de cortesía que ningún editor
+ * pondría, y al que está aprendiendo a leer le enseña justo lo contrario de lo
+ * que tiene que aprender: que la armadura vale para todo el compás.
+ */
+export function easyScoreInKey(k: KeyInfo, p: Pitch): string {
+  const { letters, accidental } = keyAccidentals(k);
+  const implied = letters.includes(p.letter) ? accidental : 0;
+  return `${p.letter}${p.accidental === implied ? "" : ACCIDENTAL_VEX[p.accidental]}${p.octave}`;
 }
 
 /** Relativo: mayor ↔ menor con la misma armadura. */

@@ -1,10 +1,10 @@
 import { easyScorePiece } from "./easyscore";
 import type { KeyInfo } from "./keys";
-import { applyKey } from "./keys";
+import { applyKey, easyScoreInKey } from "./keys";
 import type { Pitch } from "./pitch";
-import { LETTERS, diatonicIndex, toEasyScore, toMidi } from "./pitch";
+import { LETTERS, diatonicIndex, toMidi } from "./pitch";
 import type { TimeSignature } from "./meter";
-import { generateRhythm, type RhythmLevel, type RhythmNote } from "./rhythm";
+import { fillBar, generateRhythm, type RhythmLevel, type RhythmNote } from "./rhythm";
 import { pick } from "@/lib/random";
 
 export interface MelodyNote extends RhythmNote {
@@ -51,7 +51,7 @@ export function generateMelody(
   const rhythm = generateRhythm(ts, level, measures, { noRests: opts.noRests ?? level < 3 });
   // Último compás: una nota larga en la tónica.
   const totalBeats = rhythm[0].reduce((s, n) => s + n.beats, 0);
-  rhythm[rhythm.length - 1] = [{ beats: totalBeats, rest: false, vex: totalBeats >= 4 ? "w" : totalBeats >= 3 ? "h." : totalBeats >= 2 ? "h" : totalBeats >= 1.5 ? "q." : "q" }];
+  rhythm[rhythm.length - 1] = fillBar(totalBeats);
 
   // Tónicas dentro del rango.
   const tonicIdx = LETTERS.indexOf(key.tonic);
@@ -83,7 +83,9 @@ export function generateMelody(
     }),
   );
 
-  const easy = out.map((m) => m.map((n) => easyScorePiece(toEasyScore(n.pitch), n.vex, n.rest)).join(", "));
+  // Las alteraciones de la armadura no se repiten delante de cada nota: ya
+  // están escritas al principio del pentagrama.
+  const easy = out.map((m) => m.map((n) => easyScorePiece(easyScoreInKey(key, n.pitch), n.vex, n.rest)).join(", "));
   const events = out.flat().map((n) => ({ midis: n.rest ? [] : [toMidi(n.pitch)], beats: n.beats }));
   return { measures: out, easy, events };
 }

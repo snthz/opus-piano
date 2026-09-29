@@ -21,6 +21,7 @@ const LESSON_SLUGS: Record<string, string> = {
 const EXERCISE_SLUGS: Record<string, string> = {
   notas: "notes",
   "primera-vista": "sight-reading",
+  "lectura-graduada": "sight-reading-grades",
   teclado: "keyboard",
   simbolos: "symbols",
   armaduras: "key-signatures",

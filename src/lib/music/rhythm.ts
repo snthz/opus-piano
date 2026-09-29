@@ -124,6 +124,44 @@ const COMPOUND_UNITS: Record<RhythmLevel, RhythmNote[][]> = {
   ],
 };
 
+/** Figuras con puntillo y sin él, de mayor a menor, para rellenar un compás entero. */
+const DOTTED: [number, string][] = [
+  [6, "w."],
+  [3, "h."],
+  [1.5, "q."],
+  [0.75, "8."],
+];
+const PLAIN: [number, string][] = [
+  [4, "w"],
+  [2, "h"],
+  [1, "q"],
+  [0.5, "8"],
+  [0.25, "16"],
+];
+
+/**
+ * Una nota larga que ocupa `beats` negras, en las menos figuras posibles.
+ *
+ * Los compases compuestos miden en negras con puntillo: un 9/8 son 4,5 negras,
+ * que no es ninguna figura, y un 12/8 son 6, que es una redonda con puntillo y
+ * no una redonda. Escribirlo con figuras sin puntillo deja el compás corto o
+ * parte el pulso por la mitad, así que cuando la duración es múltiplo de la
+ * negra con puntillo se escribe con figuras con puntillo.
+ */
+export function fillBar(beats: number): RhythmNote[] {
+  const pulses = beats / 1.5;
+  const table = Math.abs(pulses - Math.round(pulses)) < 1e-6 ? DOTTED : PLAIN;
+  const out: RhythmNote[] = [];
+  let left = beats;
+  for (const [value, vex] of [...table, ...PLAIN]) {
+    while (left >= value - 1e-6) {
+      out.push({ beats: value, rest: false, vex });
+      left -= value;
+    }
+  }
+  return out.length ? out : [{ beats, rest: false, vex: "q" }];
+}
+
 /** Genera un compás completo. */
 export function generateMeasure(ts: TimeSignature, level: RhythmLevel, opts: { noRests?: boolean } = {}): RhythmNote[] {
   const total = measureBeats(ts);

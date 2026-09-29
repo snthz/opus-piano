@@ -64,6 +64,7 @@ export const PATH: PathStage[] = [
       { kind: "piece", ref: "greensleeves-facil", why: "Puntillos en la derecha y un bajo que dibuja el acorde: las dos manos hacen cosas distintas a la vez." },
       { kind: "exercise", ref: "solfeo", why: "Cantar lo que lees fija la altura mucho antes que los dedos." },
       { kind: "exercise", ref: "primera-vista", why: "Leer sin parar el reloj: el compás sigue aunque la nota no salga, que es lo que pasa de verdad al tocar." },
+      { kind: "exercise", ref: "lectura-graduada", why: "Material por grados para leer en tu piano, con lo escrito y con lectura infinita. A primera vista solo se lee lo que no has visto nunca; por eso hace falta que no se acabe." },
       { kind: "piece", ref: "minueto-sol-petzold", why: "Tu primera obra original: el minueto del Cuaderno de Ana Magdalena, con las dos manos de verdad independientes." },
     ],
   },
